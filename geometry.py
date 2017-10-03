@@ -244,7 +244,7 @@ def pathDir(seg, dbg=False):
         else:
             dir = CW
         if dbg and draw != None:
-            prev = seg[index - 1]
+            # prev = seg[index - 1]
             # o = orientation(prev.p0, l.p0, l.p1)
             str = "%s %s %d dy %3.1f dx %3.1f p0 %7.4f, %7.4f " \
                   "p1 %7.4f %7.4f" % \
