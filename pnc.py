@@ -19,18 +19,16 @@ from geometry import inside, rotateMinDist, \
     pathLength, combineArcs, pathDir, \
     labelP, reverseSeg, createPath, \
     calcAngle
-from geometry import CW, CCW, BOTH, MIN_DIST
+from geometry import CW, CCW, MIN_DIST
 from mill import Mill
 from millLines import MillLine
 from sys import stdout, stderr
-from time import localtime, strftime
 from dxfwrite import DXFEngine as dxf
 from dxfwrite import CENTER, MIDDLE
 from svgwrite import Drawing
 from svgwrite.path import Path
 from svgwrite.shapes import Rect, Circle
-from math import atan2, ceil, cos, degrees, floor, hypot, pi, radians, sin, \
-    sqrt, tan
+from math import ceil, cos, degrees, floor, radians, sin, tan
 from ezdxf import readfile as ReadFile
 from hershey import Font
 from os import getcwd
