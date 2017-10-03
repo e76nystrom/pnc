@@ -44,6 +44,12 @@ def fix(a):
         a -= 360
     return(a)
 
+def translate(p0, p1):
+    return((p0[0] - p1[0], p0[1] - p1[1]))
+
+def offset(p0, p1):
+    return((p0[0] + p1[0], p0[1] + p1[1]))
+
 # orientation of three points
 
 # Let p,q and r be the three points,
