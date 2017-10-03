@@ -781,7 +781,7 @@ class Arc():
         elif l.type == ARC:
             c0 = self.c
             c1 = l.c
-            if self.r != l.r or self.c[0] != l.c[0] or self.c[1] != l.c[1]:
+            if self.r != l.r or c0[0] != c1[0] or c0[1] != c1[1]:
                 p = arcArc(self, l)
         if p != None:
             self.updateP1(p)    # update end of this one
@@ -1467,7 +1467,7 @@ def combineArcs(seg):
         # combine arcs
         if l.type == ARC:
             a1 = None
-            p0 = l.p0
+            # p0 = l.p0
             j = i
             while True:
                 if j + 1 >= segLen:
@@ -1477,7 +1477,7 @@ def combineArcs(seg):
                     l0.c[0] == l.c[0] and l0.c[1] == l.c[1]):
                     # l0.prt()
                     j += 1
-                    p1 = l0.p1
+                    # p1 = l0.p1
                     a1 = l0.aEnd()
                 else:
                     break
