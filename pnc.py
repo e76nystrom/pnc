@@ -15,10 +15,10 @@ import inspect
 from dbgprt import dprt, dflush, dclose, dprtSet, ePrint
 from geometry import oStr, xyDist,  offset
 from geometry import inside, rotateMinDist, \
-    pathLength, fix, splitArcs, combineArcs, pathDir, \
+    pathLength, combineArcs, pathDir, \
     labelP, reverseSeg, createPath, \
     calcAngle
-from geometry import CW, CCW, BOTH, MIN_DIST, LINE, ARC
+from geometry import CW, CCW, BOTH, MIN_DIST
 from mill import Mill
 from millLines import MillLine
 from sys import stdout, stderr
