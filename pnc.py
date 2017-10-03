@@ -656,7 +656,7 @@ class Config():
         else:
             out.write("m0 (pause insert tap)\n");
             if cfg.variables:
-                z = "[#%s + #%s]" % (topVar, depthVar)
+                z = "[#%s + #%s]" % (self.topVar, self.depthVar)
             else:
                 z = "%0.4f" % (cfg.top + cfg.depth)
             out.write("g0 z %s\t(%s)\n" % (z, comment))
@@ -1412,7 +1412,7 @@ class MillPath():
             totalLength = 0.0
             i = 0
             tabPos = []
-            prev = path[-1]
+            # prev = path[-1]
             dprt("match points to path")
             for l in path:
                 for (j, p) in enumerate(tabPoints):
@@ -1649,7 +1649,7 @@ class Draw():
                 p1 = (xSize, 0.0)
                 p2 = (xSize, ySize)
                 p3 = (0.0, ySize)
-            elif orientation == 3 or orinetation == 4:
+            elif orientation == 3 or orientation == 4:
                 p0 = (-xSize/2, -ySize/2)
                 p1 = (xSize/2, -ySize/2)
                 p2 = (xSize/2, ySize/2)
