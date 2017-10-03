@@ -3,7 +3,7 @@ from sys import stdout, stderr
 from copy import copy
 from dbgprt import dprt, dflush, ePrint
 from math import atan2, ceil, cos, degrees, floor, hypot, pi, radians, sin, \
-    sqrt, tan
+    sqrt
 
 # dxf arcs are always counter clockwise.
 
@@ -851,8 +851,8 @@ class Arc():
             ya = m * xa
         pa = (x0 + xa, y0 + ya)
         pb = (x0 - xa, y0 - ya)
-        a = degAtan2(pa[1] - j, pa[0] - i)
-        b = degAtan2(pb[1] - j, pb[0] - i)
+        # a = degAtan2(pa[1] - j, pa[0] - i)
+        # b = degAtan2(pb[1] - j, pb[0] - i)
         labelP(pa, 'pa')
         labelP(pb, 'pb')
         # dprt("extend\n")
