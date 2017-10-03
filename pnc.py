@@ -13,6 +13,7 @@ import re
 import geometry
 import inspect
 from dbgprt import dprt, dflush, dclose, dprtSet, ePrint
+from geometry import Arc, Line
 from geometry import oStr, xyDist,  offset
 from geometry import inside, rotateMinDist, \
     pathLength, combineArcs, pathDir, \
