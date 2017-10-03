@@ -13,12 +13,10 @@ import re
 import geometry
 import inspect
 from dbgprt import dprt, dflush, dclose, dprtSet, ePrint
-from geometry import Arc, Line
-from geometry import orientation, oStr, lineCircle, lineLine, lineArc, \
-    lineLineArc, xyDist, degAtan2
+from geometry import oStr, xyDist,  offset
 from geometry import inside, rotateMinDist, \
     pathLength, fix, splitArcs, combineArcs, pathDir, \
-    segOrientation, labelP, reverseSeg, createPath, \
+    labelP, reverseSeg, createPath, \
     calcAngle
 from geometry import CW, CCW, BOTH, MIN_DIST, LINE, ARC
 from mill import Mill
@@ -1793,12 +1791,6 @@ class Draw():
                               alignpoint=p, halign=CENTER, valign=MIDDLE, \
                               layer=layer))
         self.move(last)
-
-    def translate(self, p0, p1):
-        return((p0[0] - p1[0], p0[1] - p1[1]))
-
-    def offset(self, p0, p1):
-        return((p0[0] + p1[0], p0[1] + p1[1]))
 
     def drawLine(self, p, m, b, x):
         self.move(self.offset((0, b), p))
