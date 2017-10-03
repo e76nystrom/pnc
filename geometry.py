@@ -245,7 +245,7 @@ def pathDir(seg, dbg=False):
             dir = CW
         if dbg and draw != None:
             prev = seg[index - 1]
-            o = orientation(prev.p0, l.p0, l.p1)
+            # o = orientation(prev.p0, l.p0, l.p1)
             str = "%s %s %d dy %3.1f dx %3.1f p0 %7.4f, %7.4f " \
                   "p1 %7.4f %7.4f" % \
                   (oStr(dir), oStr(dir), l.index, dy, dx, x0, y0, x1, y1)
@@ -455,12 +455,12 @@ class Line():
         dy = y1 - y0
         if abs(dx) > abs(dy):
             m = dy / dx
-            b = y0 - m * x0
+            # b = y0 - m * x0
             x = sqrt(dist * dist / (1 + m * m))
             y = m * x
         else:
             m = dx / dy
-            b = x0 - m * y0
+            # b = x0 - m * y0
             y = sqrt(dist * dist / (1 + m * m))
             x = m * y
         pa = (x0 + x, y0 + y)
@@ -558,7 +558,7 @@ class Line():
         else:
             (x2, y2) = l.c
             ab = y1 - y2
-            bb = x2 - s1
+            bb = x2 - y1
             cb = x1*y2 - x2*y1
             pass
         yIntercept = abs(bb) > abs(ab)
