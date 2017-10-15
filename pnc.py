@@ -1937,7 +1937,7 @@ class Dxf():
                 for e in self.modelspace:
                     if layer != e.get_dxf_attrib("layer"):
                         continue
-                    if e.dxftype() == 'CIRCLE':
+                    if e.dxftype() == 'CIRCLE' or e.dxftype() == 'ARC':
                         (x, y) = e.get_dxf_attrib("center")[:2]
                         self.xOffset = -x
                         self.yOffset = -y
