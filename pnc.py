@@ -291,6 +291,8 @@ class Config():
                         if n < len(sys.argv):
                             self.dbgFile = sys.argv[n]
                             self.dbg = True
+                    elif tmp == 'help':
+                        self.help()
             elif val.startswith('-'):
                 if len(val) >= 2:
                     tmp = val[1]
@@ -304,6 +306,10 @@ class Config():
                         self.drawSvg = True
                     elif tmp == 'x':
                         self.drawDxf = True
+                    elif tmp == 'h':
+                        self.help()
+            elif val.startswith('?'):
+                self.help();
             else:
                 if self.inFile == None:
                     self.inFile = val
@@ -315,6 +321,20 @@ class Config():
                     self.dxfFile = val
             n += 1
 
+    def help(self):
+        print("Usage: pnc [options] pncFile [dxfInput]")
+        print(" ?            help\n" \
+              " -d           debug\n" \
+              " -h           help\n" \
+              " -s           output svf file\n" \
+              " -x           output dxf file\n" \
+              " --dbg file   debug output file\n" \
+              " --dxf file   dxf input file\n" \
+              " --level file level input file\n" \
+              " --probe      generate probe data" \
+        )
+        sys.exit()
+        
     def open(self):
         self.setupVars()
         inp = open(self.inFile, 'r')
