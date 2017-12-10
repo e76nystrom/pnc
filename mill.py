@@ -185,10 +185,10 @@ class Mill():
             t = "g1 x %7.4f y %7.4f" % (xEnd, yEnd)
         else:
             cfg = self.cfg
-            zDepth = cfg.top + cfg.depth + zOffset
+            zDepth = cfg.top + zOffset
             if cfg.variables:
-                z = "[#%s + #%s + %7.4f]" % \
-                    (cfg.topVar, cfg.depthVar, zOffset)
+                z = "[#%s + %7.4f]" % \
+                    (cfg.topVar, zOffset)
             else:
                 z = "%0.4f" % (zDepth)
             t = "g1 x %7.4f y %7.4f z%s" % (xEnd, yEnd, z)
