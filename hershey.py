@@ -1,7 +1,7 @@
 #!/cygdrive/c/DevSoftware/Python/Python36-32/Python.exe
 
 from __future__ import print_function
-from dbgprt import dprt, ePrint
+from dbgprt import dprt, dprtSet, ePrint
 from math import atan2, cos, degrees, hypot, pi, radians, sin
 
 # The structure is bascially as follows: each character consists of a
@@ -37,6 +37,9 @@ class Font():
         self.max = -99
         self.height = 0.0
         self.scale = 0.0
+        self.dbg = True
+        if self.dbg:
+            dprtSet(True)
         self.readFont(file)
         self.m = m
         self.d = d
@@ -53,8 +56,8 @@ class Font():
             index = int(val.decode())
             val = inp.read(3)
             length = int(val.decode())
-            r = ord(inp.read(1)) - ord('R')
             l = ord(inp.read(1)) - ord('R')
+            r = ord(inp.read(1)) - ord('R')
             chArray = []
             move = True
             for i in range(0, length - 1):
@@ -78,18 +81,19 @@ class Font():
             val = inp.read(1)
             if ord(val) != 10:
                 ePrint("error")
-            # dprt("%3d %1c length %2d index %4d len %2d l %3d r %3d "\
-            #       "max %3d min %3d" % \
-            #       (c, c, length, index, len(chArray), l, r, max, min))
-            # j = 0
-            # for i, (x, y, move) in enumerate(chArray):
-            #     dprt("(%2d %3d %3d %5s)" % (i, x, y, move), end=" ")
-            #     j += 1
-            #     if j & 3 == 0:
-            #         dprt()
-            # if j & 3 != 0:
-            #     dprt()
-            # c += 1
+            if self.dbg:
+                dprt("%3d %1c length %2d index %4d len %2d l %3d r %3d "\
+                     "max %3d min %3d" % \
+                     (c, c, length, index, len(chArray), l, r, max, min))
+                j = 0
+                for i, (x, y, move) in enumerate(chArray):
+                    dprt("(%2d %3d %3d %5s)" % (i, x, y, move), end=" ")
+                    j += 1
+                    if j & 3 == 0:
+                        dprt()
+                if j & 3 != 0:
+                    dprt()
+                c += 1
             if max > self.max:
                 self.max = max
             if min < self.min:
@@ -170,11 +174,11 @@ class Font():
 class Letter():
     def __init__(self, r, l, chArray):
         self.r = r
-        self.l = -l
+        self.l = l
         self.chArray = chArray
 
     def width(self):
-        return(self.r + self.l)
+        return(self.r - self.l)
 
     def offset(self, yOffset, ySize):
         for s in self.chArray:
