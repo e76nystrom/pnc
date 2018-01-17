@@ -8,13 +8,13 @@ dbg = None
 def ePrint(str):
     dprt(str)
     dflush()
-    if not DBG or dbg != None:
+    if not DBG or dbg is not None:
         print(str, file=stderr)
     
 def dprt(str="", end='\n'):
     global DBG, dbg
     if DBG:
-        if dbg == None:
+        if dbg is None:
             print(str, end=end)
         else:
             try:
@@ -27,7 +27,7 @@ def dprt(str="", end='\n'):
 def dflush():
     global DBG, dbg, dbgFile
     if DBG:
-        if dbg == None:
+        if dbg is None:
             stdout.flush()
         else:
             try:
@@ -38,10 +38,10 @@ def dflush():
 
 def dprtSet(dbgFlag=None, dFile=None):
     global DBG, dbg, dbgFile
-    if dbgFlag != None:
+    if dbgFlag is not None:
         DBG = dbgFlag
-    if dFile != None:
-        if dbg != None and dbgFile != dFile:
+    if dFile is not None:
+        if dbg is not None and dbgFile != dFile:
             dbg.close()
             dbgFile = ""
             dbg = None
@@ -55,7 +55,7 @@ def dprtSet(dbgFlag=None, dFile=None):
 
 def dclose():
     global dbg
-    if dbg != None:
+    if dbg is not None:
         dbg.close()
         dbg = None
         

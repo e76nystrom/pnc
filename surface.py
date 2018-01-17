@@ -89,7 +89,7 @@ class Surface():
                     p0 = (x1, y0)
                     p1 = (x0, y0)
                 sign = - sign
-                if prev != None:
+                if prev is not None:
                     self.addSeg(prev, p0)
                 self.addSeg(p0, p1)
                 self.drawMill(p0)
@@ -113,7 +113,7 @@ class Surface():
 
     def drawRect(self, x, y, w, h):
         draw = self.cfg.draw
-        if draw != None:
+        if draw is not None:
             x1 = x + w
             y1 = y + h
             p0 = (x, y)
@@ -128,5 +128,5 @@ class Surface():
 
     def drawMill(self, p):
         draw = self.cfg.draw
-        if draw != None:
+        if draw is not None:
             draw.circle(p, self.cfg.endMillSize / 2.0)

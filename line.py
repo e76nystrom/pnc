@@ -63,7 +63,7 @@ class Engrave():
             
         if cfg.level:
             inp = cfg.probeOpen()
-            if inp == None:
+            if inp is None:
                 return
             l = inp.readline().strip()
             l = l.split()

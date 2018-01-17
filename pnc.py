@@ -19,10 +19,10 @@ from geometry import inside, rotateMinDist, \
     pathLength, combineArcs, pathDir, \
     labelP, reverseSeg, createPath, \
     calcAngle
-from geometry import CW, CCW, MIN_DIST
+from geometry import CW, CCW, MAX_VALUE, MIN_DIST, MIN_VALUE
 from mill import Mill
 from millLines import MillLine
-from sys import stdout, stderr
+from sys import stdout
 from dxfwrite import DXFEngine as dxf
 from dxfwrite import CENTER, MIDDLE
 from svgwrite import Drawing
@@ -33,6 +33,12 @@ from ezdxf import readfile as ReadFile
 from hershey import Font
 from os import getcwd
 from imp import load_source
+
+O_UPPER_LEFT = 0
+O_LOWER_LEFT = 1
+O_CENTER = 2
+O_POINT = 3
+O_MAX = 4
 
 # dxf arcs are always counter clockwise.
 
@@ -77,6 +83,9 @@ class Config():
         self.finishAllowance = 0.0 # finish allowance
         self.alternate = False  # alternate directions on open path
         self.addArcs = False    # add arcs between line segments
+
+        self.holeMin = 0.0      # hole milling >= size
+        self.holeMax = MAX_VALUE # hole milling < size
 
         self.xSize = 0.0        # material x size
         self.ySize = 0.0        # material y size
@@ -192,6 +201,9 @@ class Config():
             ('endmill', self.setEndMillSize), \
             ('finish', self.setFinish), \
             ('finishallowance', self.setFinish), \
+
+            ('holemin', self.setHoleMin), \
+            ('holemax', self.setHoleMax), \
 
             ('tabs', self.setTabs), \
             ('tabwidth', self.setTabWidth), \
@@ -311,7 +323,7 @@ class Config():
             elif val.startswith('?'):
                 self.help();
             else:
-                if self.inFile == None:
+                if self.inFile is None:
                     self.inFile = val
                     if not re.search('\.[a-zA-Z0-9]*$', self.inFile):
                         self.inFile += ".pnc"
@@ -340,6 +352,10 @@ class Config():
         inp = open(self.inFile, 'r')
         self.dirPath = os.path.dirname(self.inFile)
         self.fileName = os.path.basename(self.inFile).replace(".pnc", "")
+        if len(self.dirPath) != 0:
+            self.baseName = os.path.join(self.dirPath, self.fileName)
+        else:
+            self.baseName = self.fileName
 
         dprtSet(self.dbg, os.path.join(self.dirPath, self.dbgFile) \
                 if len(self.dbgFile) != 0 else "")
@@ -387,12 +403,12 @@ class Config():
 
     def end(self):
         self.init = False
-        if self.mill != None:
+        if self.mill is not None:
             self.mill.close()
         self.lastX = 0.0
         self.lastY = 0.0
         if self.probe:
-            if self.prb != None:
+            if self.prb is not None:
                 self.prb.out.write("(PROBECLOSE)\n")
                 self.prb.close()
                 self.prb = None
@@ -404,14 +420,14 @@ class Config():
         self.init = True
 
         draw = self.draw
-        if draw == None:
+        if draw is None:
             self.draw = draw = Draw()
             geometry.draw = draw
 
         draw.open(self.outFileName, self.drawDxf, self.drawSvg)
 
         dxfInput = self.dxfInput
-        if dxfInput != None:
+        if dxfInput is not None:
             if len(dxfInput.material) != 0:
                 self.draw.materialOutline(dxfInput.material)
             else:
@@ -420,7 +436,7 @@ class Config():
         draw.move((0.0, 0.0))
 
         outFile = self.outFileName + ".ngc"
-        if self.mill == None:
+        if self.mill is None:
             self.mill = Mill(self, outFile)
         else:
             self.mill.init(outFile)
@@ -504,7 +520,7 @@ class Config():
 
     def setSpeed(self, args):
         self.speed = float(args[1])
-        if self.mill != None:
+        if self.mill is not None:
             self.mill.setSpeed(self.speed)
 
     def setDelay(self, args):
@@ -532,6 +548,18 @@ class Config():
     def setEndMillSize(self, args):
         self.endMillSize = float(args[1])
 
+    def setHoleMin(self, args):
+        if len(args) >= 2:
+            self.holeMin = float(args[1])
+        else:
+            self.holeMin = 0.0
+
+    def setHoleMax(self, args):
+        if len(args) >= 2:
+            self.holeMax = float(args[1])
+        else:
+            self.holeMax = MAX_VALUE
+            
     def setDepthPass(self, args):
         self.depthPass = abs(float(args[1]))
 
@@ -617,7 +645,7 @@ class Config():
 
     def drill(self, args=None, tap=False):
         self.ncInit()
-        if args != None:
+        if args is not None:
             if len(args) >= 2:
                 self.x = float(args[1])
             if len(args) >= 3:
@@ -647,7 +675,7 @@ class Config():
                     mill.setFeed(self.feed)
                 out.write("g%s x%7.4f y%7.4f\n" % (gMove, self.x, self.y))
         self.draw.hole((self.x, self.y), self.drillSize)
-        holeCount = "/%d" % (self.holeCount) if self.holeCount != None \
+        holeCount = "/%d" % (self.holeCount) if self.holeCount is not None \
                     else ""
         comment = "hole %d%s x%7.4f y%7.4f" % \
                   (self.count, holeCount, self.x, self.y)
@@ -685,7 +713,7 @@ class Config():
         self.lastY = self.y
 
     def getMillPath(self):
-        if self.mp == None:
+        if self.mp is None:
             self.mp = MillPath(self)
         self.mp.config(self)
         return(self.mp)
@@ -733,7 +761,7 @@ class Config():
                        (self.x, self.y + width))
         self.millSlot(points, width, length, 'xSlot')
         # ncInit()
-        # if slot == None:
+        # if slot is None:
         #     slot = Slot(self.mill, self.draw)
         # slot.xSlot(width, length)
 
@@ -758,7 +786,7 @@ class Config():
         # self.out.write("(endMill %0.3f depth %0.3f depthPass %0.3f)\n" % \
         #           (self.endMillSize, self.depth, self.depthPass))
         # ncInit()
-        # if self.slot == None:
+        # if self.slot is None:
         #     self.slot = Slot(self.mill, self.draw)
         # self.slot.ySlot(width, length)
 
@@ -773,30 +801,38 @@ class Config():
         self.materialLayer = args[1]
 
     def setOrientation(self, args):
-        o = ("millvice", "upperleft", "lowerleft", "center", "point")
+        o = ((O_UPPER_LEFT, "upperleft"), \
+             (O_LOWER_LEFT, "lowerleft"), \
+             (O_CENTER, "center"), \
+             (O_POINT, "point"), \
+        )
         val = args[1].lower()
-        for (i, x) in enumerate(o):
+        for (i, x) in o:
             if val == x:
                 self.orientation = i
                 val = None
                 break
-        if val != None:
+        if val is not None:
             self.orientation = int(args[1])
+            if self.orientation >= 0 or \
+               self.orientation < O_MAX:
+                ePrint("invalid orientation %d", self.orientation)
+                self.orientation = None
         layer = None
-        if self.orientation == 4:
+        if self.orientation == O_POINT:
             self.orientationLayer = layer = args[2]
-        if self.dxfInput != None:
+        if self.dxfInput is not None:
             self.dxfInput.setOrientation(self.orientation, layer)
 
     def readDxf(self, args):
-        if self.orientation == None:
+        if self.orientation is None:
             self.error = True
             dprt("orientation not set")
             dflush()
         l = args[0]
         fileName = l.split(' ', 1)[-1]
         if fileName == "*":
-            if self.dxfFile != None:
+            if self.dxfFile is not None:
                 if re.search("\.dxf$", self.dxfFile):
                     fileName = self.dxfFile
                     self.baseName = fileName.replace(".dxf", "")
@@ -826,7 +862,7 @@ class Config():
 
     def dxfLine(self, args):
         self.ncInit()
-        if self.line == None:
+        if self.line is None:
             self.line = MillLine(self, self.mill, self.draw)
         self.line.millLines(args[1])
 
@@ -924,7 +960,7 @@ class Config():
             self.count = 0
             dLoc = d.loc
             while len(dLoc) != 0:
-                minDist = 9999
+                minDist = MAX_VALUE
                 index = 0
                 for (i, loc) in enumerate(dLoc):
                     dist = xyDist(last, loc)
@@ -938,19 +974,23 @@ class Config():
                 last = loc
                 self.drill(loc, tap)
 
-    def dxfMillHole(self, args):
-        layer = args[1]
-        drill = self.dxfInput.getHoles(layer)
+    def dxfMillHole(self, args, drill=None):
+        if drill is None:
+            layer = args[1]
+            drill = self.dxfInput.getHoles(layer)
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
         for d in drill:
+            if d.size < self.holeMin or \
+               d.size >= self.holeMax:
+                continue
             self.mill.out.write("(drill size %6.3f holes %d)\n" % \
                                 (d.size, len(d.loc)))
             dLoc = d.loc
             n = 1
             while len(dLoc) != 0:
-                minDist = 9999
+                minDist = MAX_VALUE
                 index = 0
                 for (i, loc) in enumerate(dLoc):
                     dist = xyDist(last, loc)
@@ -990,7 +1030,7 @@ class Config():
 
     def outputFile(self, args):
         self.end()
-        if self.draw != None:   # close drawing files
+        if self.draw is not None:   # close drawing files
             self.draw.close()
             self.draw = None
         self.tabInit()          # reset tabs
@@ -1026,7 +1066,7 @@ class Config():
             self.engrave = module.Engrave(cfg)
             self.engrave.setup()
         else:
-            if self.engrave != None:
+            if self.engrave is not None:
                 self.ncInit()
                 self.engrave.engrave()
 
@@ -1154,7 +1194,7 @@ class MillPath():
         self.tabState = T_START
         
         tabPos = self.tabPos
-        if self.tabs != 0 or tabPos != None:
+        if self.tabs != 0 or tabPos is not None:
             if self.cfg.alternate:
                 ePrint("***error no tabs with alternate")
                 return
@@ -1162,7 +1202,7 @@ class MillPath():
             if self.rampAngle != 0.0:
                 self.tabRamp = self.tabDepth / self.tanRampAngle
 
-            if tabPos != None:
+            if tabPos is not None:
                 d = self.tabWidth / 2.0
                 for (i, p)  in enumerate(tabPos):
                     p -= d
@@ -1420,7 +1460,7 @@ class MillPath():
     def calcTabPos(self, path, tabPoints):
         self.tabs = 0
         tabPos = None
-        if tabPoints != None and len(tabPoints) != 0:
+        if tabPoints is not None and len(tabPoints) != 0:
             dprt("calcTabPos %d" % (len(tabPoints)))
             for (i, p) in enumerate(tabPoints):
                 dprt("%d p %7.4f, %7.4f" % (i, p[0], p[1]))
@@ -1434,10 +1474,10 @@ class MillPath():
             for l in path:
                 for (j, p) in enumerate(tabPoints):
                     dp = l.pointDistance(p)
-                    # if dp != None:
+                    # if dp is not None:
                     #     dprt("%d %d dp %7.4f p %7.4f, %7.4f" % \
                     #           (i, j, dp, p[0], p[1]))
-                    if dp != None and abs(dp) < MIN_DIST:
+                    if dp is not None and abs(dp) < MIN_DIST:
                         d = l.startDist(p)
                         dprt("%d startDist %7.4f p %7.4f, %7.4f" % \
                               (i, d, p[0], p[1]))
@@ -1610,14 +1650,14 @@ class Draw():
                 ePrint("dxf file open error %s" % (dxfFile))
 
     def close(self):
-        if self.d != None:
+        if self.d is not None:
             dprt("save drawing file");
             self.d.save()
             self.d = None
 
-        if self.svg != None:
+        if self.svg is not None:
             self.svg.add(self.path)
-            if self.materialPath != None:
+            if self.materialPath is not None:
                 self.svg.add(self.materialPath)
                 self.svg.save()
                 self.svg = None
@@ -1636,10 +1676,10 @@ class Draw():
         return point
 
     def material(self, xSize, ySize):
-        if self.svg != None:
+        if self.svg is not None:
             self.offset = 0.0
             path = self.materialPath
-            if path == None:
+            if path is None:
                 self.materialPath = Path(stroke_width=.5, stroke='red', \
                                       fill='none')
                 path = self.materialPath
@@ -1654,37 +1694,39 @@ class Draw():
             # dwg = svgwrite.Drawing(name, (svg_size_width, svg_size_height), \
             # debug=True)
 
-        if self.d != None:
+        if self.d is not None:
             orientation = cfg.orientation
-            if orientation == 1:
+            if orientation == O_UPPER_LEFT:
                 p0 = (0.0, 0.0)
                 p1 = (xSize, 0.0)
                 p2 = (xSize, -ySize)
                 p3 = (0.0, -ySize)
-            elif orientation == 2:
+            elif orientation == O_LOWER_LEFT:
                 p0 = (0.0, 0.0)
                 p1 = (xSize, 0.0)
                 p2 = (xSize, ySize)
                 p3 = (0.0, ySize)
-            elif orientation == 3 or orientation == 4:
+            elif orientation == O_CENTER or orientation == O_POINT:
                 p0 = (-xSize/2, -ySize/2)
                 p1 = (xSize/2, -ySize/2)
                 p2 = (xSize/2, ySize/2)
                 p3 = (-xSize/2, ySize/2)
+            else:
+                ePrint("invalid orientation")
             self.d.add(dxf.line(p0, p1, layer='BORDER'))
             self.d.add(dxf.line(p1, p2, layer='BORDER'))
             self.d.add(dxf.line(p2, p3, layer='BORDER'))
             self.d.add(dxf.line(p3, p0, layer='BORDER'))
 
     def materialOutline(self, lines):
-        if self.svg != None:
+        if self.svg is not None:
             self.xOffset = 0.0
             self.yOffset = cfg.dxfInput.ySize
             self.svg.add(Rect((0, 0), (cfg.dxfInput.xSize * self.pScale, \
                                        cfg.dxfInput.ySize * self.pScale), \
                               fill='rgb(255, 255, 255)'))
             path = self.materialPath
-            if path == None:
+            if path is None:
                 self.materialPath = Path(stroke_width=.5, stroke='red', \
                                          fill='none')
                 path = self.materialPath
@@ -1693,7 +1735,7 @@ class Draw():
                 path.push('M', (self.scaleOffset(start)))
                 path.push('L', (self.scaleOffset(end)))
 
-        if self.d != None:
+        if self.d is not None:
             for l in lines:
                 (start, end) = l
                 self.d.add(dxf.line(cfg.dxfInput.fix(start), \
@@ -1701,7 +1743,7 @@ class Draw():
 
     def move(self, end):
         if self.enable:
-            if self.svg != None:
+            if self.svg is not None:
                 self.path.push('M', self.scaleOffset(end))
                 # dprt("svg move %7.4f %7.4f" % self.scaleOffset(end))
             # dprt("   move %7.4f %7.4f" % end)
@@ -1709,10 +1751,10 @@ class Draw():
 
     def line(self, end):
         if self.enable:
-            if self.svg != None:
+            if self.svg is not None:
                 self.path.push('L', self.scaleOffset(end))
                 # dprt("svg line %7.4f %7.4f" % self.scaleOffset(end))
-            if self.d != None:
+            if self.d is not None:
                 self.d.add(dxf.line(self.last, end, layer='PATH'))
             # dprt("   line %7.4f %7.4f" % end)
             self.last = end
@@ -1720,11 +1762,11 @@ class Draw():
     def arc(self, end, center):
         if self.enable:
             r = xyDist(end, center)
-            if self.svg != None:
+            if self.svg is not None:
                 self.path.push_arc(self.scaleOffset(end), 0, r, \
                                     large_arc=True, angle_dir='+', \
                                     absolute=True)
-            if self.d != None:
+            if self.d is not None:
                 p0 = self.last
                 p1 = end
                 if xyDist(p0, p1) < MIN_DIST:
@@ -1744,7 +1786,7 @@ class Draw():
 
     def circle(self, end, r, l='HOLE'):
         if self.enable:
-            if self.d != None:
+            if self.d is not None:
                 if not l in self.layers:
                     self.d.add_layer(l)
                 self.d.add(dxf.circle(r, end, layer=l))
@@ -1752,26 +1794,26 @@ class Draw():
 
     def hole(self, end, drillSize):
         if self.enable:
-            if self.svg != None:
+            if self.svg is not None:
                 self.path.push('L', self.scaleOffset(end))
                 # dprt("svg line %7.4f %7.4f" % self.scaleOffset(end))
                 self.svg.add(Circle(self.scaleOffset(end), \
                                     (drillSize / 2) * self.pScale, \
                                     stroke='black', stroke_width=.5, \
                                     fill="none"))
-            if self.d != None:
+            if self.d is not None:
                 self.d.add(dxf.line(self.last, end, layer='PATH'))
                 self.d.add(dxf.circle(drillSize / 2, end, layer='HOLE'))
         self.last = end
 
     def text(self, txt, p0, height):
         if self.enable:
-            if self.d != None:
+            if self.d is not None:
                 self.d.add(dxf.text(txt, p0, height, layer='TEXT'))
 
     def add(self, entity):
         if self.enable:
-            if self.d != None:
+            if self.d is not None:
                 self.d.add(entity)
 
     def drawCross(self, p):
@@ -1805,7 +1847,7 @@ class Draw():
     def drawCircle(self, p, d=0.010, layer='DBG', txt=None):
         last = self.last
         self.circle(p, d / 2.0, layer)
-        if txt != None:
+        if txt is not None:
             self.add(dxf.text(txt, p, 0.010, \
                               alignpoint=p, halign=CENTER, valign=MIDDLE, \
                               layer=layer))
@@ -1838,10 +1880,10 @@ class Dxf():
     def open(self, inFile, layers, materialLayer):
         self.dwg = dwg = ReadFile(inFile)
         self.modelspace = modelspace = dwg.modelspace()
-        xMax = -9999
-        xMin = 9999
-        yMax = -9999
-        yMin = 9999
+        xMax = MIN_VALUE
+        xMin = MAX_VALUE
+        yMax = MIN_VALUE
+        yMin = MAX_VALUE
         self.material = []
         checkLayers = len(layers) != 0
         for e in modelspace:
@@ -1953,7 +1995,7 @@ class Dxf():
             self.xOffset = -(self.xMin + (self.xMax - self.xMin) / 2)
             self.yOffset = -(self.yMin + (self.yMax - self.yMin) / 2)
         elif orientation == 4:
-            if layer != None:
+            if layer is not None:
                 for e in self.modelspace:
                     if layer != e.get_dxf_attrib("layer"):
                         continue
@@ -2049,7 +2091,7 @@ class Dxf():
                 if e.closed:
                     prev = e[-1][:2]
                 for p in e.get_rstrip_points():
-                    if prev != None:
+                    if prev is not None:
                         l0 = Line(self.fix(prev), self.fix(p), linNum, e)
                         entities.append(l0)
                         linNum += 1
@@ -2281,7 +2323,7 @@ class Dxf():
     #     prev = (0, 0)
     #     while i < len(line):
     #         j = i
-    #         minDist = 9999
+    #         minDist = MAX_VALUE
     #         # print "i %d %7.4f %7.4f" % (i, prev[0], prev[1])
     #         while j < len(line):
     #             (start, end) = line[j]

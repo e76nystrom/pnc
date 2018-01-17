@@ -28,7 +28,7 @@ class RectPocket():
         layer = args[1]
         cfg = self.cfg
         dir = CCW
-        if cfg.dir != None and cfg.dir == 'CW':
+        if cfg.dir is not None and cfg.dir == 'CW':
             dir = CW
         cfg.ncInit()
         segments = cfg.dxfInput.getPath(layer)
@@ -129,7 +129,7 @@ class RectPocket():
                             p0 = (x1, y0)
                             p1 = (x0, y0)
                         sign = - sign
-                        if prev != None:
+                        if prev is not None:
                             self.addSeg(prev, p0)
                         self.addSeg(p0, p1)
                         self.drawMill(p0)
@@ -145,7 +145,7 @@ class RectPocket():
         p1 = (x1, y0)
         p2 = (x1, y1)
         p3 = (x0, y1)
-        if prev != None:
+        if prev is not None:
             self.addSeg(prev, p0)
         if w > 0 and h > 0:
             if dir == CW:
@@ -185,7 +185,7 @@ class RectPocket():
 
     def drawRect(self, x, y, w, h):
         draw = self.cfg.draw
-        if draw != None:
+        if draw is not None:
             x1 = x + w
             y1 = y + h
             p0 = (x, y)
@@ -200,5 +200,5 @@ class RectPocket():
 
     def drawMill(self, p):
         draw = self.cfg.draw
-        if draw != None:
+        if draw is not None:
             draw.circle(p, self.cfg.endMillSize / 2.0)

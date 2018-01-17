@@ -95,7 +95,6 @@ class Font():
             if min < self.min:
                 self.min = min
 
-
     def setHeight(self, h):
         self.height = h
         self.scale = h / (self.max - self.min)
@@ -117,7 +116,7 @@ class Font():
     def mill(self, pt, str, xDir=True, center=False):
         (x, y) = pt
         if center:
-            w = self.width(s) / 2.0
+            w = self.width(str) / 2.0
             if xDir:
                 x += w
             else:
@@ -241,11 +240,11 @@ class Letter():
                 m.retract()
                 m.move(p0)
                 m.zDepth()
-                if d != None:
+                if d is not None:
                     d.move(pA)
             else:
                 m.cut(p0, draw=False)
-                if d != None:
+                if d is not None:
                     d.line(pA)
                 
 if __name__ == '__main__':

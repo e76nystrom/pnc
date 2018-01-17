@@ -151,11 +151,11 @@ class MillLine():
                       (currentDepth, cutHalfWidth,
                        widthPasses, widthPerPass))
 
-            if self.debug and self.draw1 == None:
+            if self.debug and self.draw1 is None:
                 self.draw1 = draw = Draw()
                 draw.open("slot", dxfFile=True, svg=False)
                 d = draw.d
-                if d != None:
+                if d is not None:
                     x0 = 0
                     d0 = (x0 - halfWidth, 0)
                     d1 = (x0 + halfWidth, 0)
@@ -163,7 +163,7 @@ class MillLine():
                     d.add(dxf.line(d0, d1, layer='BORDER'))
                     d.add(dxf.line(d1, d2, layer='BORDER'))
                     d.add(dxf.line(d2, d0, layer='BORDER'))
-            if self.debug and self.draw1 != None:
+            if self.debug and self.draw1 is not None:
                 d = self.draw1.d
                 x0 = 0
                 d0 = (x0 - halfWidth, currentDepth)
@@ -226,7 +226,7 @@ class MillLine():
                     self.mill.cut((x0 - w, y0))
                     self.mill.cut(p1)
 
-                    if self.debug and self.draw1 != None:
+                    if self.debug and self.draw1 is not None:
                         d = self.draw1.d
                         cutHalfWidth = self.cutHalfWidth
                         # x = 0 + w
@@ -244,7 +244,7 @@ class MillLine():
                         d.add(dxf.line(d1, d2, layer='PATH'))
                         d.add(dxf.line(d2, d0, layer='PATH'))
             lastDepth = currentDepth
-        if self.debug and self.draw1 != None:
+        if self.debug and self.draw1 is not None:
             self.debug = False
             self.draw1.close()
             self.draw1 = None

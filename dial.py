@@ -104,7 +104,8 @@ class Engrave():
                 zOffset = 0.0
                 if i < len(levelData):
                     (probeAngle, zOffset) = levelData[i]
-                if probeAngle != None and abs(probeAngle - angle) < min_dist:
+                if probeAngle is not None and \
+                   abs(probeAngle - angle) < min_dist:
                     levelIndex += 1
                 else:
                     for levelIndex, (probAngle, zOffset) \

@@ -11,6 +11,8 @@ LINE = 0
 ARC = 1
 
 MIN_DIST = .0001
+MAX_VALUE = 9999
+MIN_VALUE = -9999
 
 draw = None                     # draw class
 cfg = None                      # config class
@@ -211,7 +213,7 @@ def pathDir(seg, dbg=False):
     #         dir = CW
     #     else:
     #         dir = CCW
-    #     if dbg and draw != None:
+    #     if dbg and draw is not None:
     #         (x0, y0) = l.p0
     #         (x1, y1) = l.p1
     #         str = "%s %d p0 dy %4.1f dx %4.1f %7.4f, %7.4f p1 %7.4f %7.4f" % \
@@ -225,7 +227,7 @@ def pathDir(seg, dbg=False):
     l.prt()
     if l.type == ARC:
         dir = (CCW, CW)[l.swapped]
-        if dbg and draw != None:
+        if dbg and draw is not None:
             (x0, y0) = l.p0
             str = "%3s %2d" % (oStr(dir), l.index)
             draw.text(str, (x0 + dbg, y0 + dbg), .025)
@@ -243,7 +245,7 @@ def pathDir(seg, dbg=False):
             dir = CCW
         else:
             dir = CW
-        if dbg and draw != None:
+        if dbg and draw is not None:
             # prev = seg[index - 1]
             # o = orientation(prev.p0, l.p0, l.p1)
             str = "%s %s %d dy %3.1f dx %3.1f p0 %7.4f, %7.4f " \
@@ -331,7 +333,7 @@ class Line():
             else:               # dist < 0 is counter clockwise
                 if dir != CW:
                     pM = pb
-            if dbg and draw != None:
+            if dbg and draw is not None:
                 l = 'DBG'
                 draw.drawCircle(self.p0, layer=l)
                 draw.drawCircle((xM, yM), 0.020, layer=l)
@@ -380,10 +382,10 @@ class Line():
             p = lineLine(self, l)
         elif l.type == ARC:
             p = lineArc(self, l, 1)
-            # if p == None:
+            # if p is None:
             #     dprt("l no intersection s %7.4f, %7.4f e %7.4f %7.4f" % \
             #           (self.p1[0], self.p1[1], l.p0[0], l.p1[1]))
-        if p != None:
+        if p is not None:
             self.updateP1(p)    # set end of this one
             l.updateP0(p)       # set start of next one
             if l.type == ARC:
@@ -615,7 +617,7 @@ class Line():
         mill.cut(self.p1, zEnd, comment)
 
     def draw(self):
-        if draw == None:
+        if draw is None:
             return
         draw.move(self.p0)
         draw.line(self.p1)
@@ -625,7 +627,7 @@ class Line():
                (self.index, self.p0[0], self.p0[1], \
                 self.p1[0], self.p1[1], self.length, \
                 xyDist(self.p0, self.p1))
-         if out == None:
+         if out is None:
              dprt(str)
          else:
              out.write(str)
@@ -743,7 +745,7 @@ class Arc():
                 d1 = orientation(self.p0, pM, p)
                 dprt("%2d arc dir %s midPoint dir %s swapped %s" % \
                       (self.index, oStr(d0), oStr(d1), self.swapped))
-                if draw != None:
+                if draw is not None:
                     l = 'DBG'
                     draw.drawCircle(self.p0, layer=l)
                     draw.drawCircle(pM, 0.020, layer=l)
@@ -783,10 +785,10 @@ class Arc():
             c1 = l.c
             if self.r != l.r or c0[0] != c1[0] or c0[1] != c1[1]:
                 p = arcArc(self, l)
-        if p != None:
+        if p is not None:
             self.updateP1(p)    # update end of this one
             l.updateP0(p)       # and start of next one
-        # if p == None:
+        # if p is None:
         #     dprt("a no intersection s %7.4f, %7.4f e %7.4f %7.4f" % \
         #           (self.p1[0], self.p1[1], l.p0[0], l.p1[1]))
         return(p)
@@ -892,7 +894,7 @@ class Arc():
         #       (self.index, xyDist(self.p1, self.c), self.r))
 
     def draw(self):
-        if draw == None:
+        if draw is None:
             return
         if not self.swapped:
             draw.move(self.p0)
@@ -908,7 +910,7 @@ class Arc():
                self.p1[0], self.p1[1], self.length, \
                (' ', 's')[self.swapped], self.c[0], self.c[1], \
                self.r, self.a0, self.a1)
-        if out == None:
+        if out is None:
             dprt(str)
         else:
             out.write(str)
@@ -933,29 +935,29 @@ def lineLine(l0, l1):
         b1 = y2 - m1 * x2          # intercept of l1
 
     if abs(x0 - x1) < MIN_DIST: # l0 vertical
-        if x != None:           # l1 vertical
+        if x is not None:           # l1 vertical
             y = y2
         else:
             x = x0
-            if y != None:       # l1 horizontal
+            if y is not None:       # l1 horizontal
                 pass
             else:               # l1 oblique
                 y = m1 * x + b1
     elif abs(y0 - y1) < MIN_DIST: # l0 horizontal
-        if y != None:             # l1 horizontal
+        if y is not None:             # l1 horizontal
             x = x2
         else:
             y = y0
-            if x != None:       # l1 vertical
+            if x is not None:       # l1 vertical
                 pass
             else:               # l1 oblique
                 x = (y - b1) / m1
     else:                         # l0 oblique
         m = (y1 - y0) / (x1 - x0) # slope of line l0
         b = y0 - m * x0           # intercept of l0
-        if x != None:             # l1 vertical
+        if x is not None:             # l1 vertical
             y = m * x + b
-        elif y != None:         # l1 horizontalal
+        elif y is not None:         # l1 horizontalal
             x = (y - b) / m
         else:                   # l1 oblique
             if abs(m - m1) < MIN_DIST: # 
@@ -1003,7 +1005,7 @@ def lineCircle(l, c, r):
             y = yb
         # dprt("m %7.4f b %7.4f m90 %7.4f" % (m, b, m90))
         # dprt("da %7.4f db %7.4f" % (da, db))
-    # if draw != None:
+    # if draw is not None:
     #     drawLineCircle(m, b, r, lineIndex)
     # lineIndex += 1
     return((x + c[0], y + c[1]))
@@ -1203,10 +1205,10 @@ def lineLineArc(seg, l0, l1, dist, dir):
             for d1 in (dist, -dist):
                 pl1 = l1.parallel(d1)
                 p = lineLine(pl0, pl1)
-                if p[0] == None or p[1] == None:
+                if p[0] is None or p[1] is None:
                     dprt("error***")
                     p = lineLine(pl0, pl1)
-                if dbg and draw != None:
+                if dbg and draw is not None:
                     (x, y) = p
                     draw.text('%d' % (c), (x - 0.010, y - 0.005), 0.010)
                 if ((inside(p, seg, dbg) & 1) == 0) == flag:
@@ -1222,13 +1224,13 @@ def lineLineArc(seg, l0, l1, dist, dir):
         pl0 = l0.parallel(d)
         pl1 = l1.parallel(d)
         p = lineLine(pl0, pl1)
-    if p == None:
+    if p is None:
         ePrint("+++ no intersection")
         return(None)
     # dprt("%3s p %7.4f, %7.4f d0 %6.3f d1 %6.3f" % \
     #       (oStr(lDir), p[0], p[1], d0, d1))
     # dflush()
-    # if draw != None:
+    # if draw is not None:
     #     draw.circle(p, dist)
     p0 = lineCircle(l0, p, dist)
     p1 = lineCircle(l1, p, dist)
@@ -1243,7 +1245,7 @@ def lineLineArc(seg, l0, l1, dist, dir):
         arc.swap()
         arc.prt()
         arc.draw()
-    # if draw != None:
+    # if draw is not None:
     #     draw.drawCross(p)
     #     draw.drawCross(p0)
     #     draw.drawCross(p1)
@@ -1344,7 +1346,7 @@ def inside(p, seg, dbg=False):
         if dbg:
             if cType != 0:
                 dprt("cType %d cross %d" % (cType, cross))
-    if dbg and draw != None:
+    if dbg and draw is not None:
         dprt()
         draw.drawX(p, "i%d" % (cross))
     return(cross)
@@ -1481,7 +1483,7 @@ def combineArcs(seg):
                     a1 = l0.aEnd()
                 else:
                     break
-            if a1 != None:
+            if a1 is not None:
                 # dprt("p0 %7.4f, %7.4f p1 %7.4f %7.4f" % \
                 #       (p0[0], p0[1], p1[0], p1[1]))
                 # dprt("%2d combine arc %2d %2d a0 %5.1f a1 %5.1f" % \
@@ -1567,7 +1569,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
         pMid = l.midPoint(d, True)
         if closed:
             cross = inside(pMid, newSeg, False)
-            # if draw != None
+            # if draw is not None
             #     draw.drawX(pMid, "i%d-%d" % (cross, l.index))
             if ((cross & 1) == 0) != outside:
                 ePrint("creatPath - parallel line not on correct side")
@@ -1575,23 +1577,23 @@ def createPath(seg, dist, outside, tabPoints=None, \
                 d = -d
         l1 = l.parallel(d)
         l1.index = i
-        if prev != None:
+        if prev is not None:
             # dprt("intersect %d %s and %d %s" % \
             #       (prev.index, prev.str[0], l1.index, l1.str[0]))
             if intersect:
                 p = prev.intersect(l1)
         segPath.append(l1)
-        if tabPoints != None:
+        if tabPoints is not None:
             for (n, p) in enumerate(tabPoints):
                 dp = l.pointDistance(p)
-                # if dp != None:
+                # if dp is not None:
                 #     dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
-                if dp != None and abs(dp) < MIN_DIST:
+                if dp is not None and abs(dp) < MIN_DIST:
                     p0 = l.point90(p, d)
                     dp = l1.pointDistance(p0)
                     # dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
                     segTabPoints.append(p0)
-                    if draw != None:
+                    if draw is not None:
                         draw.drawX(p0, "T%d" % (n), True)
         prev = l1
 
@@ -1605,7 +1607,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
         l.prt()
     dprt()
 
-    if segTabPoints != None:
+    if segTabPoints is not None:
         segTabPoints = list(set(segTabPoints))
 
     if addArcs and closed:
@@ -1616,9 +1618,9 @@ def createPath(seg, dist, outside, tabPoints=None, \
         newPath = []
         for l in segPath:
             l.prt()
-            if prev != None and prev.type == LINE and l.type == LINE:
+            if prev is not None and prev.type == LINE and l.type == LINE:
                 arc = lineLineArc(segPath, prev, l, cfg.endMillSize / 2.0, dir)
-                if arc != None:
+                if arc is not None:
                     newPath.append(arc)
             newPath.append(l)
             prev = l
@@ -1632,10 +1634,10 @@ def createPath(seg, dist, outside, tabPoints=None, \
     p1 = None
     for (i, l) in enumerate(newPath):
         l.prt()
-        if p1 != None:
+        if p1 is not None:
             l.updateP0(p1)
             p1 = None
-        elif prev != None and l.type == ARC and l.index == -1:
+        elif prev is not None and l.type == ARC and l.index == -1:
             prev.updateP1(l.p0)
             p1 = l.p1
         l.index = i
@@ -1648,7 +1650,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
     return(newPath, segTabPoints)
 
 def labelPoints(seg):
-    if draw == None:
+    if draw is None:
         return
     for (i, l) in enumerate(seg):
         (x, y) = l.p0
@@ -1658,7 +1660,7 @@ def labelPoints(seg):
         draw.text('%s%d' % (t, l.index), (x + .010, y + .010), .010)
 
 def labelP(p, txt):
-    if draw == None:
+    if draw is None:
         return
     (x, y) = p
     # cfg.draw.text('%s' % (txt), (x + .010, y + .010), .025)
@@ -1677,7 +1679,7 @@ def printPoint(name, point):
 #         l.prt()
 #         curDir = None
 #         if l.type == ARC:
-#             if dbg and draw != None:
+#             if dbg and draw is not None:
 #                 draw.move(l.c)
 #                 draw.line((l.c[0], l.c[1] + 1))
 #             c = inside(l.c, seg, dbg)
@@ -1699,10 +1701,10 @@ def printPoint(name, point):
 #         dprt("%5s c0 %d c1 %d m0 %7.4f, %7.4f m1 %7.4f, %7.4f" % \
 #              (dirStr, c0, c1, m0[0], m0[1], m1[0], m1[1]))
 
-#         if curDir != None:
-#             if outsideDir == None and (c0 == 0 or c1 == 0):
+#         if curDir is not None:
+#             if outsideDir is None and (c0 == 0 or c1 == 0):
 #                 outsideDir = curDir
-#             if dir == None:
+#             if dir is None:
 #                 dir = curDir
 #             else:
 #                 if curDir != BOTH and curDir != dir:
@@ -1763,7 +1765,7 @@ def printPoint(name, point):
 #                     maxY = y
 #                     index = i
 #     dflush()
-#     if index == None:
+#     if index is None:
 #         return((0, 0))
 #     dprt("index %d maxY %7.4f" % (index, maxY))
 #     dprt()

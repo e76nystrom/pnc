@@ -30,7 +30,7 @@ class CircularPocket():
         layer = args[1]
         cfg = self.cfg
         dir = CCW
-        if cfg.dir != None and cfg.dir == 'CW':
+        if cfg.dir is not None and cfg.dir == 'CW':
             dir = CW
         cfg.ncInit()
         endAngle = self.endAngle
@@ -52,7 +52,7 @@ class CircularPocket():
                 for (x, y) in hole.loc:
                     dprt("center %7.4f %7.4f" % (x, y))
                     draw = cfg.draw
-                    if draw != None:
+                    if draw is not None:
                         draw.circle((x, y), diameter / 2)
                     self.path = []
                     self.index = 0
@@ -99,7 +99,7 @@ class CircularPocket():
                     p0 = (-radius * cos(a) + x, radius * sin(a) + y)
                     r = radius - stepOver
                     draw = cfg.draw
-                    if draw != None:
+                    if draw is not None:
                         draw.circle((x, y), diameter / 2)
                         draw.circle((x, y), radius)
                         draw.circle((x, y), r1)
@@ -137,5 +137,5 @@ class CircularPocket():
 
     def drawMill(self, p):
         draw = self.cfg.draw
-        if draw != None:
+        if draw is not None:
             draw.circle(p, self.cfg.endMillSize / 2.0)

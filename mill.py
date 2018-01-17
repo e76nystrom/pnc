@@ -9,7 +9,7 @@ class Mill():
         self.outFile = None
         self.spindleActive = False
         self.speed = 0
-        if outFile != None:
+        if outFile is not None:
             self.init(outFile, draw)
 
     def init(self, outFile, draw=True):
@@ -23,7 +23,7 @@ class Mill():
         self.cw = False
         if cfg.zFeed == 0:
             cfg.zFeed = cfg.feed
-        if self.outFile == None:
+        if self.outFile is None:
             self.outFile = outFile
             # self.out = out = open(outFile, 'w', newline='\n')
             self.out = out = open(outFile, 'w')
@@ -91,7 +91,7 @@ class Mill():
             self.out.write("f %s		(set feed rate)\n" % (newFeed))
 
     def move(self, end, comment=""):
-        if self.draw != None:
+        if self.draw is not None:
             self.draw.move(end)
         (xEnd, yEnd) = end
         if len(comment) != 0:
@@ -177,11 +177,11 @@ class Mill():
             self.write("g1 z %s%s\n" % (z, comment))
 
     def cut(self, end, zOffset=None, comment=None, draw=True):
-        if draw and self.draw != None:
+        if draw and self.draw is not None:
             self.draw.line(end)
         (xEnd, yEnd) = end
         self.setFeed(self.cfg.feed)
-        if zOffset == None:
+        if zOffset is None:
             t = "g1 x %7.4f y %7.4f" % (xEnd, yEnd)
         else:
             cfg = self.cfg
@@ -193,7 +193,7 @@ class Mill():
                 z = "%0.4f" % (zDepth)
             t = "g1 x %7.4f y %7.4f z%s" % (xEnd, yEnd, z)
             self.lastZ = zDepth
-        if comment != None:
+        if comment is not None:
             t += " (%s)" % (comment)
         self.write(t + "\n")
         self.last = end
@@ -202,7 +202,7 @@ class Mill():
         (xEnd, yEnd) = end
         (xCen, yCen) = center
         (lastX, lastY) = self.last
-        if draw and self.draw != None:
+        if draw and self.draw is not None:
             if self.cw:
                 self.draw.arc(end, center)
             else:
@@ -210,14 +210,14 @@ class Mill():
                 self.draw.arc(self.last, center)
                 self.draw.move(end)
         self.setFeed(self.cfg.feed)
-        if zEnd == None:
+        if zEnd is None:
             t = "%s x %7.4f y %7.4f i %7.4f j %7.4f" % \
                 (self.arcCmd, xEnd, yEnd, xCen - lastX, yCen - lastY)
         else:
             t = "%s x %7.4f y %7.4f z %7.4f i %7.4f j %7.4f" % \
                 (self.arcCmd, xEnd, yEnd, zEnd, xCen - lastX, yCen - lastY)
             self.lastZ = zEnd
-        if comment != None:
+        if comment is not None:
             t += " (%s)" % (comment)
         self.write(t + "\n")
         self.last = end
@@ -225,7 +225,7 @@ class Mill():
     def probe(self, end, feed=1.0, comment=None):
         out = self.out
         cfg = self.cfg
-        str = " (%s)" % comment if comment != None else ""
+        str = " (%s)" % comment if comment is not None else ""
             
         out.write("g0 x%7.4f y%7.4f\n" % end)
         out.write("g38.2 z%6.4f f%0.1f%s\n" % (cfg.probeDepth, feed, str))
@@ -241,7 +241,7 @@ class Mill():
 
     def close(self):
         out = self.out
-        if out != None:
+        if out is not None:
             if self.speed != 0:
                 self.spindleActive = False
                 out.write("m5	(stop spindle)\n")
