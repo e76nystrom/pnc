@@ -1,5 +1,5 @@
 
-from pnc import Drill, O_UPPER_LEFT, O_LOWER_LEFT
+from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
 
 from geometry import MIN_DIST
 
@@ -13,7 +13,8 @@ class DrillHolder():
         ( \
           ('dhdrillholes', self.millHoles),
           ('dhlabelholes', self.labelHoles),
-          ('dhletterheight', self.setLetterHeight)
+          ('dhletterheight', self.setLetterHeight),
+          ('dhdraw', self.drawHolder),
           # ('', self.),
         )
         self.holes = \
@@ -21,8 +22,8 @@ class DrillHolder():
               (0.086, "44"), \
               (0.089, "43"), \
               (0.140, "4-40"), \
-              (0.106, "36"), \
-              (0.110, "35"), \
+              (0.104, "37"), \
+              (0.107, "36"), \
               (0.140, "6-32"), \
               (0.125, "1/8"), \
 
@@ -30,7 +31,7 @@ class DrillHolder():
               (0.136, "29"), \
               (0.167, "8-32"), \
               (0.140, "28"), \
-              (0.1495, "25"), \
+              (0.150, "25"), \
               (0.152, "24"), \
               (0.194, "10-24"), \
               
@@ -43,7 +44,7 @@ class DrillHolder():
               (0.169, "18"), \
 
               (0.173, "17"), \
-              (0.1875, "3/16"), \
+              (0.188, "3/16"), \
               (0.191, "11"), \
               (0.194, "10"), \
               (0.196, "9"), \
@@ -63,7 +64,7 @@ class DrillHolder():
               (0.318, "5/16-18"), \
               (0.277, "J"), \
               (0.318, "5/16-24"), \
-              (0.3125, "5/16"), \
+              (0.313, "5/16"), \
               (0.375, ""), \
             )
 
@@ -77,6 +78,8 @@ class DrillHolder():
         self.xMount = (0.1875, 2)
         self.yMount = (0.25, 3)
 
+        self.clearance = 0.001
+
         self.setup()
 
     def setup(self):
@@ -84,17 +87,19 @@ class DrillHolder():
         (xOffset, yOffset) = self.offset
         (xSpace, ySpace) = self.spacing
 
-        xSize = 2 * xOffset + xGrid * xSpace
-        ySize = 2 * yOffset + yGrid * ySpace
-        if self.cfg.orientation == O_UPPER_LEFT:
+        self.xSize = 2 * xOffset + (xGrid - 1) * xSpace
+        self.ySize = 2 * yOffset + (yGrid - 1) * ySpace
+
+        orientation = self.cfg.orientation
+        if orientation == O_UPPER_LEFT:
             if self.top:
                 y = -yOffset
                 ySpace = -ySpace
             else:
                 y = -ySize + yOffset
-        elif self.cfg.orientation == O_LOWER_LEFT:
+        elif orientation == O_LOWER_LEFT:
             if self.top:
-                y = ySize - yOffset
+                y = self.ySize - yOffset
                 ySpace = -ySpace
             else:
                 y = yOffset
@@ -106,15 +111,17 @@ class DrillHolder():
         for i in range(yGrid):
             x = xOffset
             for j in range(xGrid):
-                self.holeInfo.append((x, y) + self.holes[index])
+                (size, label) = self.holes[index]
+                size += self.clearance
+                self.holeInfo.append((x, y, size, label))
                 x += xSpace
                 index += 1
             y += ySpace
 
         (xMountOffset, xMountGrid) = self.xMount
         (yMountOffset, yMountGrid) = self.yMount
-        xMountSpace = (xSize - 2 * xMountOffset) / (xMountGrid - 1)
-        yMountSpace = (ySize - 2 * yMountOffset) / (yMountGrid - 1)
+        xMountSpace = (self.xSize - 2 * xMountOffset) / (xMountGrid - 1)
+        yMountSpace = (self.ySize - 2 * yMountOffset) / (yMountGrid - 1)
 
         self.mountInfo = []
         y = yMountOffset
@@ -147,12 +154,29 @@ class DrillHolder():
                     break
 
         self.cfg.dxfMillHole(None, holes)
+        self.cfg.draw.material(self.xSize, self.ySize)
 
     def labelHoles(self, args):
         font = self.cfg.font;
         font.setHeight(self.letterHeight)
+        offset = self.textOffset
+        if offset < 0:
+            offset -= self.letterHeight / 2
+        else:
+            offset += self.letterHeight / 2
         for (x, y, size, text) in self.holeInfo:
             if len(text) != 0:
-                w = font.width(text)
-                y = y + self.textOffset
+                y += offset
                 font.mill((x, y), text, center=True)
+
+    def drawHolder(self, args):
+        file = args[1]
+        d = Draw()
+        d.open(file, True, False)
+        d.material(self.xSize, self.ySize)
+        r = self.mountSize / 2.0
+        for p in self.mountInfo:
+            d.circle(p, r)
+        for (x, y, size, text) in self.holeInfo:
+            d.circle((x, y), size / 2.0)
+        d.close()

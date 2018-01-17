@@ -37,7 +37,7 @@ class Font():
         self.max = -99
         self.height = 0.0
         self.scale = 0.0
-        self.dbg = True
+        self.dbg = False
         if self.dbg:
             dprtSet(True)
         self.readFont(file)
@@ -75,14 +75,14 @@ class Font():
                         max = y
                     if y < min:
                         min = y
-                    chArray.append([x + l, y, move])
+                    chArray.append([x + abs(l), y, move])
                     move = False
             self.letter.append(Letter(r, l, chArray))
             val = inp.read(1)
             if ord(val) != 10:
                 ePrint("error")
             if self.dbg:
-                dprt("%3d %1c length %2d index %4d len %2d l %3d r %3d "\
+                dprt("%3d '%1c' length %2d index %4d len %2d l %3d r %3d "\
                      "max %3d min %3d" % \
                      (c, c, length, index, len(chArray), l, r, max, min))
                 j = 0
@@ -116,15 +116,22 @@ class Font():
             letter = self.letter[ord(b) - ord(' ')]
             width += letter.width()
         return(self.scale * width)
+
+    def left(self, str):
+        left = 0
+        for b in list(str):
+            letter = self.letter[ord(b) - ord(' ')]
+            left += letter.l
+        return(self.scale * left)
     
     def mill(self, pt, str, xDir=True, center=False):
         (x, y) = pt
         if center:
             w = self.width(str) / 2.0
             if xDir:
-                x += w
+                x -= w
             else:
-                y += w
+                y -= w
         for b in list(str):
             letter = self.letter[ord(b) - ord(' ')]
             letter.mill(self, (x, y), xDir)
