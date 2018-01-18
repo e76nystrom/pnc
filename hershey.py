@@ -43,6 +43,7 @@ class Font():
         self.readFont(file)
         self.m = m
         self.d = d
+        self.zOffset = 0.0
 
     def readFont(self, file):
         inp = open(file, 'rb')
@@ -109,6 +110,9 @@ class Font():
         ySize = self.max - self.min
         for l in self.letter:
             l.offset(yOffset, ySize)
+
+    def setZOffset(self, zOffset):
+        self.setZOffset
 
     def width(self, str):
         width = 0
@@ -195,6 +199,7 @@ class Letter():
     def mill(self, font, pt, xDir=True):
         scale = font.scale
         m = font.m
+        zOffset = font.zOffset
         (x, y) = pt
         for (xRel, yRel, move) in self.chArray:
             # dprt("%3d %3d %5s" % (xRel, yRel, move))
@@ -208,13 +213,14 @@ class Letter():
             if move:
                 m.retract()
                 m.move(p)
-                m.zDepth()
+                m.zDepth(zOffset)
             else:
                 m.cut(p)
 
     def millOnArc(self, font, pt, angle):
         scale = font.scale
         m = font.m
+        zOffset = font.zOffset
         (xC, yC) = pt
         for (x, y, move) in self.chArray:
             theta = atan2(y, x) + angle
@@ -225,7 +231,7 @@ class Letter():
             if move:
                 m.retract()
                 m.move(p0)
-                m.zDepth()
+                m.zDepth(zOffset)
             else:
                 m.cut(p0)
 
@@ -233,6 +239,7 @@ class Letter():
         scale = font.scale
         m = font.m
         d = font.d
+        zOffset = font.zOffset
         (xP, yP) = pt
         for (x, y, move) in self.chArray:
             if xDir:
@@ -250,7 +257,7 @@ class Letter():
             if move:
                 m.retract()
                 m.move(p0)
-                m.zDepth()
+                m.zDepth(zOffset)
                 if d is not None:
                     d.move(pA)
             else:

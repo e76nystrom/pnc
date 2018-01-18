@@ -1,4 +1,5 @@
 from math import radians
+from geometry import MIN_DIST
 
 class Engrave():
     def __init__(self, cfg):
@@ -59,25 +60,9 @@ class Engrave():
         tickLen = (tick10, tick1, tick2, tick2, tick1, \
                    tick5,  tick1, tick2, tick2, tick1)
 
+        xDir = self.xDir
         if cfg.probe:
             cfg.probeInit()
-
-        if cfg.level:
-            inp = open(cfg.probeData, 'r')
-            (zRef, prbAngle) = inp.readline()[2:4]
-            levelData = []
-            for (z, prbAngle) in inp:
-                levelData.append((prbAngle, z - zRef))
-            levelIndex = 0
-            inp.close()
-            
-        cfg.font.setHeight(self.letterHeight)
-        m = self.m
-        d = self.d
-        xDir = self.xDir
-        m.safeZ()
-        m.move((x0, y0))
-        if cfg.probe:
             prb = cfg.prb
             prb.write("g0 a%7.4f\n" % (self.startAngle))
             if xDir:
@@ -90,22 +75,38 @@ class Engrave():
             prb.write("g38.2 z%6.4f (reference probe)\n" % (cfg.probeDepth))
             prb.write("g0 z%6.4f\n\n" % (cfg.retract))
 
-        min_dist = cfg.min_dist
+        if cfg.level:
+            inp = open(cfg.probeData, 'r')
+            (zRef, prbAngle) = inp.readline()[2:4]
+            levelData = []
+            for (z, prbAngle) in inp:
+                levelData.append((prbAngle, z - zRef))
+            levelIndex = 0
+            inp.close()
+            
+        font = cfg.font
+        font.setHeight(self.letterHeight)
+        m = self.m
+        d = self.d
+        m.safeZ()
+        m.move((x0, y0))
         for i in range(0, self.ticks+1):
             rem = i % 10
             length = tickLen[rem]
             angle = -i * tickAngle + self.startAngle
+
             if cfg.probe:
                 prb.write("g0 a%7.4f\n" % (angle))
                 prb.write("g38.2 z%6.4f\n" % (cfg.probeDepth))
                 prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+
             if cfg.level:
                 probeAngle = None
                 zOffset = 0.0
                 if i < len(levelData):
                     (probeAngle, zOffset) = levelData[i]
                 if probeAngle is not None and \
-                   abs(probeAngle - angle) < min_dist:
+                   abs(probeAngle - angle) < MIN_DIST:
                     levelIndex += 1
                 else:
                     for levelIndex, (probAngle, zOffset) \
@@ -113,7 +114,7 @@ class Engrave():
                         if abs(probeAngle - angle) < MIN_DIST:
                             levelIndex += 1
                             break
-                m.setzOffset(zOffset)
+                font.setZOffset(zOffset)
                 
             if xDir:
                 m.out.write("g0 x%7.4f a%7.4f (%d)\n" % (x0, angle, i))
@@ -136,5 +137,5 @@ class Engrave():
                     pt = (x0, y0 + letterX)
                 else:
                     pt = (x0 + letterX, y0)
-                cfg.font.millOnCylinder(pt, angle, radius, \
-                                        str, xDir, True)
+                font.millOnCylinder(pt, angle, radius, \
+                                    str, xDir, True)

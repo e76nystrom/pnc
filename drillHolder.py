@@ -1,6 +1,4 @@
-
 from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
-
 from geometry import MIN_DIST
 
 class DrillHolder():
@@ -14,7 +12,8 @@ class DrillHolder():
           ('dhdrillholes', self.millHoles),
           ('dhlabelholes', self.labelHoles),
           ('dhletterheight', self.setLetterHeight),
-          ('dhdraw', self.drawHolder),
+          ('dhdxf', self.dxfHolder),
+          ('dhscad', self.scadHolderBase),
           # ('', self.),
         )
         self.holes = \
@@ -112,7 +111,6 @@ class DrillHolder():
             x = xOffset
             for j in range(xGrid):
                 (size, label) = self.holes[index]
-                size += self.clearance
                 self.holeInfo.append((x, y, size, label))
                 x += xSpace
                 index += 1
@@ -143,6 +141,7 @@ class DrillHolder():
         holes.append(d)
         
         for (x, y, size, text) in self.holeInfo:
+            size += self.clearance
             for h in holes:
                 if abs(size - h.size) < MIN_DIST:
                     h.addLoc((x, y))
@@ -157,19 +156,66 @@ class DrillHolder():
         self.cfg.draw.material(self.xSize, self.ySize)
 
     def labelHoles(self, args):
-        font = self.cfg.font;
+        cfg = self.cfg
+
+        if cfg.probe:
+            cfg.probeInit()
+            prb = cfg.prb
+            (x, y) = self.holeInfo[0][0:2]
+            prb.write("g0 x %7.4f y %7.4f\n" % (x, y + self.textOffset))
+            prb.write("g38.2 z%6.4f (reference probe)\n" % (cfg.probeDepth))
+            prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+
+        if cfg.level:
+            zRef = inp.readline()[2]
+            levelData = []
+            for probeData in inp:
+                (x, y, z) = probeData[0:3]
+                levelData.append((x, y, z - zRef))
+            levelIndex = 0
+            inp.close()
+            
+        font = cfg.font
         font.setHeight(self.letterHeight)
         offset = self.textOffset
         if offset < 0:
             offset -= self.letterHeight / 2
         else:
             offset += self.letterHeight / 2
+        m = self.m
+        m.safeZ()
         for (x, y, size, text) in self.holeInfo:
             if len(text) != 0:
+                if cfg.probe:
+                    prb.write("g0 x %7.4f y %7.4f\n" % \
+                              (x, y + self.textOffset))
+                    prb.write("g38.2 z%6.4f (reference probe)\n" % \
+                              (cfg.probeDepth))
+                    prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+
+                if cfg.level:
+                    found = False
+                    (xProbe, yProbe, zOffset) = levelData[levelIndex]
+                    if abs(x - xProbe) < MIN_DIST and \
+                       abs(y - yProbe) < MIN_DIST:
+                        found = True
+                        levelIndex += 1
+                    else:
+                        for levelIndex, (xProbe, yProbe, zOffset) in \
+                            enumerate(levelData):
+                            if abs(x - xProbe) < MIN_DIST and \
+                               abs(y - yProbe) < MIN_DIST:
+                                found = True
+                                levelIndex += 1
+                    if found:
+                        font.setZOffset(zOffset)
+                    else:
+                        ePrint("level data not found")
+
                 y += offset
                 font.mill((x, y), text, center=True)
 
-    def drawHolder(self, args):
+    def dxfHolder(self, args):
         file = args[1]
         d = Draw()
         d.open(file, True, False)
@@ -180,3 +226,65 @@ class DrillHolder():
         for (x, y, size, text) in self.holeInfo:
             d.circle((x, y), size / 2.0)
         d.close()
+
+    def scadHolderBase(self, args):
+        file = args[1]
+        print(file)
+        f = open(file, "w")
+        m = 25.4
+        self.baseThickness = 0.0625
+        self.mountHole = 0.125
+        self.mountSpacer = 0.375
+        self.mountHeight = 0.875
+        self.mountRecess = 0.250
+        self.mountRecessHeight = 0.125
+
+        self.wall = 0.8
+        self.wallHeight = 0.25
+        self.printClearance = 0.005
+
+        f.write("//base x %7.4f y %7.4f\n" % (self.xSize, self.ySize))
+        f.write("$fs = 0.05;	// minimum segment length\n")
+        f.write("difference()\n{\n")
+        f.write(" union()\n {\n")
+        f.write("  linear_extrude(%7.4f)\n" % (self.baseThickness * m))
+        f.write("   square([%7.4f, %7.4f]);\n" % \
+                (self.xSize * m, self.ySize * m))
+
+        for (x, y) in self.mountInfo:
+            f.write("  linear_extrude(%7.4f)\n" % (self.mountHeight * m))
+            f.write("   translate([%7.4f, %7.4f, 0.0])\n" % \
+                    (x * m, y * m))
+            f.write("    circle(%7.4f);\n" % (self.mountSpacer * m / 2.0))
+        f.write(" }\n")
+        f.write(" union()\n {\n")
+        for (x, y) in self.mountInfo:
+            f.write("  linear_extrude(%7.4f)\n" % (self.mountHeight * m))
+            f.write("   translate([%7.4f, %7.4f, 0.0])\n" % \
+                    (x * m, y * m))
+            f.write("    circle(%7.4f);\n" % (self.mountHole * m / 2.0))
+        f.write(" }\n")
+        f.write(" union()\n {\n")
+        for (x, y) in self.mountInfo:
+            f.write("  linear_extrude(%7.4f)\n" % (self.mountRecessHeight * m))
+            f.write("   translate([%7.4f, %7.4f, 0.0])\n" % \
+                    (x * m, y * m))
+            f.write("    circle(%7.4f);\n" % (self.mountRecess * m / 2.0))
+        f.write(" }\n")
+        f.write("}\n")
+
+        for (x, y, size, text) in self.holeInfo:
+            f.write("//drill x %7.4f y %7.4f size %7.4f %s\n" % \
+                    (x, y, size, text))
+            f.write("linear_extrude(%7.4f)\n" % (self.wallHeight * m))
+            f.write("translate([%7.4f, %7.4f, 0.0])\n" % \
+                    (x * m, y * m))
+            f.write("difference()\n");
+            size = (size + self.printClearance) * m / 2.0
+            f.write("{circle(%7.4f); circle(%7.4f);}\n" % \
+                    (size + self.wall, size))
+            f.write("\n")
+            
+        f.close()
+
+        
