@@ -1,11 +1,10 @@
+import os
 from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
 from geometry import MIN_DIST
 
 class DrillHolder():
     def __init__(self, cfg):
         self.cfg = cfg
-        self.m = cfg.mill
-        self.d = cfg.draw
         self.letterHeight = 0.1
         self.cmds = \
         ( \
@@ -75,7 +74,7 @@ class DrillHolder():
 
         self.mountSize = 0.125
         self.xMount = (0.1875, 2)
-        self.yMount = (0.25, 3)
+        self.yMount = (0.1875, 3)
 
         self.clearance = 0.001
 
@@ -182,7 +181,7 @@ class DrillHolder():
             offset -= self.letterHeight / 2
         else:
             offset += self.letterHeight / 2
-        m = self.m
+        m = cfg.mill
         m.safeZ()
         for (x, y, size, text) in self.holeInfo:
             if len(text) != 0:
@@ -217,6 +216,8 @@ class DrillHolder():
 
     def dxfHolder(self, args):
         file = args[1]
+        if len(os.path.dirname(file)) == 0:
+            file = os.path.join(self.cfg.dirPath, file)
         d = Draw()
         d.open(file, True, False)
         d.material(self.xSize, self.ySize)
@@ -229,12 +230,14 @@ class DrillHolder():
 
     def scadHolderBase(self, args):
         file = args[1]
+        if len(os.path.dirname(file)) == 0:
+            file = os.path.join(self.cfg.dirPath, file)
         print(file)
         f = open(file, "w")
         m = 25.4
         self.baseThickness = 0.0625
         self.mountHole = 0.125
-        self.mountSpacer = 0.375
+        self.mountSpacer = 0.3125
         self.mountHeight = 0.875
         self.mountRecess = 0.250
         self.mountRecessHeight = 0.125
@@ -243,13 +246,31 @@ class DrillHolder():
         self.wallHeight = 0.25
         self.printClearance = 0.005
 
+        self.xChamfer = 0.4
+        self.zChamfer = 0.4
+
         f.write("//base x %7.4f y %7.4f\n" % (self.xSize, self.ySize))
         f.write("$fs = 0.05;	// minimum segment length\n")
         f.write("difference()\n{\n")
         f.write(" union()\n {\n")
         f.write("  linear_extrude(%7.4f)\n" % (self.baseThickness * m))
-        f.write("   square([%7.4f, %7.4f]);\n" % \
-                (self.xSize * m, self.ySize * m))
+
+        # f.write("   square([%7.4f, %7.4f]);\n" % \
+        #         (self.xSize * m, self.ySize * m))
+
+        r = (self.mountSpacer / 2.0) * m
+        xSize = self.xSize * m
+        ySize = self.ySize * m
+        f.write("  hull()\n  {\n")
+        locations = ((r, r), \
+                     (r, ySize - r), \
+                     (xSize - r, ySize - r), \
+                     (xSize - r, r), \
+                     )
+        for (x, y) in locations:
+            f.write("   translate([%7.3f, %7.3f, 0])\n" % (x, y))
+            f.write("    circle(%7.4f);\n" % (r))
+        f.write("  }\n")
 
         for (x, y) in self.mountInfo:
             f.write("  linear_extrude(%7.4f)\n" % (self.mountHeight * m))
@@ -276,14 +297,23 @@ class DrillHolder():
         for (x, y, size, text) in self.holeInfo:
             f.write("//drill x %7.4f y %7.4f size %7.4f %s\n" % \
                     (x, y, size, text))
-            f.write("linear_extrude(%7.4f)\n" % (self.wallHeight * m))
-            f.write("translate([%7.4f, %7.4f, 0.0])\n" % \
+            f.write("difference()\n{\n")
+            
+            f.write(" linear_extrude(%7.4f)\n" % (self.wallHeight * m))
+            f.write("  translate([%7.4f, %7.4f, 0.0])\n" % \
                     (x * m, y * m))
-            f.write("difference()\n");
+            f.write("   difference()\n")
             size = (size + self.printClearance) * m / 2.0
-            f.write("{circle(%7.4f); circle(%7.4f);}\n" % \
+            f.write("   {\n    circle(%7.4f);\n    circle(%7.4f);\n  }\n" % \
                     (size + self.wall, size))
+
+            f.write(" translate([%7.4f, %7.4f, %7.4f])\n" % \
+                    (x * m, y * m, self.wallHeight * m - self.zChamfer))
+            f.write("  cylinder(h = %7.4f, r1 = %7.4f, r2 = %7.4f);\n" % \
+                    (self.zChamfer, size, size  + self.xChamfer))
+            f.write("}\n")
             f.write("\n")
+                     
             
         f.close()
 

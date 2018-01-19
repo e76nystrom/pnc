@@ -1040,7 +1040,8 @@ class Config():
         if fileName.startswith('*'):
             fileName = self.baseName + fileName[1:]
         else:
-            fileName = self.dirPath + os.sep + fileName
+            if len(os.path.dirname(fileName)) == 0:
+                fileName = os.pth.join(self.dirPath, fileName)
         self.outFileName = fileName
 
     def setFont(self, args):
