@@ -827,7 +827,7 @@ class Config():
     def readDxf(self, args):
         if self.orientation is None:
             self.error = True
-            dprt("orientation not set")
+            ePrint("orientation not set")
             dflush()
         l = args[0]
         fileName = l.split(' ', 1)[-1]
@@ -949,6 +949,7 @@ class Config():
         self.tabPoints = []
 
     def dxfDrill(self, args, tap=False):
+        dbg = False
         layer = args[1]
         drill = self.dxfInput.getHoles(layer)
         self.ncInit()
@@ -964,15 +965,19 @@ class Config():
                 index = 0
                 for (i, loc) in enumerate(dLoc):
                     dist = xyDist(last, loc)
-                    # dprt("%d last %7.4f %7.4g loc %7.4f %7.4f dist %7.4f" % \
-                    #       (i, last[0], last[1], loc[0], loc[1], dist))
+                    if dbg:
+                        dprt("%d last %7.4f %7.4f " \
+                             "loc %7.4f %7.4f dist %7.4f" % \
+                             (i, last[0], last[1], loc[0], loc[1], dist))
                     if dist < minDist:
                         minDist = dist
                         index = i
                 loc = dLoc.pop(index)
-                # dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
+                if dbg:
+                    dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
                 last = loc
-                self.drill(loc, tap)
+                (self.x, self.y) = loc
+                self.drill(None, tap)
 
     def dxfMillHole(self, args, drill=None):
         if drill is None:
@@ -1980,21 +1985,16 @@ class Dxf():
             
         self.xMul = 1
         self.yMul = 1
-        if orientation == 0:            # manual mill vice
-            self.xMul = 1
-            self.yMul = -1
-            self.xOffset = -self.xMin
-            self.yOffset = self.yMax
-        elif orientation == 1:          # upper left
+        if orientation == O_UPPER_LEFT:
             self.xOffset = -self.xMin
             self.yOffset = -self.yMax
-        elif orientation == 2:          # lower left
+        elif orientation == O_LOWER_LEFT:
             self.xOffset = -self.xMin
             self.yOffset = -self.yMin
-        elif orientation == 3:          # center
+        elif orientation == O_CENTER:
             self.xOffset = -(self.xMin + (self.xMax - self.xMin) / 2)
             self.yOffset = -(self.yMin + (self.yMax - self.yMin) / 2)
-        elif orientation == 4:
+        elif orientation == O_POINT:
             if layer is not None:
                 for e in self.modelspace:
                     if layer != e.get_dxf_attrib("layer"):
