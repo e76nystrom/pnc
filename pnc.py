@@ -73,6 +73,7 @@ class Config():
         self.test = False       # test flag
         self.orientation = None # default orientation
         self.orientationLayer = None # layer for orientation point
+        self.layer = None       # layer from command line
           
         self.dbg = False        # debugging output
         self.dbgFile = ""       # debug file
@@ -294,6 +295,11 @@ class Config():
                         if n < len(sys.argv):
                             self.level = True
                             self.probeData = sys.argv[n]
+                    elif tmp == 'layer':
+                        n += 1
+                        if n < len(sys.argv):
+                            self.level = True
+                            self.layer = sys.argv[n]
                     elif tmp == 'dxf':
                         n += 1
                         if n < len(sys.argv):
@@ -310,7 +316,7 @@ class Config():
                     tmp = val[1]
                     if tmp == "d":
                         self.dbg = True
-                    elif tmp == "l":
+                    elif tmp == "c":
                         self.linuxCNC = True
                     elif tmp == "g":
                         cfg.gui = True
@@ -338,10 +344,12 @@ class Config():
         print(" ?            help\n" \
               " -d           debug\n" \
               " -h           help\n" \
+              " -c           linuxcnc format\n" \
               " -s           output svf file\n" \
               " -x           output dxf file\n" \
               " --dbg file   debug output file\n" \
               " --dxf file   dxf input file\n" \
+              " --layer layer layer for dxf commands\n" \
               " --level file level input file\n" \
               " --probe      generate probe data" \
         )
@@ -866,8 +874,18 @@ class Config():
             self.line = MillLine(self, self.mill, self.draw)
         self.line.millLines(args[1])
 
-    def dxfPath(self, args):
+    def getLayer(self, args):
         layer = args[1]
+        if layer == '*':
+            if self.layer is not None:
+                layer = self.layer
+            else:
+                ePrint("layer not specified")
+                sys.exit()
+        return(layer)
+
+    def dxfPath(self, args):
+        layer = self.getLayer(args)
         self.segments = self.dxfInput.getPath(layer)
 
     def dxfPoint(self, args):
@@ -884,7 +902,7 @@ class Config():
             # cfg.draw.drawX(p, "t%d" % (i))
         
     def dxfOutside(self, args):
-        layer = args[1]
+        layer = self.getLayer(args)
         dist = self.endMillSize / 2 + self.finishAllowance
         self.segments = self.dxfInput.getPath(layer, True)
         self.ncInit()
@@ -900,7 +918,7 @@ class Config():
         self.tabPoints = []
 
     def dxfInside(self, args):
-        layer = args[1]
+        layer = self.getLayer(args)
         dist = self.endMillSize / 2 + self.finishAllowance
         self.segments = self.dxfInput.getPath(layer, True)
         self.ncInit()
@@ -916,11 +934,12 @@ class Config():
         self.tabPoints = []
 
     def dxfOpen(self, args):
-        layer = args[1]
+        layer = self.getLayer(args)
         dist = self.endMillSize / 2.0 + self.finishAllowance
         d = self.endMillSize / 2.0 + 0.020
         self.segments = self.dxfInput.getPath(layer)
-        self.points = self.dxfInput.getPoints(layer)
+        # self.points = self.dxfInput.getPoints(layer)
+        self.points = self.dxfInput.getLabel(layer)
         if len(self.segments) == 0:
             return
         self.ncInit()
@@ -950,7 +969,7 @@ class Config():
 
     def dxfDrill(self, args, tap=False):
         dbg = False
-        layer = args[1]
+        layer = self.getLayer(args)
         drill = self.dxfInput.getHoles(layer)
         self.ncInit()
         last = self.mill.last
@@ -981,7 +1000,7 @@ class Config():
 
     def dxfMillHole(self, args, drill=None):
         if drill is None:
-            layer = args[1]
+            layer = self.getLayer(args)
             drill = self.dxfInput.getHoles(layer)
         self.ncInit()
         last = self.mill.last
@@ -2035,6 +2054,20 @@ class Dxf():
             if type == 'CIRCLE':
                 (xCen, yCen) = self.fix(e.get_dxf_attrib("center")[:2])
                 points.append((xCen, yCen))
+        return(points)
+
+    def getLabel(self, layer):
+        points = []
+        for e in self.modelspace:
+            # dprt("layer %s" % (e.get_dxf_attrib("layer")))
+            # if layer != e.get_dxf_attrib("layer"):
+            #     continue
+            type = e.dxftype()
+            if type == 'MTEXT':
+                with e.edit_data() as str:
+                    if layer in str.text:
+                        (xCen, yCen) = self.fix(e.get_dxf_attrib("insert")[:2])
+                        points.append((xCen, yCen))
         return(points)
 
     def getHoles(self, layer):
