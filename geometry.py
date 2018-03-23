@@ -693,10 +693,13 @@ class Arc():
     def calcLen(self):
         a1 = self.a1
         a0 = self.a0
-        if a1 < a0:
-            a1 += 360.0
-        self.arcLen = a1 - a0
-        return(self.r * radians(self.arcLen))
+        if abs(a1 - a0) - 360.0 > MIN_DIST:
+            if a1 < a0:
+                a1 += 360.0
+                self.arcLen = a1 - a0
+                return(self.r * radians(self.arcLen))
+        else:
+            return(pi * 2.0 * self.r)
 
     def swap(self):
         (self.p0, self.p1) = (self.p1, self.p0)

@@ -20,6 +20,7 @@ class Mill():
         self.lastZ = 0.0
         self.arcCmd = 'g2'
         self.curFeed = 0.0
+        self.speed = 0.0
         self.cw = False
         if cfg.zFeed == 0:
             cfg.zFeed = cfg.feed

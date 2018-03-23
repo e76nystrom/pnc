@@ -145,6 +145,9 @@ class Config():
         self.level = False      # probe input file
         self.probeData = None   # output from probing
 
+        self.inFile = None      # input file
+        self.outFile = None     # output file from command line
+
         self.runPath = os.path.dirname(sys.argv[0])
 
         self.tabInit()
@@ -324,19 +327,28 @@ class Config():
                         self.drawSvg = True
                     elif tmp == 'x':
                         self.drawDxf = True
+                    elif tmp == 'o':
+                        n += 1
+                        if n < len(sys.argv):
+                            self.out = True
+                            self.outFile = sys.argv[n]
                     elif tmp == 'h':
                         self.help()
             elif val.startswith('?'):
                 self.help();
             else:
-                if self.inFile is None:
-                    self.inFile = val
-                    if not re.search('\.[a-zA-Z0-9]*$', self.inFile):
-                        self.inFile += ".pnc"
-                    dprt(self.inFile)
-                    dflush()
-                else:
+                inFile = val
+                if ".dxf" in inFile:
                     self.dxfFile = val
+                else:
+                    if not re.search('\.[a-zA-Z0-9]*$', inFile):
+                        inFile += ".pnc"
+                    dprt(inFile)
+                    dflush()
+                    if self.inFile is None:
+                        self.inFile = [inFile, ]
+                    else:
+                        self.inFile.append(inFile)
             n += 1
 
     def help(self):
@@ -357,55 +369,59 @@ class Config():
         
     def open(self):
         self.setupVars()
-        inp = open(self.inFile, 'r')
-        self.dirPath = os.path.dirname(self.inFile)
-        self.fileName = os.path.basename(self.inFile).replace(".pnc", "")
-        if len(self.dirPath) != 0:
-            self.baseName = os.path.join(self.dirPath, self.fileName)
-        else:
-            self.baseName = self.fileName
-
-        dprtSet(self.dbg, os.path.join(self.dirPath, self.dbgFile) \
-                if len(self.dbgFile) != 0 else "")
-
-        for l in inp:
-            l = l.strip()
-            line = re.sub("\s*#.*$", "", l)
-            self.lineNum += 1
-            dprt("%2d %s" % (self.lineNum, l))
-            dflush()
-            if len(line) == 0:
-                continue
-            if line.startswith('#'):
-                continue
-            arg = line.split(' ')
-            if len(arg) >= 1:
-                cmd = arg[0].lower()
-                arg[0] = line
-                if cmd in self.cmdAction:
-                    action = self.cmdAction[cmd]
-                    try:
-                        action(arg)
-                        if self.error:
-                            break
-                    # except ValueError:
-                    #     ePrint("Invalid argument line %d %s" % \
-                    #           (self.lineNum, line))
-                    # except IndexError:
-                    #     ePrint("Missing argument line %d %s" % \
-                    #           (self.lineNum, line))
-                    except:
-                        traceback.print_exc()
-                        exit()
+        for inFile in self.inFile:
+            inp = open(inFile, 'r')
+            self.dirPath = os.path.dirname(inFile)
+            self.fileName = os.path.basename(inFile).replace(".pnc", "")
+            if self.outFile is None:
+                if len(self.dirPath) != 0:
+                    self.baseName = os.path.join(self.dirPath, self.fileName)
                 else:
-                    ePrint("%2d %s" % (self.lineNum, l))
-                    ePrint("invalid cmd %s" % cmd)
+                    self.baseName = self.fileName
+            else:
+                self.baseName = os.path.join(self.dirPath, self.outFile)
 
+            dprtSet(self.dbg, os.path.join(self.dirPath, self.dbgFile) \
+                    if len(self.dbgFile) != 0 else "")
+
+            for l in inp:
+                l = l.strip()
+                line = re.sub("\s*#.*$", "", l)
+                self.lineNum += 1
+                dprt("%2d %s" % (self.lineNum, l))
+                dflush()
+                if len(line) == 0:
+                    continue
+                if line.startswith('#'):
+                    continue
+                arg = line.split(' ')
+                if len(arg) >= 1:
+                    cmd = arg[0].lower()
+                    arg[0] = line
+                    if cmd in self.cmdAction:
+                        action = self.cmdAction[cmd]
+                        try:
+                            action(arg)
+                            if self.error:
+                                break
+                        # except ValueError:
+                        #     ePrint("Invalid argument line %d %s" % \
+                        #           (self.lineNum, line))
+                        # except IndexError:
+                        #     ePrint("Missing argument line %d %s" % \
+                        #           (self.lineNum, line))
+                        except:
+                            traceback.print_exc()
+                            exit()
+                    else:
+                        ePrint("%2d %s" % (self.lineNum, l))
+                        ePrint("invalid cmd %s" % cmd)
+
+            inp.close()         # close input file
         try:
             self.draw.close()   # close drawing files
         except:
             pass
-        inp.close()             # close input file
         dclose()                # close debug file
         self.end()              # close nc files
 
@@ -843,23 +859,27 @@ class Config():
             if self.dxfFile is not None:
                 if re.search("\.dxf$", self.dxfFile):
                     fileName = self.dxfFile
-                    self.baseName = fileName.replace(".dxf", "")
                 else:
-                    self.baseName = self.dxfFile
                     fileName = self.dxfFile + ".dxf"
             else:
                 fileName = self.fileName + ".dxf"
-                self.baseName = fileName
-        else:
-            self.baseName = fileName.split('.')[0]
 
         fileDir = os.path.dirname(fileName)
         if len(fileDir) == 0 and len(self.dirPath) != 0:
             fileName = os.path.join(self.dirPath, fileName)
 
-        baseDir = os.path.dirname(self.baseName)
-        if len(baseDir) == 0 and len(self.dirPath) != 0:
-            self.baseName = os.path.join(self.dirPath, self.baseName)
+        if self.outFile is None:
+            if fileName == "*":
+                if self.dxfFile is not None:
+                    self.baseName = fileName.replace(".dxf", "")
+                else:
+                    self.baseName = fileName
+            else:
+                self.baseName = fileName.split('.')[0]
+        else:
+            baseDir = os.path.dirname(self.baseName)
+            if len(baseDir) == 0 and len(self.dirPath) != 0:
+                self.baseName = os.path.join(self.dirPath, self.baseName)
 
         dprt("fileName %s" % fileName)
         dprt("baseName %s" % self.baseName)
