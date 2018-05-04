@@ -334,7 +334,7 @@ class Line():
                 if dir != CW:
                     pM = pb
             if dbg and draw is not None:
-                l = 'DBG'
+                l = draw.lDebug
                 draw.drawCircle(self.p0, layer=l)
                 draw.drawCircle((xM, yM), 0.020, layer=l)
                 draw.drawCircle(pM, 0.030, layer=l, txt=('+', '-')[dist < 0.0])
@@ -750,7 +750,7 @@ class Arc():
                 dprt("%2d arc dir %s midPoint dir %s swapped %s" % \
                       (self.index, oStr(d0), oStr(d1), self.swapped))
                 if draw is not None:
-                    l = 'DBG'
+                    l = draw.lDebug
                     draw.drawCircle(self.p0, layer=l)
                     draw.drawCircle(pM, 0.020, layer=l)
                     draw.drawCircle(self.p1, 0.015, layer=l)

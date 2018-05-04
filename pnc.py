@@ -1090,9 +1090,13 @@ class Config():
 
     def outputFile(self, args):
         self.end()
-        if not self.oneDxf and self.draw is not None: # close drawing files
-            self.draw.close()
-            self.draw = None
+        draw = self.draw
+        if draw is not None:
+            if self.oneDxf:
+                draw.nextLayer()
+            else:
+                draw.close()
+                self.draw = None
         self.tabInit()          # reset tabs
         self.finishAllowance = 0.0 # reset finish allowance
         l = args[0]
@@ -1596,12 +1600,13 @@ class MillPath():
             d = 0.050
             last = draw.last
             draw.move((x - d, y - d))
-            draw.line((x, y))
-            draw.line((x + d, y - d))
+            l = draw.lDebug
+            draw.line((x, y), layer=l)
+            draw.line((x + d, y - d), layer=l)
             dir = pathDir(path0)
             draw.add(dxf.text("start %s" % (oStr(dir)), (x, y - d), 0.010, \
                               alignpoint=(x, y - d), halign=CENTER, \
-                              layer = 'TEXT'))
+                              layer = draw.lText))
             draw.move(last)
 
         rampLine = self.rampSetup()
@@ -1673,6 +1678,12 @@ class MillPath():
             self.passNum += 1
         out.write("\n")
 
+BORDER = 'BORDER'
+PATH = 'PATH'
+HOLE = 'HOLE'
+TEXT = 'TEXT'
+DEBUG = 'DEBUG'
+
 class Draw():
     def __init__(self, d=None, svg=None):
         self.d = d
@@ -1686,6 +1697,12 @@ class Draw():
         self.pScale = 25.4 * 2
         self.xOffset = 50
         self.yOffset = 350
+        self.layerIndex = 0
+        self.lBorder = BORDER
+        self.lPath = PATH
+        self.lHole = HOLE
+        self.lText = TEXT
+        self.lDebug = DEBUG
 
     def open(self, file, drawDxf=True, drawSvg=True):
         if drawSvg and self.svg is None:
@@ -1702,12 +1719,26 @@ class Draw():
             dxfFile = file + "_ngc.dxf"
             try:
                 self.d = dxf.drawing(dxfFile)
-                self.layers = ['BORDER', 'PATH', 'HOLE', 'TEXT']
-                for l in self.layers:
-                    self.d.add_layer(l)
+                self.layerIndex = 0
+                self.setupLayers()
             except IOError:
                 self.d = None
                 ePrint("dxf file open error %s" % (dxfFile))
+
+    def nextLayer(self):
+        self.layerIndex += 1
+        self.setupLayers()
+
+    def setupLayers(self):
+        i = str(self.layerIndex)
+        self.layers = [['lBorder', i + BORDER], \
+                       ['lPath', i + PATH], \
+                       ['lHole', i + HOLE], \
+                       ['lText', i + TEXT], \
+                       ['lDebug', i + DEBUG]]
+        for (var, l) in self.layers:
+            self.d.add_layer(l)
+            exec("self." + var + "='" + l + "'")
 
     def close(self):
         if self.d is not None:
@@ -1716,7 +1747,7 @@ class Draw():
             self.d = None
 
         if self.svg is not None:
-            self.svg.add(self.path)
+            self.svg.add(self.lPath)
             if self.materialPath is not None:
                 self.svg.add(self.materialPath)
                 self.svg.save()
@@ -1773,10 +1804,10 @@ class Draw():
                 p3 = (-xSize/2, ySize/2)
             else:
                 ePrint("invalid orientation")
-            self.d.add(dxf.line(p0, p1, layer='BORDER'))
-            self.d.add(dxf.line(p1, p2, layer='BORDER'))
-            self.d.add(dxf.line(p2, p3, layer='BORDER'))
-            self.d.add(dxf.line(p3, p0, layer='BORDER'))
+            self.d.add(dxf.line(p0, p1, layer=self.lBorder))
+            self.d.add(dxf.line(p1, p2, layer=self.lBorder))
+            self.d.add(dxf.line(p2, p3, layer=self.lBorder))
+            self.d.add(dxf.line(p3, p0, layer=self.lBorder))
 
     def materialOutline(self, lines):
         if self.svg is not None:
@@ -1799,7 +1830,7 @@ class Draw():
             for l in lines:
                 (start, end) = l
                 self.d.add(dxf.line(cfg.dxfInput.fix(start), \
-                                    cfg.dxfInput.fix(end), layer='BORDER'))
+                                    cfg.dxfInput.fix(end), layer=self.lBorder))
 
     def move(self, end):
         if self.enable:
@@ -1809,17 +1840,19 @@ class Draw():
             # dprt("   move %7.4f %7.4f" % end)
             self.last = end
 
-    def line(self, end):
+    def line(self, end, layer=None):
         if self.enable:
             if self.svg is not None:
                 self.path.push('L', self.scaleOffset(end))
                 # dprt("svg line %7.4f %7.4f" % self.scaleOffset(end))
             if self.d is not None:
-                self.d.add(dxf.line(self.last, end, layer='PATH'))
+                if layer is None:
+                    layer = self.lPath
+                self.d.add(dxf.line(self.last, end, layer=layer))
             # dprt("   line %7.4f %7.4f" % end)
             self.last = end
 
-    def arc(self, end, center):
+    def arc(self, end, center, layer=None):
         if self.enable:
             r = xyDist(end, center)
             if self.svg is not None:
@@ -1827,10 +1860,12 @@ class Draw():
                                     large_arc=True, angle_dir='+', \
                                     absolute=True)
             if self.d is not None:
+                if layer is None:
+                    layer = self.lPath
                 p0 = self.last
                 p1 = end
                 if xyDist(p0, p1) < MIN_DIST:
-                    self.d.add(dxf.circle(r, center, layer='PATH'))
+                    self.d.add(dxf.circle(r, center, layer=layer))
                 else:
                     # dprt("p0 (%7.4f, %7.4f) p1 (%7.4f, %7.4f)" % \
                     #      (p0[0], p0[1], p1[0], p1[1]))
@@ -1841,15 +1876,15 @@ class Draw():
                     if a1 == 0.0:
                         a1 = 360.0
                     # dprt("a0 %5.1f a1 %5.1f" % (a0, a1))
-                    self.d.add(dxf.arc(r, center, a0, a1, layer='PATH'))
+                    self.d.add(dxf.arc(r, center, a0, a1, layer=layer))
                 self.last = end
 
-    def circle(self, end, r, l='HOLE'):
+    def circle(self, end, r, layer=None):
         if self.enable:
             if self.d is not None:
-                if not l in self.layers:
-                    self.d.add_layer(l)
-                self.d.add(dxf.circle(r, end, layer=l))
+                if layer is None:
+                    layer = self.lHole
+                self.d.add(dxf.circle(r, end, layer=layer))
         self.last = end
 
     def hole(self, end, drillSize):
@@ -1862,34 +1897,40 @@ class Draw():
                                     stroke='black', stroke_width=.5, \
                                     fill="none"))
             if self.d is not None:
-                self.d.add(dxf.line(self.last, end, layer='PATH'))
-                self.d.add(dxf.circle(drillSize / 2, end, layer='HOLE'))
+                self.d.add(dxf.line(self.last, end, layer=self.lPath))
+                self.d.add(dxf.circle(drillSize / 2, end, layer=self.lHole))
         self.last = end
 
-    def text(self, txt, p0, height):
+    def text(self, txt, p0, height, layer=None):
         if self.enable:
             if self.d is not None:
-                self.d.add(dxf.text(txt, p0, height, layer='TEXT'))
+                if layer is None:
+                    layer = self.lText
+                self.d.add(dxf.text(txt, p0, height, layer=layer))
 
     def add(self, entity):
         if self.enable:
             if self.d is not None:
                 self.d.add(entity)
 
-    def drawCross(self, p):
+    def drawCross(self, p, layer=None):
         global lCount
+        if layer is None:
+            layer = self.lDebug
         (x, y) = p
         dprt("cross %2d %7.4f, %7.4f" % (lCount, x, y))
         labelP(p, "%d" % (lCount))
         last = self.last
         self.move((x - 0.02, y))
-        self.line((x + 0.02, y))
+        self.line((x + 0.02, y), layer)
         self.move((x, y - 0.02))
-        self.line((x, y + 0.02))
+        self.line((x, y + 0.02), layer)
         lCount += 1
         self.move(last)
 
-    def drawX(self, p, txt, swap=False):
+    def drawX(self, p, txt, swap=False, layer=None):
+        if layer is None:
+            layer = self.lDebug
         (x, y) = p
         xOfs = 0.020
         yOfs = 0.010
@@ -1897,14 +1938,16 @@ class Draw():
             (xOfs, yOfs) = (yOfs, xOfs)
         last = self.last
         self.move((x - xOfs, y - yOfs))
-        self.line((x + xOfs, y + yOfs))
+        self.line((x + xOfs, y + yOfs), layer)
         self.move((x - xOfs, y + yOfs))
-        self.line((x + xOfs, y - yOfs))
+        self.line((x + xOfs, y - yOfs), layer)
         self.move(p)
-        self.text('%s' % (txt), (x + xOfs, y - yOfs), .010)
+        self.text('%s' % (txt), (x + xOfs, y - yOfs), .010, layer)
         self.move(last)
 
-    def drawCircle(self, p, d=0.010, layer='DBG', txt=None):
+    def drawCircle(self, p, d=0.010, layer=None, txt=None):
+        if layer is None:
+            layer = self.lDebug
         last = self.last
         self.circle(p, d / 2.0, layer)
         if txt is not None:
@@ -2469,7 +2512,7 @@ class Dxf():
                         index = seg[0].index # get index of fisrt
                         (p0, p1) = linePoints[index].p # look up points
                         lastPoint = p1 # set last point
-                        if len(seg) > 1 and p0.l[1] is None: # if found both ends
+                        if len(seg) > 1 and p0.l[1] is None: # if both ends
                             break
                         else:   # reverse list
                             for i in range(len(seg)-1, -1, -1):

@@ -160,22 +160,25 @@ class MillLine():
                     d0 = (x0 - halfWidth, 0)
                     d1 = (x0 + halfWidth, 0)
                     d2 = (x0, -maxDepth)
-                    d.add(dxf.line(d0, d1, layer='BORDER'))
-                    d.add(dxf.line(d1, d2, layer='BORDER'))
-                    d.add(dxf.line(d2, d0, layer='BORDER'))
+                    l = draw.lBorder
+                    d.add(dxf.line(d0, d1, layer=l))
+                    d.add(dxf.line(d1, d2, layer=l))
+                    d.add(dxf.line(d2, d0, layer=l))
+
             if self.debug and self.draw1 is not None:
                 d = self.draw1.d
                 x0 = 0
                 d0 = (x0 - halfWidth, currentDepth)
                 d1 = (x0 + halfWidth, currentDepth)
-                d.add(dxf.line(d0, d1, layer='BORDER'))
+                d.add(dxf.line(d0, d1, layer=draw.lBorder))
 
                 d0 = (x0 - cutHalfWidth, lastDepth)
                 d1 = (x0 + cutHalfWidth, lastDepth)
                 d2 = (x0, currentDepth)
-                d.add(dxf.line(d0, d1, layer='PATH'))
-                d.add(dxf.line(d1, d2, layer='PATH'))
-                d.add(dxf.line(d2, d0, layer='PATH'))
+                l = draw.lPath
+                d.add(dxf.line(d0, d1, layer=l))
+                d.add(dxf.line(d1, d2, layer=l))
+                d.add(dxf.line(d2, d0, layer=l))
 
 
     def ySlot(self, start, end):
@@ -233,16 +236,17 @@ class MillLine():
                         d0 = (w - cutHalfWidth, lastDepth)
                         d1 = (w + cutHalfWidth, lastDepth)
                         d2 = (w, currentDepth)
-                        d.add(dxf.line(d0, d1, layer='PATH'))
-                        d.add(dxf.line(d1, d2, layer='PATH'))
-                        d.add(dxf.line(d2, d0, layer='PATH'))
+                        l = self.draw1.lPath
+                        d.add(dxf.line(d0, d1, layer=l))
+                        d.add(dxf.line(d1, d2, layer=l))
+                        d.add(dxf.line(d2, d0, layer=l))
                         # x = 0 - w
                         d0 = (-w - cutHalfWidth, lastDepth)
                         d1 = (-w + cutHalfWidth, lastDepth)
                         d2 = (-w, currentDepth)
-                        d.add(dxf.line(d0, d1, layer='PATH'))
-                        d.add(dxf.line(d1, d2, layer='PATH'))
-                        d.add(dxf.line(d2, d0, layer='PATH'))
+                        d.add(dxf.line(d0, d1, layer=l))
+                        d.add(dxf.line(d1, d2, layer=l))
+                        d.add(dxf.line(d2, d0, layer=l))
             lastDepth = currentDepth
         if self.debug and self.draw1 is not None:
             self.debug = False
