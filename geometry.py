@@ -622,16 +622,17 @@ class Line():
         draw.move(self.p0)
         draw.line(self.p1)
 
-    def prt(self, out=None, eol="\n"):
-         str = "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \
+    def prt(self, out=None, eol="\n", prefix=None):
+        str = prefix if prefix is not None else ""
+        str += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \
                (self.index, self.p0[0], self.p0[1], \
                 self.p1[0], self.p1[1], self.length, \
                 xyDist(self.p0, self.p1))
-         if out is None:
-             dprt(str)
-         else:
-             out.write(str)
-             out.write(eol)
+        if out is None:
+            dprt(str)
+        else:
+            out.write(str)
+            out.write(eol)
 
 class Arc():
     def __init__(self, c, r, a0, a1, i=-1, e=None, dir=None):
@@ -693,11 +694,11 @@ class Arc():
     def calcLen(self):
         a1 = self.a1
         a0 = self.a0
-        if abs(a1 - a0) - 360.0 > MIN_DIST:
+        if abs(abs(a1 - a0) - 360.0) > MIN_DIST:
             if a1 < a0:
                 a1 += 360.0
-                self.arcLen = a1 - a0
-                return(self.r * radians(self.arcLen))
+            self.arcLen = a1 - a0
+            return(self.r * radians(self.arcLen))
         else:
             return(pi * 2.0 * self.r)
 
@@ -769,10 +770,12 @@ class Arc():
     def split(self, dist):
         r = self.r
         arcLen = dist / r
+        # dprt("dist %7.4f r %7.4f arclen %7.4f" % (dist, r, arcLen))
         if self.swapped:
             a = degrees(radians(self.a1) - arcLen)
         else:
             a = degrees(radians(self.a0) + arcLen)
+        # dprt("swapped %s a %7.3f" % (self.swapped, a))
         a0 = Arc(self.c, self.r, self.a0, a, self.index)
         a1 = Arc(self.c, self.r, a, self.a1, self.index)
         if self.swapped:
@@ -906,13 +909,14 @@ class Arc():
             draw.move(self.p1)
             draw.arc(self.p0, self.c)
 
-    def prt(self, out=None, eol="\n"):
-        str = "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f arc%s" \
-              " c%6.3f%6.3f r %5.3f %4.0f %4.0f" % \
-              (self.index, self.p0[0], self.p0[1], \
-               self.p1[0], self.p1[1], self.length, \
-               (' ', 's')[self.swapped], self.c[0], self.c[1], \
-               self.r, self.a0, self.a1)
+    def prt(self, out=None, eol="\n", prefix=None):
+        str = prefix if prefix is not None else ""
+        str += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f arc%s" \
+               " c%6.3f%6.3f r %5.3f %4.0f %4.0f" % \
+               (self.index, self.p0[0], self.p0[1], \
+                self.p1[0], self.p1[1], self.length, \
+                (' ', 's')[self.swapped], self.c[0], self.c[1], \
+                self.r, self.a0, self.a1)
         if out is None:
             dprt(str)
         else:
@@ -1159,6 +1163,9 @@ def lineArc(l0, l1, end):
     # x = (p^2 + r^2 - s^2) / 2*p
 
 def arcArc(l0, l1):
+    if (xyDist(l0.c, l1.c) < MIN_DIST) and \
+       (abs(l0.r - l1.r) < MIN_DIST): # if already intersecting
+        return(l0.p1)
     (x0, y0) = l0.c             # arc 0
     r0 = l0.r
     (x1, y1) = l1.c             # arc 1
@@ -1455,10 +1462,10 @@ def splitArcs(seg):
             l1 = copy(l)
             newSeg.append(l1)
             i += 1
-    # dprt()
-    # for l in newSeg:
-    #     l.prt()
-    # dprt()
+    dprt()
+    for l in newSeg:
+        l.prt()
+    dprt()
     return(newSeg)
 
 def combineArcs(seg):
@@ -1505,9 +1512,10 @@ def combineArcs(seg):
         i += 1
         k += 1
 
-    # for l in newSeg:
-    #     l.prt()
-    # dprt()
+    dprt()
+    for l in newSeg:
+        l.prt()
+    dprt()
     return(newSeg)
 
 def createPath(seg, dist, outside, tabPoints=None, \

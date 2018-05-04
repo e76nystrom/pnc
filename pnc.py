@@ -34,11 +34,17 @@ from hershey import Font
 from os import getcwd
 from imp import load_source
 
+import random
+
 O_UPPER_LEFT = 0
 O_LOWER_LEFT = 1
 O_CENTER = 2
 O_POINT = 3
 O_MAX = 4
+
+# print("%s" % (os.environ['TZ'],))
+# os.environ['TZ'] = 'America/New_York'
+# print("%s" % (os.environ['TZ'],))
 
 # dxf arcs are always counter clockwise.
 
@@ -54,6 +60,7 @@ class Config():
         self.draw = None        # Draw class
         self.drawDxf = False    # create dxf drawing
         self.drawSvg = False    # create svg drawing
+        self.oneDxf = False     # combine ouput into one dxf
         self.slot = None        # Slot class
         self.move = None        # Move class
         self.mp = None          # millPath class
@@ -245,6 +252,8 @@ class Config():
 
             ('drawdxf', self.setDrawDxf), \
             ('drawsvg', self.setDrawSvg), \
+            ('onedxf', self.setOneDxf), \
+            ('closedxf', self.closeDxf), \
 
             ('dbg', self.setDbg), \
             ('dbgfile', self.setDbgFile), \
@@ -657,6 +666,13 @@ class Config():
 
     def setDrawSvg(self, args):
         self.drawSvg = int(args[1]) != 0
+
+    def setOneDxf(self, args):
+        self.oneDxf = int(args[1]) != 0
+
+    def closeDxf(self, args):
+        if self.draw is not None:
+            self.draw.close()
 
     def setDbg(self, args):
         self.dbg = int(args[1]) != 0
@@ -1074,7 +1090,7 @@ class Config():
 
     def outputFile(self, args):
         self.end()
-        if self.draw is not None:   # close drawing files
+        if not self.oneDxf and self.draw is not None: # close drawing files
             self.draw.close()
             self.draw = None
         self.tabInit()          # reset tabs
@@ -1672,7 +1688,7 @@ class Draw():
         self.yOffset = 350
 
     def open(self, file, drawDxf=True, drawSvg=True):
-        if drawSvg:
+        if drawSvg and self.svg is None:
             svgFile = file + ".svg"
             try:
                 self.svg = Drawing(svgFile, profile='full', fill='black')
@@ -1682,7 +1698,7 @@ class Draw():
                 self.path = None
                 ePrint("svg file open error %s" % (svgFile))
 
-        if drawDxf:
+        if drawDxf and self.d is None:
             dxfFile = file + "_ngc.dxf"
             try:
                 self.d = dxf.drawing(dxfFile)
@@ -1905,6 +1921,65 @@ class Draw():
         p = (index * 1, 3)
         self.drawLine(p, m, b, 2 * r)
         self.hole(offset((0, 0), p), 2 * r)
+
+class Point():
+    def __init__(self, p, l, end, index):
+        self.index = index
+        self.p = p
+        self.ends = 0
+        self.l = [None, None]
+        self.lIndex = [-1, -1]
+        self.lEnd = [0, 0]
+        self.add(l, end)
+
+    def add(self, l, end):
+        i = self.ends
+        if self.l[i] is None:
+            self.l[i] = l
+            self.lIndex[i] = l.index
+            self.lEnd[i] = end
+            self.ends += 1
+        else:
+            dprt("err, pt %d" % (self.index))
+            self.prt()
+
+    def prt(self):
+        dprt("point %2d ends %d (%7.4f %7.4f) "\
+             "connects line %2d:%d to %2d:%d" % \
+             (self.index, self.ends, self.p[0], self.p[1], \
+              self.lIndex[0], self.lEnd[0], \
+              self.lIndex[1], self.lEnd[1]))
+
+class LinePoints():
+    def __init__(self, l):
+        self.p = [None, None]
+        self.pIndex = [-1, -1]
+        self.l = l
+        self.index = l.index
+        
+    def add(self, p, end):
+        self.p[end] = p
+        self.pIndex[end] = p.index
+
+    def next(self):
+        if self.p[0].l[1] is None:
+            self.swap()
+        (p0, p1) = self.p
+        dprt("line %d end points p0 %2d l0 %2d l1 %2d " \
+             "p1 %2d l0 %2d l1 %2d" % \
+             (self.index, p0.index, p0.lIndex[0], p0.lIndex[1], \
+              p1.index, p1.lIndex[0], p1.lIndex[1]))
+        return(self.p)
+
+    def swap(self):
+        self.l.swap()
+        self.p = [self.p[1], self.p[0]]
+        self.pIndex = [self.pIndex[1], self.pIndex[0]]
+        return(self.p)
+
+    def prt(self):
+        dprt("line %2d is from point %2d to point %2d" % \
+             (self.index, self.pIndex[0], self.pIndex[1]))
 
 class Dxf():
     def __init__(self, d=None, svg=None):
@@ -2157,42 +2232,84 @@ class Dxf():
             linNum += 1
         # dprt()
 
-        # create unconnected segments
+        # remove duplicates
+        
+        i = 0
+        remove = False
+        while i < len(entities):
+            l0 = entities[i]
+            j = i + 1
+            while j < len(entities):
+                l1 = entities[j]
+                if (xyDist(l0.p0, l1.p0) < MIN_DIST) and \
+                   (xyDist(l0.p1, l1.p1) < MIN_DIST):
+                    dprt("rem %d" % (l1.index))
+                    l1.prt()
+                    entities.pop(j)
+                    remove = True
+                    continue
+                j += 1
+            i += 1
+
+        if remove:
+            for (i, l0) in enumerate(entities):
+                l0.index = i
+            dprt()
+
+        dprt("testing randomize list")
+        random.shuffle(entities)
+        for (i, l0) in enumerate(entities):
+            l0.index = i
+            l0.prt()
+        dprt()
+
+        return(self.connect1(entities))
+
+    def connect0(self, entities):
+        for l0 in entities:
+            l0.prt()
+        dprt()
 
         segments = []
         segCount = 0
         for l0 in entities:
+            l0.prt()
             found = False
             segNum = []
-            for (i, seg) in enumerate(segments):
+            for (i, seg) in enumerate(segments): # i is segment number
+                dprt("check seg %d" % i)
                 j = 0
                 lineCount = len(seg)
                 while j < lineCount:
                     l1 = seg[j]
-                    # l1.prt()
+                    l1.prt()
                     for p0 in (l0.p0, l0.p1):
                         for p1 in (l1.p0, l1.p1):
                             if xyDist(p0, p1) <= MIN_DIST:
-                                # dprt("match seg %d ind %d l0 %d l1 %d" % \
-                                #       (i, j, l0.index, l1.index))
-                                # dflush()
+                                dprt("match seg %d ind %d l0 %d l1 %d" % \
+                                      (i, j, l0.index, l1.index))
+                                dflush()
                                 if not i in segNum:
                                     segNum.append(i)
+                                    dprt("add %d to seg %d\n" % \
+                                         (l0.index, l1.index))
                                 if not found:
                                     found = True
                                     seg.append(l0)
+                                    dprt("add %d to seg %d\n" % \
+                                         (l0.index, i))
                                 break
                     j += 1
             if not found:
                 seg = []
                 seg.append(l0)
                 segments.append(seg)
-                # dprt("add segment %d" % (segCount))
+                dprt("add %d to new segment %d\n" % (l0.index, segCount))
                 segCount += 1
             else:
                 if len(segNum) > 1:
-                    # dprt(segNum)
-                    # dflush()
+                    dprt(segNum)
+                    dflush()
                     seg = []
                     for i in reversed(segNum):
                         for line in segments.pop(i):
@@ -2264,6 +2381,103 @@ class Dxf():
         if not found:
             points.append((p, 1))
 
+    def connect1(self, entities):
+        for l0 in entities:
+            l0.prt()
+        dprt()
+
+        points = []
+        linePoints = []
+        index = 0
+        for l0 in entities:
+            l0.prt()
+            lPt = LinePoints(l0)
+            linePoints.append(lPt)
+            for (end, pl) in enumerate((l0.p0, l0.p1)):
+                found = False
+                for pt in points:
+                    if xyDist(pl, pt.p) < MIN_DIST:
+                        dprt("fnd pt %2d (%8.4f %8.4f) for line %2d:%d" % \
+                             (pt.index, pl[0], pl[1], l0.index, end))
+                        found = True
+                        pt.add(l0, end)
+                        lPt.add(pt, end)
+                        break
+                if not found:
+                    dprt("new pt %2d (%8.4f %8.4f) for line %2d:%d" % \
+                         (index, pl[0], pl[1], l0.index, end))
+                    pt = Point(pl, l0, end, index)
+                    points.append(pt)
+                    lPt.add(pt, end)
+                    index += 1
+            dprt()
+        stdout.flush()
+
+        for l0 in entities:
+            l0.prt()
+        dprt()
+                            
+        for p in points:
+            p.prt()
+        dprt()
+
+        for lPt in linePoints:
+            lPt.prt()
+        dprt()
+                            
+        segments = []
+
+        for index in range(len(entities)):
+            print("index %d" % (index,))
+            l0 = entities[index] # take line off list
+            if l0 is not None:   # if entry
+                start = index = l0.index # save start index
+                lastPoint = linePoints[index].p[0]
+                seg = []         # initialize segment list
+                while True:
+                    dprt("line %2d point %2d" % (index, lastPoint.index))
+                    l0.prt()
+                    entities[index] = None  # clear entry
+                    seg.append(l0)          # append to segment list
+                    (p0, p1) = linePoints[index].next() # get next point
+
+                    if p1.l[1] is None:   # if at the end
+                        index = seg[0].index # get index of fisrt
+                        (p0, p1) = linePoints[index].p # look up points
+                        lastPoint = p1 # set last point
+                        if len(seg) > 1 and p0.l[1] is None: # if found both ends
+                            break
+                        else:   # reverse list
+                            for i in range(len(seg)-1, -1, -1):
+                                l0 = seg.pop(i)
+                                linePoints[l0.index].swap()
+                                seg.append(l0)
+                            
+
+                    p = p0 if p0 is not lastPoint else p1
+                    if p.lIndex[0] != index: # if l0 not the same line
+                        (l0, end) = (p.l[0], p.lEnd[0]) # use l0 for next
+                    else:
+                        (l0, end) = (p.l[1], p.lEnd[1]) # use l1 for next
+
+                    index = l0.index   # get index
+                    if end != 0:       # if next end to end 0
+                        linePoints[index].swap() # swap ends
+
+                    if index == start: # if back at start
+                        break          # exit loop
+                    lastPoint = p      # set new last point
+                segments.append(seg)   # save segment
+                dprt()
+                for l0 in seg:
+                    linePoints[l0.index].prt()
+                    l0.prt()
+                dprt()
+        dprt()
+
+        stdout.flush()
+        return(segments)
+            
     # def printSeg(self, l):
     #     dprt("%2d p0 %7.4f, %7.4f - p1 %7.4f, %7.4f %s" % \
     #            (l.index, l.p0[0], l.p0[1], l.p1[0], l.p1[1], l.str))

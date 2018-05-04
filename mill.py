@@ -1,6 +1,7 @@
 from __future__ import print_function
+import os
 from dbgprt import dprt
-from time import strftime
+from time import strftime, localtime
 from geometry import MIN_DIST
 
 class Mill():
@@ -26,11 +27,17 @@ class Mill():
             cfg.zFeed = cfg.feed
         if self.outFile is None:
             self.outFile = outFile
+
+            # print("%s" % (os.environ['TZ'],))
+            # os.environ['TZ'] = 'America/New_York'
+            # print("%s %s" % (strftime("%m-%d-%Y %H:%M:%S", localtime()), \
+            #                  os.environ['TZ']))
+
             # self.out = out = open(outFile, 'w', newline='\n')
             self.out = out = open(outFile, 'w')
 
             out.write("(%s created %s)\n" % \
-                      (outFile, strftime("%m-%d-%Y %H:%M:%S")))
+                      (outFile, strftime("%m-%d-%Y %H:%M:%S", localtime())))
 
             cfg = self.cfg
             if cfg.variables:
