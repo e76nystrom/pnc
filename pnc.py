@@ -2007,14 +2007,17 @@ class LinePoints():
     def next(self, dbg=False):
         if self.p[0].l[1] is None:
             self.swap()
-        (p0, p1) = self.p
         if dbg:
-            dprt("line %d end points p0 %2d l0 %2d l1 %2d " \
-                 "p1 %2d l0 %2d l1 %2d" % \
-                 (self.index, p0.index, p0.lIndex[0], p0.lIndex[1], \
-                  p1.index, p1.lIndex[0], p1.lIndex[1]))
+            self.dbgPrt()
         return(self.p)
 
+    def dbgPrt(self):
+        (p0, p1) = self.p
+        dprt("line %2d from p0 %2d l0 %2d l1 %2d " \
+             "to p1 %2d l0 %2d l1 %2d" % \
+             (self.index, p0.index, p0.lIndex[0], p0.lIndex[1], \
+              p1.index, p1.lIndex[0], p1.lIndex[1]))
+        
     def swap(self):
         self.l.swap()
         self.p = [self.p[1], self.p[0]]
@@ -2501,26 +2504,38 @@ class Dxf():
                 lastPoint = linePoints[index].p[0]
                 seg = []         # initialize segment list
                 while True:
-                    if dbg:
-                        dprt("line %2d point %2d" % (index, lastPoint.index))
-                    l0.prt()
                     entities[index] = None  # clear entry
                     seg.append(l0)          # append to segment list
                     (p0, p1) = linePoints[index].next(dbg) # get next point
+                    if dbg:
+                        dprt("line %2d lastPoint %2d p0 %2d p1 %2d" % \
+                             (index, lastPoint.index, p0.index, p1.index))
+                        l0.prt()
 
                     if p1.ends == 1:         # if end of of line
                         index = seg[0].index # get index of fisrt
-                        (p0, p1) = linePoints[index].p # look up points
-                        lastPoint = p1   # set last point
+                        if not dbg:
+                            (p0, p1) = linePoints[index].p
+                        else:
+                            lPt = linePoints[index] # look up points
+                            lPt.prt()
+                            (p0, p1) = lPt.p
+                            p0.prt()
+                            p1.prt()
+
                         if p0.ends == 1: # if both are end of line
                             break        # done
-                        else:   # reverse list
-                            for i in range(len(seg)-1, -1, -1):
-                                l0 = seg.pop(i)
-                                linePoints[l0.index].swap()
-                                seg.append(l0)
 
-                    p = p0 if p0 is not lastPoint else p1
+                        for i in range(len(seg)-1, -1, -1):
+                            l0 = seg.pop(i)
+                            linePoints[l0.index].swap()
+                            seg.append(l0)
+
+                        index = seg[-1].index
+                        p = p0
+                    else:
+                        p = p0 if p0 is not lastPoint else p1
+
                     if p.lIndex[0] != index: # if l0 not the same line
                         (l0, end) = (p.l[0], p.lEnd[0]) # use l0 for next
                     else:
@@ -2533,6 +2548,8 @@ class Dxf():
                     if index == start: # if back at start
                         break          # done
                     lastPoint = p      # set new last point
+                    if dbg:
+                        dprt()
                 segments.append(seg)   # save segment
                 if dbg:
                     dprt()
