@@ -2508,12 +2508,12 @@ class Dxf():
                     seg.append(l0)          # append to segment list
                     (p0, p1) = linePoints[index].next(dbg) # get next point
 
-                    if p1.l[1] is None:   # if at the end
+                    if p1.ends == 1:         # if end of of line
                         index = seg[0].index # get index of fisrt
                         (p0, p1) = linePoints[index].p # look up points
-                        lastPoint = p1 # set last point
-                        if len(seg) > 1 and p0.l[1] is None: # if both ends
-                            break
+                        lastPoint = p1   # set last point
+                        if p0.ends == 1: # if both are end of line
+                            break        # done
                         else:   # reverse list
                             for i in range(len(seg)-1, -1, -1):
                                 l0 = seg.pop(i)
@@ -2531,7 +2531,7 @@ class Dxf():
                         linePoints[index].swap() # swap ends
 
                     if index == start: # if back at start
-                        break          # exit loop
+                        break          # done
                     lastPoint = p      # set new last point
                 segments.append(seg)   # save segment
                 if dbg:
