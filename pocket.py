@@ -1,8 +1,10 @@
 from __future__ import print_function
 import pyclipper
 from dbgprt import dprtSet, dprt, dflush
-from geometry import Arc, Line, xyDist
-from geometry import LINE, CCW, CW, MIN_DIST, MAX_VALUE
+from geometry import Arc, Line
+from geometry import calcAngle, xyDist
+from geometry import ARC, LINE, CCW, CW, MIN_DIST, MAX_VALUE
+from math import acos, ceil, cos, degrees, radians, sin, sqrt
 
 SCALE = 10000.0
 
@@ -39,11 +41,18 @@ class pocket():
             mainPath = []
             for (i, l) in enumerate(seg):
                 l.draw()
+                l.prt()
                 if l.type == LINE:
                     (x, y) = l.p0
-                    dprt("%2d (%7.4f %7.4f)" % (i, x, y))
+                    # dprt("%2d (%7.4f %7.4f)" % (i, x, y))
                     mainPath.append((int(SCALE * x), int(SCALE * y)))
+                elif l.type == ARC:
+                    self.arcLines(mainPath, l)
             dprt()
+            for (i, (x, y)) in enumerate(mainPath):
+                dprt("%3d (%7.4f %7.4f)" % (i, float(x) / SCALE, float(y) / SCALE))
+            dprt()
+            
             pco.AddPath(mainPath, pyclipper.JT_ROUND, \
                         pyclipper.ET_CLOSEDPOLYGON)
             offset = cfg.endMillSize / 2.0 + cfg.finishAllowance
@@ -104,11 +113,10 @@ class pocket():
                 while True:
                     minDist = MAX_VALUE
                     index = None
-                    path = None
+                    rPath = None
                     for (rNum, oData) in enumerate(rData):
                         if oData == None:
                             continue
-                        path = result[rNum]
                         rPath = rNum
                         for (oNum, (i, dist)) in enumerate(oData):
                             dprt("step %d rNum %d Onum %d index %3d dist %7.4f" % \
@@ -119,7 +127,9 @@ class pocket():
                                 rIndex = rNum
                                 oIndex = oNum
                                 
-                    if index is not None:
+                    if rPath is None:
+                        break
+                    if index is not None: # connect path
                         dprt("connect rIndex %d index %3d to "\
                              "oIndex %d dist %7.4f" % \
                              (rIndex, index, oIndex, minDist))
@@ -129,14 +139,12 @@ class pocket():
                         oPath = offsetPaths[oIndex]
                         oPath.append(Line(oPath[-1].p1, path[index].p0))
                         oPath += path[index:] + path[:index]
-                    else:
-                        if path is None:
-                            break
+                    else:       # add new path
+                        dprt("add rPath %d oNum %d" % (rPath, len(offsetPaths)))
                         rData[rPath] = None
+                        path = result[rPath]
                         path = self.closest(path)
                         offsetPaths.append(path)
-                        dprt("add rPath %d oNum %d" % \
-                             (rPath, len(offsetPaths) - 1))
 
                 offset += stepOver
                 step += 1
@@ -156,3 +164,38 @@ class pocket():
         path = path[index:] + path[:index]
         self.last = path[0].p0
         return(path)
+
+    def arcLines(self, mainPath, l, err=0.001):
+        r = l.r
+        adjacent = r - err
+        # halfCord = sqrt(r*r - adjacent*adjacent)
+        angle = 2 * degrees(acos(adjacent / r))
+        a0 = degrees(calcAngle(l.c, l.p0))
+        a1 = degrees(calcAngle(l.c, l.p1))
+        (x, y) = l.c
+        if not l.swapped:   # clockwise
+            if a1 < a0:
+                a1 += 360.0
+            # dprt("a0 %5.1f a1 %5.1f total %5.1f cw" % \
+            #       (fix(a0), fix(a1), a1 - a0))
+            arcAngle = a1 - a0
+            segments = int(ceil((arcAngle) / angle))
+            aInc = arcAngle / segments
+            aRad = radians(aInc)
+        else:               # counter clockwise
+            if a0 < a1:
+                a0 += 360.0
+            # dprt("a0 %5.1f a1 %5.1f total %5.1f ccw" % \
+            #       (fix(a0), fix(a1), a0 - a1))
+            arcAngle = a0 - a1
+            segments = int(ceil((arcAngle) / angle))
+            aInc = -arcAngle / segments
+
+        # mainPath.append((int(l.p0[0] * SCALE), int(l.p0[1] * SCALE)))
+        aRad = radians(aInc)
+        a = radians(a0)
+        for i in range(1, segments-1):
+            p = (int((r * cos(a) + x) * SCALE), int((r * sin(a) + y) * SCALE))
+            mainPath.append(p)
+            a += aRad
+        mainPath.append((int(l.p1[0] * SCALE), int(l.p1[1] * SCALE)))
