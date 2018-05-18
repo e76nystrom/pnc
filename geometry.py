@@ -265,6 +265,7 @@ class Line():
         self.index = i
         self.e = e
         self.length = xyDist(p0, p1)
+        self.text = None
 
     def updateP0(self, p0):
         self.p0 = p0
@@ -623,6 +624,7 @@ class Line():
         draw.line(self.p1)
 
     def label(self, text, layer=None):
+        self.text = text
         if draw is None:
             return
         if self.length > 0.5:
@@ -637,6 +639,8 @@ class Line():
                (self.index, self.p0[0], self.p0[1], \
                 self.p1[0], self.p1[1], self.length, \
                 xyDist(self.p0, self.p1))
+        if self.text != None:
+            str += " " + self.text
         if out is None:
             dprt(str)
         else:

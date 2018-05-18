@@ -33,6 +33,7 @@ class pocket():
         segments = cfg.dxfInput.getPath(layer)
         pco = pyclipper.PyclipperOffset()
         mp = cfg.getMillPath()
+        self.last = cfg.mill.last
         for seg in segments:
             pco.Clear()
             mainPath = []
@@ -53,19 +54,8 @@ class pocket():
                 dprt("%2d offset %7.4f results %d" % (step, offset, len(result)))
                 if len(result) == 0:
                     break
+                rData = []
                 for (rNum, r) in enumerate(result):
-                    # if first step reorder list
-
-                    if step == 999:
-                        p0 = cfg.mill.last
-                        p0 = (p0[0] * SCALE, p0[1] * SCALE)
-                        minDist = MAX_VALUE
-                        for (i, p) in enumerate(r):
-                            dist = xyDist(p0, p)
-                            if dist < minDist:
-                                minDist = dist
-                                index = i
-                        r = r[index:] + r[:index]
 
                     # convert from list of points to lines
 
@@ -82,14 +72,17 @@ class pocket():
                         l.label(txt)
                         path.append(l)
                         pLast = p
+
+                    result[rNum] = path
                         
                     dprt()
                     for l in path:
                         l.prt()
                     dprt()
 
-                    # connect to closest path
+                    # find shortest distance to each path
 
+                    oData = []
                     for (oNum, oPath) in enumerate(offsetPaths):
                         lEnd = oPath[-1]
                         pEnd = lEnd.p1
@@ -100,24 +93,66 @@ class pocket():
                             if dist < minDist:
                                 minDist = dist
                                 index = i
-                        xDist = abs(pEnd[0] - path[index].p0[0])
-                        yDist = abs(pEnd[1] - path[index].p0[1])
-                        dprt("step %2d rNum %d oNum %d len %3d index %3d "\
-                             "minDist %7.4f xDist %7.4f yDist %7.4f" % \
-                             (step, rNum, oNum, len(path), index, minDist, \
-                              xDist, yDist))
-                        if (abs(xDist - stepOver) <= MIN_DIST) or \
-                           (abs(yDist - stepOver) <= MIN_DIST):
-                            path = path[index:] + path[:index]
-                            oPath.append(Line(pEnd, path[0].p0))
-                            oPath += path
-                            path = None
+                        oData.append((index, minDist))
+                    rData.append(oData)
+                
+                # connect to nearest path
+
+                if len(result) > 1:
+                    dprt("multiple results")
+                oConnect = [False] * len(offsetPaths)
+                while True:
+                    minDist = MAX_VALUE
+                    index = None
+                    path = None
+                    for (rNum, oData) in enumerate(rData):
+                        if oData == None:
+                            continue
+                        path = result[rNum]
+                        rPath = rNum
+                        for (oNum, (i, dist)) in enumerate(oData):
+                            dprt("step %d rNum %d Onum %d index %3d dist %7.4f" % \
+                                 (step, rNum, oNum, i, dist))
+                            if not oConnect[oNum] and dist < minDist:
+                                minDist = dist
+                                index = i
+                                rIndex = rNum
+                                oIndex = oNum
+                                
+                    if index is not None:
+                        dprt("connect rIndex %d index %3d to "\
+                             "oIndex %d dist %7.4f" % \
+                             (rIndex, index, oIndex, minDist))
+                        path = result[rIndex]
+                        rData[rIndex] = None
+                        oConnect[oIndex] = True
+                        oPath = offsetPaths[oIndex]
+                        oPath.append(Line(oPath[-1].p1, path[index].p0))
+                        oPath += path[index:] + path[:index]
+                    else:
+                        if path is None:
                             break
-                    if path is not None:
+                        rData[rPath] = None
+                        path = self.closest(path)
                         offsetPaths.append(path)
+                        dprt("add rPath %d oNum %d" % \
+                             (rPath, len(offsetPaths) - 1))
+
                 offset += stepOver
                 step += 1
-                if step == 100:
+                if step > 99:
                     break
             for path in offsetPaths:
                 mp.millPath(path, closed=False, minDist=False)
+
+    def closest(self, path):
+        p0 = self.last
+        minD = MAX_VALUE
+        for (i, l) in enumerate(path):
+            dist = xyDist(p0, l.p0)
+            if dist < minD:
+                minD = dist
+                index = i
+        path = path[index:] + path[:index]
+        self.last = path[0].p0
+        return(path)
