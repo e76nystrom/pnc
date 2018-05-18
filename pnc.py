@@ -1572,7 +1572,7 @@ class MillPath():
         l.mill(self.mill, zEnd, comment)
         self.passLoc += l.length
 
-    def millPath(self, path, tabPoints=None, closed=True):
+    def millPath(self, path, tabPoints=None, closed=True, minDist=True):
         cfg = self.cfg
         if not cfg.output:
             return
@@ -1584,11 +1584,13 @@ class MillPath():
         path0 = combineArcs(path)
 
         mill = self.mill
-        if closed:
-            path0 = rotateMinDist(mill.last, path0)
-        else:
-            if xyDist(mill.last, path0[-1].p0) < xyDist(mill.last, path0[0].p0):
-                path0 = reverseSeg(path0)
+        if minDist:
+            if closed:
+                path0 = rotateMinDist(mill.last, path0)
+            else:
+                if xyDist(mill.last, path0[-1].p0) < \
+                   xyDist(mill.last, path0[0].p0):
+                    path0 = reverseSeg(path0)
 
         out = self.mill.out
         for l in path0:

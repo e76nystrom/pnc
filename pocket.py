@@ -54,6 +54,21 @@ class pocket():
                 if len(result) == 0:
                     break
                 for (rNum, r) in enumerate(result):
+                    # if first step reorder list
+
+                    if step == 999:
+                        p0 = cfg.mill.last
+                        p0 = (p0[0] * SCALE, p0[1] * SCALE)
+                        minDist = MAX_VALUE
+                        for (i, p) in enumerate(r):
+                            dist = xyDist(p0, p)
+                            if dist < minDist:
+                                minDist = dist
+                                index = i
+                        r = r[index:] + r[:index]
+
+                    # convert from list of points to lines
+
                     (x, y) = r[-1]
                     pLast = (float(x) / SCALE, float(y) / SCALE)
                     path = []
@@ -67,10 +82,13 @@ class pocket():
                         l.label(txt)
                         path.append(l)
                         pLast = p
+                        
                     dprt()
                     for l in path:
                         l.prt()
                     dprt()
+
+                    # connect to closest path
 
                     for (oNum, oPath) in enumerate(offsetPaths):
                         lEnd = oPath[-1]
@@ -99,7 +117,7 @@ class pocket():
                         offsetPaths.append(path)
                 offset += stepOver
                 step += 1
-                if step == 6:
+                if step == 100:
                     break
             for path in offsetPaths:
-                mp.millPath(path, closed=False)
+                mp.millPath(path, closed=False, minDist=False)
