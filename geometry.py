@@ -622,6 +622,15 @@ class Line():
         draw.move(self.p0)
         draw.line(self.p1)
 
+    def label(self, text, layer=None):
+        if draw is None:
+            return
+        if self.length > 0.5:
+            h = 0.010
+            x = (self.p1[0] + self.p0[0]) / 2.0
+            y = ((self.p0[1] + self.p1[1]) / 2.0) - h
+            draw.text(text, (x, y), h, layer)
+
     def prt(self, out=None, eol="\n", prefix=None):
         str = prefix if prefix is not None else ""
         str += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \

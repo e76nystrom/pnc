@@ -38,9 +38,11 @@ import random
 
 O_UPPER_LEFT = 0
 O_LOWER_LEFT = 1
-O_CENTER = 2
-O_POINT = 3
-O_MAX = 4
+O_UPPER_RIGHT = 2
+O_LOWER_RIGHT = 3
+O_CENTER = 4
+O_POINT = 5
+O_MAX = 6
 
 # print("%s" % (os.environ['TZ'],))
 # os.environ['TZ'] = 'America/New_York'
@@ -843,6 +845,8 @@ class Config():
     def setOrientation(self, args):
         o = ((O_UPPER_LEFT, "upperleft"), \
              (O_LOWER_LEFT, "lowerleft"), \
+             (O_UPPER_RIGHT, "upperright"), \
+             (O_LOWER_RIGHT, "lowerright"), \
              (O_CENTER, "center"), \
              (O_POINT, "point"), \
         )
@@ -1797,6 +1801,16 @@ class Draw():
                 p1 = (xSize, 0.0)
                 p2 = (xSize, ySize)
                 p3 = (0.0, ySize)
+            elif orientation == O_UPPER_RIGHT:
+                p0 = (0.0, 0.0)
+                p1 = (-xSize, 0.0)
+                p2 = (-xSize, -ySize)
+                p3 = (0.0, -ySize)
+            elif orientation == O_LOWER_RIGHT:
+                p0 = (0.0, 0.0)
+                p1 = (-xSize, 0.0)
+                p2 = (-xSize, ySize)
+                p3 = (0.0, ySize)
             elif orientation == O_CENTER or orientation == O_POINT:
                 p0 = (-xSize/2, -ySize/2)
                 p1 = (xSize/2, -ySize/2)
@@ -2151,6 +2165,12 @@ class Dxf():
             self.yOffset = -self.yMax
         elif orientation == O_LOWER_LEFT:
             self.xOffset = -self.xMin
+            self.yOffset = -self.yMin
+        elif orientation == O_UPPER_RIGHT:
+            self.xOffset = -self.xMax
+            self.yOffset = -self.yMax
+        elif orientation == O_LOWER_RIGHT:
+            self.xOffset = -self.xMax
             self.yOffset = -self.yMin
         elif orientation == O_CENTER:
             self.xOffset = -(self.xMin + (self.xMax - self.xMin) / 2)
