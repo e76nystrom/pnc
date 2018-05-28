@@ -3,11 +3,11 @@ import pyclipper
 import sys
 from dbgprt import dprtSet, dprt, dflush
 from geometry import Arc, Line
-from geometry import calcAngle, degAtan2, fix, orientation, oStr, xyDist
+from geometry import calcAngle, degAtan2, fix, orientation, oStr, pathDir, xyDist
 from geometry import ARC, LINE, CCW, CW, MIN_DIST, MAX_VALUE
 from math import acos, atan2, ceil, cos, degrees, pi, radians, sin, sqrt
 
-SCALE = 10000000.0
+SCALE = 1000000.0
 
 def floatScale(p):
     return(float(p[0]) / SCALE, float(p[1]) / SCALE)
@@ -41,6 +41,7 @@ class pocket():
         mp = cfg.getMillPath()
         self.last = cfg.mill.last
         for seg in segments:
+            self.pDir = pathDir(seg)
             pco.Clear()
             mainPath = []
             for (i, l) in enumerate(seg):
@@ -79,22 +80,24 @@ class pocket():
                         for (i, p) in enumerate(r):
                             p = floatScale(p)
                             dist = xyDist(p, pLast)
-                            dprt("%3d (%7.4f %7.4f) dist %7.4f" % \
-                                 (i, p[0], p[1], dist))
+                            if False:
+                                dprt("%3d (%7.4f %7.4f) dist %9.6f" % \
+                                     (i, p[0], p[1], dist))
                             if dist > maxDist:
                                 maxDist = dist
                                 index = i
                             r[i] = p
                             pLast = p
                         r = r[index:] + r[:index]
-                        dprt("index %d maxDist %7.4f" % (index, maxDist))
-                        pLast = r[-1]
-                        dprt("pLast (%7.4f %7.4f)" % (pLast[0], pLast[1]))
-                        for (i, p) in enumerate(r):
-                            dprt("%3d (%7.4f %7.4f) dist %7.4f" % \
-                                 (i, p[0], p[1], xyDist(p, pLast)))
-                            pLast = p
-                        dprt()
+                        if False:
+                            dprt("index %d maxDist %7.4f" % (index, maxDist))
+                            pLast = r[-1]
+                            dprt("pLast (%7.4f %7.4f)" % (pLast[0], pLast[1]))
+                            for (i, p) in enumerate(r):
+                                dprt("%3d (%7.4f %7.4f) dist %9.6f" % \
+                                     (i, p[0], p[1], xyDist(p, pLast)))
+                                pLast = p
+                                dprt()
                         path = self.makePath(r, step, rNum)
                     else:
                         (x, y) = r[-1]
@@ -148,7 +151,7 @@ class pocket():
                             continue
                         rPath = rNum
                         for (oNum, (i, dist)) in enumerate(oData):
-                            dprt("step %d rNum %d Onum %d index %3d dist %7.4f" % \
+                            dprt("step %d rNum %d Onum %d index %3d dist %9.6f" % \
                                  (step, rNum, oNum, i, dist))
                             if not oConnect[oNum] and dist < minDist:
                                 minDist = dist
@@ -160,7 +163,7 @@ class pocket():
                         break
                     if index is not None: # connect path
                         dprt("connect rIndex %d index %3d to "\
-                             "oIndex %d dist %7.4f" % \
+                             "oIndex %d dist %9.6f" % \
                              (rIndex, index, oIndex, minDist))
                         path = result[rIndex]
                         rData[rIndex] = None
@@ -197,7 +200,6 @@ class pocket():
     def arcLines(self, mainPath, l, err=0.001):
         r = l.r
         adjacent = r - err
-        # halfCord = sqrt(r*r - adjacent*adjacent)
         angle = 2 * degrees(acos(adjacent / r))
         a0 = degrees(calcAngle(l.c, l.p0))
         a1 = degrees(calcAngle(l.c, l.p1))
@@ -318,6 +320,8 @@ class pocket():
         i = 0
         path = []
         # points.append(points[0])
+        o0 = orientation(pLast, points[0], points[1])
+        dprt("path orientation %s" % oStr(o0))
         while i < numPoints:
             p0 = points[i]
             dprt("i %3d (%7.4f %7.4f)" % (i, p0[0], p0[1]))
@@ -327,12 +331,13 @@ class pocket():
             while j < numPoints - 1:
                 pj = points[j]
                 dist = xyDist(pa, pj)
-                if abs(dist - d0) > MIN_DIST:
+                if abs(dist - d0) > 001:
+                    dprt("dist %9.6f d0 %9.6f" % (dist, d0))
                     break
                 j += 1
                 pa = pj
             delta = j - i
-            if delta < 3:
+            if delta < 4:
                 l = Line(pLast, p0, i)
                 l.prt()
                 txt = "s %d r %d i %d" % (step, rNum, i)
@@ -342,10 +347,13 @@ class pocket():
             else:
                 p1 = points[i + delta / 2]
                 (c, r) = self.pointsArc(pLast, p1, pa)
+                o = orientation(pLast, p1, pa)
+                if o != o0:
+                    (pLast, pa) = (pa, pLast)
                 a0 = degAtan2(pLast[1] - c[1], pLast[0] - c[0])
                 a1 = degAtan2(pa[1] - c[1], pa[0] - c[0])
-                o = orientation(pLast, p1, pa)
                 l = Arc(c, r, a0, a1, dir=o)
+                l.prt()
                 dprt("arc %s %2d i %d (%7.4f %7.4f) %8.3f "\
                      " %d (%7.4f %7.4f) %8.3f" % \
                      (oStr(o), delta, i, pLast[0], pLast[1], a0, \
