@@ -1,12 +1,16 @@
 from __future__ import print_function
 import pyclipper
+import sys
 from dbgprt import dprtSet, dprt, dflush
 from geometry import Arc, Line
-from geometry import calcAngle, xyDist
+from geometry import calcAngle, degAtan2, fix, orientation, oStr, xyDist
 from geometry import ARC, LINE, CCW, CW, MIN_DIST, MAX_VALUE
-from math import acos, ceil, cos, degrees, radians, sin, sqrt
+from math import acos, atan2, ceil, cos, degrees, pi, radians, sin, sqrt
 
-SCALE = 10000.0
+SCALE = 10000000.0
+
+def floatScale(p):
+    return(float(p[0]) / SCALE, float(p[1]) / SCALE)
 
 class pocket():
     def __init__(self, cfg):
@@ -68,19 +72,44 @@ class pocket():
 
                     # convert from list of points to lines
 
-                    (x, y) = r[-1]
-                    pLast = (float(x) / SCALE, float(y) / SCALE)
-                    path = []
-                    for (i, (x, y)) in enumerate(r):
-                        x = float(x) / SCALE
-                        y = float(y) / SCALE
-                        dprt("%3d (%7.4f %7.4f)" % (i, x, y))
-                        p = (x, y)
-                        l = Line(pLast, p, i)
-                        txt = "s %d r %d i %d" % (step, rNum, i)
-                        l.label(txt)
-                        path.append(l)
-                        pLast = p
+                    if True:
+                        pLast = floatScale(r[-1])
+                        index = 0
+                        maxDist = -1
+                        for (i, p) in enumerate(r):
+                            p = floatScale(p)
+                            dist = xyDist(p, pLast)
+                            dprt("%3d (%7.4f %7.4f) dist %7.4f" % \
+                                 (i, p[0], p[1], dist))
+                            if dist > maxDist:
+                                maxDist = dist
+                                index = i
+                            r[i] = p
+                            pLast = p
+                        r = r[index:] + r[:index]
+                        dprt("index %d maxDist %7.4f" % (index, maxDist))
+                        pLast = r[-1]
+                        dprt("pLast (%7.4f %7.4f)" % (pLast[0], pLast[1]))
+                        for (i, p) in enumerate(r):
+                            dprt("%3d (%7.4f %7.4f) dist %7.4f" % \
+                                 (i, p[0], p[1], xyDist(p, pLast)))
+                            pLast = p
+                        dprt()
+                        path = self.makePath(r, step, rNum)
+                    else:
+                        (x, y) = r[-1]
+                        pLast = (float(x) / SCALE, float(y) / SCALE)
+                        path = []
+                        for (i, (x, y)) in enumerate(r):
+                            x = float(x) / SCALE
+                            y = float(y) / SCALE
+                            dprt("%3d (%7.4f %7.4f)" % (i, x, y))
+                            p = (x, y)
+                            l = Line(pLast, p, i)
+                            txt = "s %d r %d i %d" % (step, rNum, i)
+                            l.label(txt)
+                            path.append(l)
+                            pLast = p
 
                     result[rNum] = path
                         
@@ -176,8 +205,8 @@ class pocket():
         if not l.swapped:   # clockwise
             if a1 < a0:
                 a1 += 360.0
-            # dprt("a0 %5.1f a1 %5.1f total %5.1f cw" % \
-            #       (fix(a0), fix(a1), a1 - a0))
+            dprt("a0 %5.1f a1 %5.1f total %5.1f cw" % \
+                  (fix(a0), fix(a1), a1 - a0))
             arcAngle = a1 - a0
             segments = int(ceil((arcAngle) / angle))
             aInc = arcAngle / segments
@@ -185,17 +214,182 @@ class pocket():
         else:               # counter clockwise
             if a0 < a1:
                 a0 += 360.0
-            # dprt("a0 %5.1f a1 %5.1f total %5.1f ccw" % \
-            #       (fix(a0), fix(a1), a0 - a1))
+            dprt("a0 %5.1f a1 %5.1f total %5.1f ccw" % \
+                  (fix(a0), fix(a1), a0 - a1))
             arcAngle = a0 - a1
             segments = int(ceil((arcAngle) / angle))
             aInc = -arcAngle / segments
 
-        # mainPath.append((int(l.p0[0] * SCALE), int(l.p0[1] * SCALE)))
+        dprt("segments %d arcAngle %7.2f aInc %7.2f" % \
+             (segments, arcAngle, aInc))
+        mainPath.append((int(l.p0[0] * SCALE), int(l.p0[1] * SCALE)))
         aRad = radians(aInc)
-        a = radians(a0)
-        for i in range(1, segments-1):
+        a = radians(a0) + aRad
+        for i in range(1, segments):
             p = (int((r * cos(a) + x) * SCALE), int((r * sin(a) + y) * SCALE))
+            dprt(("%2d a %7.2f (%7.2f %7.2f)" % \
+                  (i, degrees(a), p[0]/SCALE, p[1]/SCALE)))
             mainPath.append(p)
             a += aRad
-        mainPath.append((int(l.p1[0] * SCALE), int(l.p1[1] * SCALE)))
+        # mainPath.append((int(l.p1[0] * SCALE), int(l.p1[1] * SCALE)))
+
+    def pointsArc(self, p0, p1, p2):
+        dprt("p0 (%7.4f %7.4f) p1 (%7.4f %7.4f) p2 (%7.4f %7.4f) %7.4f %7.4f" % \
+             (p0[0], p0[1], p1[0], p1[1], p2[0], p2[1], \
+              xyDist(p0, p1), xyDist(p1, p2)))
+        (eqType0, m0, b0) = self.lineMid90(p0, p1)
+        (eqType1, m1, b1) = self.lineMid90(p1, p2)
+        dprt("eqType0 %5s m0 %7.4f b0 %7.4f "\
+             "eqType1 %5s m1 %7.4f b1 %7.4f" % \
+             (eqType0, m0, b0, eqType1, m1, b1))
+        if eqType0:
+            if eqType1:
+                # y = m0*x + b0
+                # y = m1*x + b1
+                # m0*x + b0 = m1*x + b1
+                # x*(m0 - m1) = b1 - b0
+                x = (b1 - b0) / (m0 - m1)
+                y = m0 * x + b0
+            else:
+                # y = m0*x + b0
+                # x = m1*y + b1
+                # y = m0 * (m1*y + b1) + b0
+                # y = m0*m1*y + m0*b1 + b0
+                # y - m0*m1*y = m0*b1 + b0
+                # y * (1 - m0*m1) = m0*b1 + b0
+                # y = (m0*b1 + b0) / (1 - m0*m1)
+                y = (m0*b1 + b0) / (1 - m0*m1)
+                x = m1 * y + b1
+        else:
+            if eqType1:
+                x = (m0*b1 + b0) / (1 - m0*m1)
+                y = m1 * x + b1
+            else:
+                y = (b1 - b0) / (m0 - m1)
+                x = m0 * y + b0
+        c = (x, y)
+        r0 = xyDist(c, p0)
+        r1 = xyDist(c, p1)
+        r2 = xyDist(c, p2)
+        dprt("c (%7.4f %7.4f) r0 %7.4f r1 %7.4f r2 %7.4f" % \
+             (c[0], c[1], r0, r1, r2))
+        return((c, r0))
+
+    def lineMid90(self, p0, p1, eqType=None):
+        (x0, y0) = p0
+        (x1, y1) = p1
+        xM = (x0 + x1) / 2
+        yM = (y0 + y1) / 2
+        dx = x1 - x0
+        dy = y1 - y0
+        if eqType is None:
+            eqType = abs(dx) > abs(dy)
+        dprt("eqType %5s dx %10.6f dy %10.6f" % (eqType, abs(dx), abs(dy)))
+        # eqType = False
+        if eqType:              # if dx > dy line y = mx + b per x = -m*y + b
+            m = -dy / dx        # negate slope
+            # y = mx + b
+            # b = y - mx
+            b = xM - m * yM     # swap positions of x and y
+        else:                   # if dy > dx x = my + b
+            m = -dx / dy
+            b = yM - m * xM
+        return((not eqType, m, b))
+
+    def makePath(self, points, step, rNum, dbg=True):
+        if False:
+            r = 1
+            for i in range(4):
+                a0 = float(i) * pi / 2 + pi / 4
+                a = a0
+                p0 = (r * cos(a), r * sin(a))
+                for j in range(2):
+                    tmp = (pi, -pi)[j]
+                    a = a0 + tmp / 2
+                    p1 = (r * cos(a), r * sin(a))
+                    a = a0 + tmp / 1
+                    p2 = (r * cos(a), r * sin(a))
+                    self.pointsArc(p0, p1, p2)
+            dprt()
+            sys.exit()
+
+        numPoints = len(points)
+        pLast = points[-1]
+        i = 0
+        path = []
+        # points.append(points[0])
+        while i < numPoints:
+            p0 = points[i]
+            dprt("i %3d (%7.4f %7.4f)" % (i, p0[0], p0[1]))
+            d0 = xyDist(p0, pLast)
+            j = i + 1
+            pa = p0
+            while j < numPoints - 1:
+                pj = points[j]
+                dist = xyDist(pa, pj)
+                if abs(dist - d0) > MIN_DIST:
+                    break
+                j += 1
+                pa = pj
+            delta = j - i
+            if delta < 3:
+                l = Line(pLast, p0, i)
+                l.prt()
+                txt = "s %d r %d i %d" % (step, rNum, i)
+                l.label(txt)
+                i += 1
+                pLast = p0
+            else:
+                p1 = points[i + delta / 2]
+                (c, r) = self.pointsArc(pLast, p1, pa)
+                a0 = degAtan2(pLast[1] - c[1], pLast[0] - c[0])
+                a1 = degAtan2(pa[1] - c[1], pa[0] - c[0])
+                o = orientation(pLast, p1, pa)
+                l = Arc(c, r, a0, a1, dir=o)
+                dprt("arc %s %2d i %d (%7.4f %7.4f) %8.3f "\
+                     " %d (%7.4f %7.4f) %8.3f" % \
+                     (oStr(o), delta, i, pLast[0], pLast[1], a0, \
+                      j, pa[0], pa[1], a1))
+                i = j
+                pLast = pa
+            path.append(l)
+        return(path)
+
+        # while i < numPoints:
+        #     p0 = points[i]
+        #     dprt("i %3d (%7.4f %7.4f)" % (i, p0[0], p0[1]))
+        #     if i < numPoints - 3:
+        #         j = i + 1
+        #         p1 = points[j]
+        #         j += 1
+        #         p2 = points[j]
+        #         j += 1
+        #         (c, r) = self.pointsArc(p0, p1, p2)
+        #         arc = False
+        #         while j < numPoints - 1:
+        #             pj = points[j + 1]
+        #             dist = abs(xyDist(c, pj) - r)
+        #             dprt("%3d (%7.4f %7.4f) dist %10.6f" % \
+        #                  (j, pj[0], pj[1], dist))
+        #             if dist > 0.001:
+        #                 break
+        #             j += 1
+        #             arc = True
+        #     if arc:
+        #         a0 = degAtan2(p0[1] - c[1], p0[0] - c[0])
+        #         a1 = degAtan2(pj[1] - c[1], pj[0] - c[0])
+        #         dprt("arc i %d (%7.4f %7.4f) %8.3f j %d (%7.4f %7.4f) %8.3f" % \
+        #              (i, p0[0], p0[1], a0, j, pj[0], pj[1], a1))
+        #         i = j
+        #     else:
+        #         dprt("%3d (%7.4f %7.4f)" % (i, p0[0], p0[1]))
+        #         l = Line(pLast, p0, i)
+        #         l.prt()
+        #         txt = "s %d r %d i %d" % (step, rNum, i)
+        #         l.label(txt)
+        #         i += 1
+        #     if l is not None:
+        #         path.append(l)
+        #     l = None
+        #     pLast = p0
+        # return(path)
