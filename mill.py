@@ -59,6 +59,9 @@ class Mill():
                       (cfg.coordinate))
             self.setFeed(cfg.feed)
             self.safeZ()
+            if cfg.homePause:
+                self.move((0.0, 0.0))
+                self.pause()
             out.write("\n")
 
     def write(self, str):

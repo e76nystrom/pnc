@@ -115,6 +115,7 @@ class Config():
         self.pause = False       # enable pause
         self.pauseCenter = False # pause at center of hole
         self.pauseHeight = 0.025 # height to pause at
+        self.homePause = True    # start by pausing at home position
 
         self.delay = 3.0        # spindle start delay
         self.speed = 1800       # spindle speed
@@ -197,6 +198,7 @@ class Config():
             ('pause', self.setPause), \
             ('pausecenter', self.setPauseCenter), \
             ('pauseheight', self.setPauseHeight), \
+            ('homepause', self.setHomePause), \
 
             ('rampangle', self.setRampAngle), \
             ('shortramp', self.setShortRamp), \
@@ -613,6 +615,9 @@ class Config():
     def setPause(self, args):
         self.pause = int(args[1]) != 0
 
+    def setHomePause(self, args):
+        self.homePause = int(args[1]) != 0
+
     def setTest(self, args):
         self.test = int(args[1]) != 0
 
@@ -915,6 +920,8 @@ class Config():
         self.line.millLines(args[1])
 
     def getLayer(self, args):
+        if len(args) <= 1:
+            return(None)
         layer = args[1]
         if layer == '*':
             if self.layer is not None:
@@ -1010,7 +1017,8 @@ class Config():
     def dxfDrill(self, args, tap=False):
         dbg = False
         layer = self.getLayer(args)
-        drill = self.dxfInput.getHoles(layer)
+        size = None if layer is not None else self.drillSize
+        drill = self.dxfInput.getHoles(layer, size)
         self.ncInit()
         last = self.mill.last
         for d in drill:
@@ -1041,7 +1049,8 @@ class Config():
     def dxfMillHole(self, args, drill=None):
         if drill is None:
             layer = self.getLayer(args)
-            drill = self.dxfInput.getHoles(layer)
+            size = None if layer is not None else self.drillSize
+            drill = self.dxfInput.getHoles(layer, size)
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
@@ -2234,25 +2243,27 @@ class Dxf():
                         points.append((xCen, yCen))
         return(points)
 
-    def getHoles(self, layer):
+    def getHoles(self, layer=None, size=None):
         holes = []
         for e in self.modelspace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
-            if layer != e.get_dxf_attrib("layer"):
-                continue
-            type = e.dxftype()
-            if type == 'CIRCLE':
-                p = self.fix(e.get_dxf_attrib("center")[:2])
-                radius = e.get_dxf_attrib("radius")
-                drillSize = radius * 2.0
-                for h in holes:
-                    if abs(drillSize - h.size) < MIN_DIST:
-                        h.addLoc(p)
-                        break
-                else:
-                    d = Drill(drillSize)
-                    holes.append(d)
-                    d.addLoc(p)
+            if (layer is None) or (layer == e.get_dxf_attrib("layer")):
+                type = e.dxftype()
+                if type == 'CIRCLE':
+                    p = self.fix(e.get_dxf_attrib("center")[:2])
+                    radius = e.get_dxf_attrib("radius")
+                    drillSize = radius * 2.0
+                    if size is not None:
+                        if abs(size - drillSize) > MIN_DIST:
+                            continue
+                    for h in holes:
+                        if abs(drillSize - h.size) < MIN_DIST:
+                            h.addLoc(p)
+                            break
+                    else:
+                        d = Drill(drillSize)
+                        holes.append(d)
+                        d.addLoc(p)
         return(holes)
 
     def getPath(self, layer, circle=False, dbg=False, rand=False):
