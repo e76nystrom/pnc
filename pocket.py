@@ -12,15 +12,22 @@ SCALE = 1000000.0
 def floatScale(p):
     return(float(p[0]) / SCALE, float(p[1]) / SCALE)
 
+def intScale(p):
+    return(int(p[0] * SCALE), int(p[1] * SCALE))
+
 class pocket():
     def __init__(self, cfg):
         self.cfg = cfg
         print("test loaded")
         self.stepOver = 0.85
+        self.arcs = False
+        self.dbg = False
         self.cmds = \
         ( \
           ('pocket', self.pocket), \
           ('stepover', self.setStepOver), \
+          ('pocketarcs', self.pocketArcs), \
+          ('pocketdbg', self.pocketDbg), \
           # ('', self.), \
         )
         dprtSet(True)
@@ -28,7 +35,15 @@ class pocket():
     def setStepOver(self, args):
         self.stepOver = float(args[1]) / 100.0
 
-    def pocket(self, args, dbg=False):
+    def pocketArcs(self, args):
+        self.arcs = int(args[1]) != 0
+
+    def pocketDbg(self, args):
+        self.dbg = int(args[1]) != 0
+
+    def pocket(self, args, dbg=None):
+        if dbg is None:
+            dbg = self.dbg
         layer = args[1]
         cfg = self.cfg
         dir = CCW
@@ -49,9 +64,7 @@ class pocket():
                 if dbg:
                     l.prt()
                 if l.type == LINE:
-                    (x, y) = l.p0
-                    # dprt("%2d (%7.4f %7.4f)" % (i, x, y))
-                    mainPath.append((int(SCALE * x), int(SCALE * y)))
+                    mainPath.append(intScale(l.p0))
                 elif l.type == ARC:
                     self.arcLines(mainPath, l, dbg=dbg)
             if dbg:
@@ -78,7 +91,7 @@ class pocket():
 
                     # convert from list of points to lines
 
-                    if True:
+                    if self.arcs:
                         pLast = floatScale(r[-1])
                         index = 0
                         maxDist = -1
@@ -212,7 +225,6 @@ class pocket():
         angle = 2 * degrees(acos(adjacent / r))
         a0 = degrees(calcAngle(l.c, l.p0))
         a1 = degrees(calcAngle(l.c, l.p1))
-        (x, y) = l.c
         if not l.swapped:   # clockwise
             if a1 < a0:
                 a1 += 360.0
@@ -236,17 +248,17 @@ class pocket():
         if dbg:
             dprt("segments %d arcAngle %7.2f aInc %7.2f" % \
                  (segments, arcAngle, aInc))
-        mainPath.append((int(l.p0[0] * SCALE), int(l.p0[1] * SCALE)))
+        mainPath.append(intScale(l.p0))
+        (x, y) = l.c
         aRad = radians(aInc)
         a = radians(a0) + aRad
         for i in range(1, segments):
-            p = (int((r * cos(a) + x) * SCALE), int((r * sin(a) + y) * SCALE))
+            p = (r * cos(a) + x, r * sin(a) + y)
             if dbg:
-                dprt(("%2d a %7.2f (%7.2f %7.2f)" % \
-                      (i, degrees(a), p[0]/SCALE, p[1]/SCALE)))
-            mainPath.append(p)
+                dprt("%2d a %7.2f (%7.2f %7.2f)" % \
+                     (i, degrees(a), p[0], p[1]))
+            mainPath.append(intScale(p))
             a += aRad
-        # mainPath.append((int(l.p1[0] * SCALE), int(l.p1[1] * SCALE)))
 
     def pointsArc(self, p0, p1, p2, dbg=False):
         if dbg:
