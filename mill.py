@@ -10,6 +10,7 @@ class Mill():
         self.outFile = None
         self.spindleActive = False
         self.speed = 0
+        self.tool = None
         if outFile is not None:
             self.init(outFile, draw)
 
@@ -27,6 +28,7 @@ class Mill():
             cfg.zFeed = cfg.feed
         if self.outFile is None:
             self.outFile = outFile
+            self.tool = None
 
             # print("%s" % (os.environ['TZ'],))
             # os.environ['TZ'] = 'America/New_York'
@@ -44,7 +46,8 @@ class Mill():
                 out.write("#%s = %s	(depth)\n" % (cfg.depthVar, cfg.depth))
                 out.write("#%s = %s	(retract between holes)\n" % \
                           (cfg.retractVar, cfg.retract))
-                out.write("#%s = %s	(safe z)\n" % (cfg.safeZVar, cfg.safeZ))
+                out.write("#%s = %s	(safe z)\n" % \
+                          (cfg.safeZVar, cfg.safeZ))
                 out.write("#%s = %s	(top)\n" % (cfgtopVar, cfg.top))
             else:
                 out.write("(%7.4f	depth)\n" % (cfg.depth))
@@ -71,6 +74,14 @@ class Mill():
 
     def pause(self):
         self.out.write("m0 (pause)\n")
+
+    def toolChange(self, tool):
+        if tool != self.tool:
+            self.tool = tool
+            self.setSpeed(0)
+            self.out.write("\nG30 (Go to preset G30 location)\n")
+            self.out.write("T %d M6 G43 H %d\n\n" % (tool, tool))
+            self.setSpeed(self.speed)
 
     def setArcCW(self, cw):
         self.cw = not cw

@@ -1,3 +1,4 @@
+from dbgprt import dprt
 from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
 from geometry import MIN_DIST
 
@@ -7,6 +8,8 @@ class DrillHolder():
         self.m = cfg.mill
         self.d = cfg.draw
         self.letterHeight = 0.1
+        self.mountRetract = None
+        self.retract = None
         self.cmds = \
         ( \
           ('dhdrillholes', self.millHoles),
@@ -14,6 +17,15 @@ class DrillHolder():
           ('dhletterheight', self.setLetterHeight),
           ('dhdxf', self.dxfHolder),
           ('dhscad', self.scadHolderBase),
+          ('dhmountretract', self.setMountRetract),
+          ('dhretract', self.setRetract),
+          ('dhgrid', self.setGrid),
+          ('dhoffset', self.setOffset),
+          ('dhspacing', self.setSpacing),
+          ('dhtextoffset', self.setTestOfset),
+          ('dhmountsize', self.setMontSize),
+          ('dhxmount', self.setXMount),
+          ('dhymount', self.setYMount),
           # ('', self.),
         )
         self.holes = \
@@ -133,27 +145,73 @@ class DrillHolder():
     def setLetterHeight(self, args):
         self.letterHeight = abs(float(args[1]))
 
+    def setMountRetract(self, args):
+        self.mountRetract = float(args[1])
+
+    def setRetract(self, args):
+        self.retract = float(args[1])
+
+    def setGrid(self, args):
+        self.grid = (int(args[1]), int(args[2]))
+
+    def setOffset(self, args):
+        self.offset = (float(args[1]), float(args[2]))
+
+    def setSpacing(self, args):
+        self.spacing = (float(args[1]), float(args[2]))
+
+    def setTextOffset(self, args):
+        self.textOffset = float(args[1])
+
+    def setMountSize(self, args):
+        self.mountSize float(args[1])
+
+    def setXMount(self, args):
+        self.xMount = (float(args[1]), int(args[2]))
+
+    def setYMount(self, args):
+        self.yMount = (float(args[1]), int(args[2]))
+
     def millHoles(self, args):
         holes = []
         d = Drill(self.mountSize)
         for p in self.mountInfo:
             d.addLoc(p)
         holes.append(d)
+        cfg = self.cfg
+        retract = cfg.retract   # save retract value
+        if self.mountRetract is not None:
+            cfg.retract = self.mountRetract
+        else:
+            cfg.retract = cfg.safeZ
+        cfg.dxfMillHole(None, holes)
         
+        holes = []
+        i = 0
         for (x, y, size, text) in self.holeInfo:
+            dprt("%2d (%7.4f, %7.4f) size %7.4f %5s" % \
+                 (i, x, y, size, text))
+            i += 1
             size += self.clearance
+            add = True
             for h in holes:
                 if abs(size - h.size) < MIN_DIST:
+                    dprt("add %7.4f to %7.4f" % (size, h.size))
                     h.addLoc((x, y))
+                    add = False
                     break
-                else:
-                    d = Drill(size)
-                    holes.append(d)
-                    d.addLoc((x, y))
-                    break
+            if add:
+                dprt("new %7.4f" % (size))
+                d = Drill(size)
+                d.addLoc((x, y))
+                holes.append(d)
 
-        self.cfg.dxfMillHole(None, holes)
-        self.cfg.draw.material(self.xSize, self.ySize)
+        if self.retract is not None:
+            cfg.retract = self.retract
+        else:                   # if retract not specified
+            cfg.retract = retract # restore retract value
+        cfg.dxfMillHole(None, holes)
+        cfg.draw.material(self.xSize, self.ySize)
 
     def labelHoles(self, args):
         cfg = self.cfg
@@ -182,7 +240,7 @@ class DrillHolder():
             offset -= self.letterHeight / 2
         else:
             offset += self.letterHeight / 2
-        m = self.m
+        m = self.cfg.mill
         m.safeZ()
         for (x, y, size, text) in self.holeInfo:
             if len(text) != 0:

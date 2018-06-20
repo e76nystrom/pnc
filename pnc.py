@@ -117,6 +117,7 @@ class Config():
         self.pauseHeight = 0.025 # height to pause at
         self.homePause = True    # start by pausing at home position
 
+        self.tool = None        # tool number
         self.delay = 3.0        # spindle start delay
         self.speed = 1800       # spindle speed
         self.coordinate = 54    # coordinate system
@@ -169,6 +170,7 @@ class Config():
             ('ypark', self.yPark), \
             ('zpark', self.zPark), \
 
+
             ('size', self.setSize), \
             ('drillsize', self.setDrillSize), \
             ('peckdepth', self.setPeckDepth), \
@@ -187,6 +189,7 @@ class Config():
 
             ('speed', self.setSpeed), \
             ('delay', self.setDelay), \
+            ('tool', self.setTool), \
 
             ('x', self.setLocX), \
             ('y', self.setLocY), \
@@ -473,11 +476,14 @@ class Config():
         draw.move((0.0, 0.0))
 
         outFile = self.outFileName + ".ngc"
-        if self.mill is None:
-            self.mill = Mill(self, outFile)
+        mill = self.mill
+        if mill is None:
+            self.mill = mill = Mill(self, outFile)
         else:
-            self.mill.init(outFile)
-        self.mill.setSpeed(self.speed)
+            mill.init(outFile)
+        if self.tool is not None:
+            mill.toolChange(self.tool)
+        mill.setSpeed(self.speed)
         self.openOutput = False
 
         if self.probe:
@@ -562,6 +568,11 @@ class Config():
 
     def setDelay(self, args):
         self.delay = float(args[1])
+
+    def setTool(self, args):
+        self.tool = int(args[1])
+        if self.mill is not None:
+            self.mill.toolChange(self.tool)
 
     def setLoc(self, args):
         self.x = float(args[1])
@@ -1630,7 +1641,8 @@ class MillPath():
         if cfg.pauseCenter and len(path0) == 1:
             mill.move(path0[0].p0)
         else:
-            mill.safeZ()
+            #mill.safeZ()
+            mill.retract()
             mill.move(path0[0].p0)
             if cfg.pause:
                 mill.moveZ(cfg.pauseHeight)
