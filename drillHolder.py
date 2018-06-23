@@ -1,4 +1,4 @@
-from dbgprt import dprt
+from dbgprt import dprt, eprintf
 from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
 from geometry import MIN_DIST
 
@@ -7,9 +7,24 @@ class DrillHolder():
         self.cfg = cfg
         self.m = cfg.mill
         self.d = cfg.draw
+
         self.letterHeight = 0.1
+
         self.mountRetract = None
         self.retract = None
+
+        self.grid = (7, 6)
+        self.offset = (0.5, 0.5)
+        self.spacing = (0.5, 0.5)
+        self.textOffset = -0.25
+        self.top = False
+
+        self.mountSize = 0.125
+        self.xMount = (0.1875, 2)
+        self.yMount = (0.25, 3)
+
+        self.clearance = 0.001
+
         self.cmds = \
         ( \
           ('dhdrillholes', self.millHoles),
@@ -22,10 +37,12 @@ class DrillHolder():
           ('dhgrid', self.setGrid),
           ('dhoffset', self.setOffset),
           ('dhspacing', self.setSpacing),
-          ('dhtextoffset', self.setTestOfset),
-          ('dhmountsize', self.setMontSize),
+          ('dhtextoffset', self.setTextOffset),
+          ('dhtop', self.setTop),
+          ('dhmountsize', self.setMountSize),
           ('dhxmount', self.setXMount),
           ('dhymount', self.setYMount),
+          ('dhclearance', self.setClearance),
           # ('', self.),
         )
         self.holes = \
@@ -78,18 +95,6 @@ class DrillHolder():
               (0.313, "5/16"), \
               (0.375, ""), \
             )
-
-        self.grid = (7, 6)
-        self.offset = (0.5, 0.5)
-        self.spacing = (0.5, 0.5)
-        self.textOffset = -0.25
-        self.top = False
-
-        self.mountSize = 0.125
-        self.xMount = (0.1875, 2)
-        self.yMount = (0.25, 3)
-
-        self.clearance = 0.001
 
         self.setup()
 
@@ -163,14 +168,20 @@ class DrillHolder():
     def setTextOffset(self, args):
         self.textOffset = float(args[1])
 
+    def setTop(self, args):
+        self.top = int(args[1]) != 0
+
     def setMountSize(self, args):
-        self.mountSize float(args[1])
+        self.mountSize = float(args[1])
 
     def setXMount(self, args):
         self.xMount = (float(args[1]), int(args[2]))
 
     def setYMount(self, args):
         self.yMount = (float(args[1]), int(args[2]))
+
+    def setClearance(self, args):
+        self.clearance = float(args[1])
 
     def millHoles(self, args):
         holes = []

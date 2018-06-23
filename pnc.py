@@ -170,7 +170,6 @@ class Config():
             ('ypark', self.yPark), \
             ('zpark', self.zPark), \
 
-
             ('size', self.setSize), \
             ('drillsize', self.setDrillSize), \
             ('peckdepth', self.setPeckDepth), \
@@ -249,6 +248,7 @@ class Config():
             ('dxfmillhole', self.dxfMillHole), \
             ('dxftap', self.dxfTap), \
 
+            ('close', self.closeFiles), \
             ('outputfile', self.outputFile), \
 
             ('setfont', self.setFont), \
@@ -518,6 +518,7 @@ class Config():
         self.zPark = float(args[1])
         
     def setSize(self, args):
+        self.ncInit()
         self.xSize = float(args[1])
         self.ySize = float(args[2])
         if len(args) >= 4:
@@ -1112,6 +1113,14 @@ class Config():
     def dxfTap(self, args):
         self.dxfDrill(args, True)
 
+    def closeFiles(self, args):
+        self.dxfInput = None
+        self.holeCount = None
+        self.count = 0
+        if self.mill is not None:
+            self.mill.close()
+            self.mill = None
+
     def outputFile(self, args):
         self.end()
         draw = self.draw
@@ -1128,7 +1137,7 @@ class Config():
         if fileName.startswith('*'):
             fileName = self.baseName + fileName[1:]
         else:
-            fileName = self.dirPath + os.sep + fileName
+            fileName = os.path.join(self.dirPath, fileName)
         self.outFileName = fileName
 
     def setFont(self, args):
