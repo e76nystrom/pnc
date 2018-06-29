@@ -1,4 +1,4 @@
-from dbgprt import dprt, eprintf
+from dbgprt import dprt, ePrint
 from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
 from geometry import MIN_DIST
 
@@ -49,10 +49,10 @@ class DrillHolder():
             ( \
               (0.086, "44"), \
               (0.089, "43"), \
-              (0.140, "4-40"), \
+              (0.141, "4-40"), \
               (0.104, "37"), \
               (0.107, "36"), \
-              (0.140, "6-32"), \
+              (0.141, "6-32"), \
               (0.125, "1/8"), \
 
               (0.128, "30"), \
@@ -89,9 +89,9 @@ class DrillHolder():
 
               (0.250, "1/4"), \
               (0.261, "G"), \
-              (0.318, "5/16-18"), \
+              (0.319, "5/16-18"), \
               (0.277, "J"), \
-              (0.318, "5/16-24"), \
+              (0.319, "5/16-24"), \
               (0.313, "5/16"), \
               (0.375, ""), \
             )
@@ -232,15 +232,28 @@ class DrillHolder():
             prb = cfg.prb
             (x, y) = self.holeInfo[0][0:2]
             prb.write("g0 x %7.4f y %7.4f\n" % (x, y + self.textOffset))
-            prb.write("g38.2 z%6.4f (reference probe)\n" % (cfg.probeDepth))
+            prb.write("g1 z%6.4f\n\n" % (cfg.retract))
+            prb.write("g38.2 z%6.4f f%3.1f(reference probe)\n" %
+                      (cfg.probeDepth, cfg.probeFeed))
+            prb.write("g10 L20 P0 z0.000 (zero z)\n")
             prb.write("g0 z%6.4f\n\n" % (cfg.retract))
 
         if cfg.level:
-            zRef = inp.readline()[2]
+            try:
+                inp = open(cfg.probeData, "r")
+            except IOError:
+                ePrint("unable to open level data %s" % (cfg.probeData))
+                cfg.level = False
+                return
+            (x0, y0, zRef) = inp.readline().split(" ")[:3]
+            #zRef = float(zRef)
+            x0 = float(x0)
+            y0 = float(y0)
+            zRef = 0.0
             levelData = []
             for probeData in inp:
-                (x, y, z) = probeData[0:3]
-                levelData.append((x, y, z - zRef))
+                (x, y, z) = probeData.split(" ")[:3]
+                levelData.append((float(x), float(y), float(z) - zRef))
             levelIndex = 0
             inp.close()
             
@@ -253,35 +266,52 @@ class DrillHolder():
             offset += self.letterHeight / 2
         m = self.cfg.mill
         m.safeZ()
+        zOffset = 0.0
+
+        if cfg.level:
+            out = m.out
+            out.write("\nm5	(stop spindle to probe)\n")
+            out.write("g4 p3\n")
+            out.write("g0 x %7.4f y %7.4f\n" % (x0, y0))
+            m.retract()
+            out.write("g38.2 z%6.4f f%3.1f (probe reference point)\n" %
+                      (cfg.probeDepth, cfg.probeFeed))
+            out.write("g10 L20 P0 z0.000 (zero z)\n")
+            m.retract()
+            out.write("m3	(start spindle)\n")
+            out.write("g4 p3\n")
+            
         for (x, y, size, text) in self.holeInfo:
             if len(text) != 0:
+                y += offset
                 if cfg.probe:
-                    prb.write("g0 x %7.4f y %7.4f\n" % \
-                              (x, y + self.textOffset))
-                    prb.write("g38.2 z%6.4f (reference probe)\n" % \
-                              (cfg.probeDepth))
+                    prb.write("g0 x %7.4f y %7.4f\n" % (x, y))
+                    prb.write("g38.2 z%6.4f f%3.1f(reference probe)\n" %
+                              (cfg.probeDepth, cfg.probeFeed))
                     prb.write("g0 z%6.4f\n\n" % (cfg.retract))
 
                 if cfg.level:
                     found = False
-                    (xProbe, yProbe, zOffset) = levelData[levelIndex]
-                    if abs(x - xProbe) < MIN_DIST and \
-                       abs(y - yProbe) < MIN_DIST:
-                        found = True
-                        levelIndex += 1
-                    else:
+                    if levelIndex < len(levelData):
+                        (xProbe, yProbe, zOffset) = levelData[levelIndex]
+                        if abs(x - xProbe) < MIN_DIST and \
+                           abs(y - yProbe) < MIN_DIST:
+                            found = True
+                            levelIndex += 1
+                    if not found:
                         for levelIndex, (xProbe, yProbe, zOffset) in \
                             enumerate(levelData):
                             if abs(x - xProbe) < MIN_DIST and \
                                abs(y - yProbe) < MIN_DIST:
                                 found = True
                                 levelIndex += 1
-                    if found:
-                        font.setZOffset(zOffset)
-                    else:
+                    if not found:
+                        zOffset = 0.0
                         ePrint("level data not found")
+                    font.setZOffset(zOffset)
 
-                y += offset
+                m.out.write("\n(x %7.4f y %7.4f zOffset %6.4f %s)\n" % \
+                            (x, y, zOffset, text))
                 font.mill((x, y), text, center=True)
 
     def dxfHolder(self, args):

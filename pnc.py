@@ -153,6 +153,8 @@ class Config():
         self.prb = None         # probe output file
         self.probe = False      # generate probe file
         self.probeDepth = 0.0   # probe depth
+        self.probeFeed = 0.0    # probe feed
+        self.probeTool = None   # probe tool number
         self.level = False      # probe input file
         self.probeData = None   # output from probing
 
@@ -255,6 +257,8 @@ class Config():
             ('engrave', self.engrave), \
             ('probe', self.setProbe), \
             ('probedepth', self.setProbeDepth), \
+            ('probefeed', self.setProbeFeed), \
+            ('probetool', self.setProbeTool), \
             ('level', self.setLevel), \
 
             ('drawdxf', self.setDrawDxf), \
@@ -493,6 +497,10 @@ class Config():
         probeFile = self.outFileName + "-prb.ngc"
         self.prb = prb = Mill(self, probeFile, False)
         prb.out.write("(PROBEOPEN %s.prb)\n" % (probeFile))
+        tool = self.probeTool
+        if tool is not None:
+            prb.out.write("\nG30 (Go to preset G30 location)\n")
+            prb.out.write("T %d M6 G43 H %d\n\n" % (tool, tool))
         return(prb)
 
     def probeOpen(self):
@@ -1190,6 +1198,12 @@ class Config():
 
     def setProbeDepth(self, args):
         self.probeDepth = float(args[1])
+
+    def setProbeFeed(self, args):
+        self.probeFeed = float(args[1])
+
+    def setProbeTool(self, args):
+        self.probeTool = int(args[1])
 
     def setLevel(self, args):
         self.probeData = args[1]

@@ -79,8 +79,10 @@ class Mill():
         if tool != self.tool:
             self.tool = tool
             self.setSpeed(0)
+            self.lastZ = 999    # set to invalid z
             self.out.write("\nG30 (Go to preset G30 location)\n")
             self.out.write("T %d M6 G43 H %d\n\n" % (tool, tool))
+            self.safeZ()
             self.setSpeed(self.speed)
 
     def setArcCW(self, cw):
