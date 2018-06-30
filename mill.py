@@ -75,13 +75,16 @@ class Mill():
     def pause(self):
         self.out.write("m0 (pause)\n")
 
-    def toolChange(self, tool):
+    def toolChange(self, tool, toolComment=""):
         if tool != self.tool:
             self.tool = tool
             self.setSpeed(0)
             self.lastZ = 999    # set to invalid z
             self.out.write("\nG30 (Go to preset G30 location)\n")
-            self.out.write("T %d M6 G43 H %d\n\n" % (tool, tool))
+            if len(toolComment) != 0:
+                toolComment = " (" + toolComment + ")"
+            self.out.write("T %d M6 G43 H %d%s\n\n" % \
+                           (tool, tool, toolComment))
             self.safeZ()
             self.setSpeed(self.speed)
 
@@ -138,7 +141,7 @@ class Mill():
                 comment = "\t(%s)" % (comment)
             self.write("g1 z %7.4f%s\n" % (zEnd, comment))
 
-    def retract(self):
+    def retract(self, fast=True):
         cfg = self.cfg
         retractZ = cfg.top + cfg.retract
         if abs(retractZ - self.lastZ) > MIN_DIST:
@@ -147,7 +150,10 @@ class Mill():
                 z = "[#%s + #%s]" % (cfg.topVar, cfg.retractVar)
             else:
                 z = "%0.4f" % (cfg.top + cfg.retract)
-                self.write("g0 z %s (retract)\n" % (z))
+                if fast:
+                    self.write("g0 z %s (retract)\n" % (z))
+                else:
+                    self.write("g1 z %s f %1.1f(retract)\n" % (z, self.zFeed))
 
     def safeZ(self):
         cfg = self.cfg

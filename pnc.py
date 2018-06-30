@@ -110,6 +110,8 @@ class Config():
         self.x = 0.0            # drill x location
         self.y = 0.0            # dirll y location
         self.drillSize = 0.1    # current drill size
+        self.drillAngle = 0.0   # drill point angle
+        self.drillExtra = 0.0   # extra drill Depth
         self.peckDepth = 0.0    # peck depth
 
         self.pause = False       # enable pause
@@ -118,6 +120,7 @@ class Config():
         self.homePause = True    # start by pausing at home position
 
         self.tool = None        # tool number
+        self.toolComment = ""   # tool comment
         self.delay = 3.0        # spindle start delay
         self.speed = 1800       # spindle speed
         self.coordinate = 54    # coordinate system
@@ -174,6 +177,8 @@ class Config():
 
             ('size', self.setSize), \
             ('drillsize', self.setDrillSize), \
+            ('drillangle', self.setDrillAngle), \
+            ('drillextra', self.setDrillExtra), \
             ('peckdepth', self.setPeckDepth), \
 
             ('coordinate', self.setCoord), \
@@ -486,7 +491,7 @@ class Config():
         else:
             mill.init(outFile)
         if self.tool is not None:
-            mill.toolChange(self.tool)
+            mill.toolChange(self.tool, self.toolComment)
         mill.setSpeed(self.speed)
         self.openOutput = False
 
@@ -543,6 +548,12 @@ class Config():
     def setDrillSize(self, args):
         self.drillSize = float(args[1])
 
+    def setDrillAngle(self, args):
+        self.drillAngle = radians(float(args[1])) / 2
+
+    def setDrillExtra(self, args):
+        self.drillExtra = float(args[1])
+        
     def setPeckDepth(self, args):
         self.peckDepth = float(args[1])
 
@@ -580,8 +591,14 @@ class Config():
 
     def setTool(self, args):
         self.tool = int(args[1])
+        if len(args) > 2:
+            match = re.match("^[a-zA-z]+ +[0-9]+ +(.*)$",args[0])
+            if match is not None:
+                self.toolComment = match.group(1)
+        else:
+            self.toolComment = ""
         if self.mill is not None:
-            self.mill.toolChange(self.tool)
+            self.mill.toolChange(self.tool, self.toolComment)
 
     def setLoc(self, args):
         self.x = float(args[1])
@@ -710,13 +727,15 @@ class Config():
         self.dbg = True
         dprtSet(self.dbg, dFile=self.dbgFile)
 
-    def drill(self, args=None, tap=False):
+    def drill(self, args=None, tap=False, size=None):
         self.ncInit()
         if args is not None:
             if len(args) >= 2:
                 self.x = float(args[1])
             if len(args) >= 3:
                 self.y = float(args[2])
+        if size is None:
+            size = self.drillSize
         self.count += 1
         mill = self.mill
         out = mill.out
@@ -741,19 +760,27 @@ class Config():
                     gMove = "1"
                     mill.setFeed(self.feed)
                 out.write("g%s x%7.4f y%7.4f\n" % (gMove, self.x, self.y))
-        self.draw.hole((self.x, self.y), self.drillSize)
+        self.draw.hole((self.x, self.y), size)
         holeCount = "/%d" % (self.holeCount) if self.holeCount is not None \
                     else ""
         comment = "hole %d%s x%7.4f y%7.4f" % \
                   (self.count, holeCount, self.x, self.y)
         if not tap:
+            offset = 0
+            if self.drillAngle != 0.0:
+                offset += -(size / 2) / tan(self.drillAngle)
+                dprt("drill size %7.4f z offset %7.4f" % (size, offset))
+            if self.drillExtra != 0.0:
+                offset += self.drillExtra
+                dprt("drill z offset %7.4f" % (offset))
             if self.pause:
                 mill.moveZ(self.pauseHeight)
                 out.write("m0 (pause)\n")
             mill.zTop()
             if self.peckDepth == 0:
-                mill.zDepth(comment=comment)
+                mill.zDepth(offset, comment=comment)
             else:
+                self.depth += offset
                 d = self.peckDepth
                 while True:
                     mill.plungeZ(d, comment)
@@ -1064,7 +1091,7 @@ class Config():
                     dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
                 last = loc
                 (self.x, self.y) = loc
-                self.drill(None, tap)
+                self.drill(None, tap, d.size)
 
     def dxfMillHole(self, args, drill=None):
         if drill is None:
