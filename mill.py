@@ -41,7 +41,6 @@ class Mill():
             out.write("(%s created %s)\n" % \
                       (outFile, strftime("%m-%d-%Y %H:%M:%S", localtime())))
 
-            cfg = self.cfg
             if cfg.variables:
                 out.write("#%s = %s	(depth)\n" % (cfg.depthVar, cfg.depth))
                 out.write("#%s = %s	(retract between holes)\n" % \
@@ -61,11 +60,15 @@ class Mill():
             out.write("g%d		(coordinate system)\n" % \
                       (cfg.coordinate))
             self.setFeed(cfg.feed)
+            if cfg.tool is not None:
+                self.toolChange(cfg.tool, cfg.toolComment)
             self.safeZ()
             if cfg.homePause:
-                self.move((0.0, 0.0))
+                self.move((cfg.xInitial, cfg.yInitial))
                 self.pause()
             out.write("\n")
+        else:
+            self.toolChange(cfg.tool, cfg.toolComment)
 
     def write(self, str):
         self.out.write(str)
@@ -94,6 +97,7 @@ class Mill():
 
     def setSpeed(self, speed):
         out = self.out
+        cfg = self.cfg
         if speed != 0:
             if speed != self.speed:
                 self.speed = speed
@@ -102,7 +106,6 @@ class Mill():
             if not self.spindleActive:
                 self.spindleActive = True
                 out.write("m3		(start spindle)\n")
-                cfg = self.cfg
                 if cfg.delay != 0:
                     out.write("g4 p %0.1f	" \
                               "(wait for spindle to start)\n" % \
@@ -110,7 +113,12 @@ class Mill():
         else:
             if self.spindleActive:
                 self.spindleActive = False
+                self.speed = 0
                 out.write("m5	(stop spindle)\n")
+                if cfg.delay != 0:
+                    out.write("g4 p %0.1f	" \
+                              "(wait for spindle to stop)\n" % \
+                              (cfg.delay))
 
     def setFeed(self, newFeed):
         if newFeed != self.curFeed:
@@ -272,8 +280,9 @@ class Mill():
     def close(self):
         out = self.out
         if out is not None:
-            if self.speed != 0:
+            if self.spindleActive:
                 self.spindleActive = False
+                self.speed = 0
                 out.write("m5	(stop spindle)\n")
             self.parkZ()
             self.move((self.cfg.xPark, self.cfg.yPark))

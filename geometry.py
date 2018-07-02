@@ -1610,15 +1610,16 @@ def createPath(seg, dist, outside, tabPoints=None, \
         if tabPoints is not None:
             for (n, p) in enumerate(tabPoints):
                 dp = l.pointDistance(p)
-                # if dp is not None:
-                #     dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
-                if dp is not None and abs(dp) < MIN_DIST:
-                    p0 = l.point90(p, d)
-                    dp = l1.pointDistance(p0)
-                    # dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
-                    segTabPoints.append(p0)
-                    if draw is not None:
-                        draw.drawX(p0, "T%d" % (n), True)
+                if dp is not None:
+                    if abs(dp) < MIN_DIST:
+                        p0 = l.point90(p, d)
+                        dp = l1.pointDistance(p0)
+                        dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
+                        segTabPoints.append(p0)
+                        if draw is not None:
+                            draw.drawX(p0, "T%d" % (n), True)
+                    else:
+                        dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
         prev = l1
 
     if intersect and closed:
@@ -1632,6 +1633,10 @@ def createPath(seg, dist, outside, tabPoints=None, \
     dprt()
 
     if segTabPoints is not None:
+        dprt("tab points")
+        for (n, p) in enumerate(segTabPoints):
+            dprt("%d (%7.4f %7.4f)" % (n, p[0], p[1]))
+        dprt()
         segTabPoints = list(set(segTabPoints))
 
     if addArcs and closed:

@@ -44,6 +44,10 @@ O_CENTER = 4
 O_POINT = 5
 O_MAX = 6
 
+DRILL = 0
+TAP = 1
+BORE = 2
+
 # print("%s" % (os.environ['TZ'],))
 # os.environ['TZ'] = 'America/New_York'
 # print("%s" % (os.environ['TZ'],))
@@ -105,6 +109,10 @@ class Config():
         self.yPark = 0.0        # y park location
         self.zPark = 1.5        # z park location
 
+        self.xInitial = 0.0     # x initial location
+        self.yInitial = 0.0     # y initial location
+        self.zInitial = 1.5     # z initial location
+        
         self.xOffset = 0.0      # drill x approach offset
         self.yOffset = 0.0      # drill y approach offset
         self.x = 0.0            # drill x location
@@ -174,6 +182,12 @@ class Config():
             ('xpark', self.xPark), \
             ('ypark', self.yPark), \
             ('zpark', self.zPark), \
+            ('park', self.park), \
+
+            ('xinitial', self.xInitial), \
+            ('yinitial', self.yInitial), \
+            ('zinitial', self.zInitial), \
+            ('initial', self.initial), \
 
             ('size', self.setSize), \
             ('drillsize', self.setDrillSize), \
@@ -203,6 +217,7 @@ class Config():
             ('xoffset', self.setXOffset), \
             ('yoffset', self.setYOffset), \
             ('drill', self.drill), \
+            ('bore', self.bore), \
 
             ('pause', self.setPause), \
             ('pausecenter', self.setPauseCenter), \
@@ -252,6 +267,7 @@ class Config():
             ('dxfinside', self.dxfInside), \
             ('dxfopen', self.dxfOpen), \
             ('dxfdrill', self.dxfDrill), \
+            ('dxfbore', self.dxfBore), \
             ('dxfmillhole', self.dxfMillHole), \
             ('dxftap', self.dxfTap), \
 
@@ -454,6 +470,7 @@ class Config():
         self.init = False
         if self.mill is not None:
             self.mill.close()
+            self.mill = None
         self.lastX = 0.0
         self.lastY = 0.0
         if self.probe:
@@ -482,7 +499,7 @@ class Config():
             else:
                 self.draw.material(dxfInput.xSize, dxfInput.ySize)
 
-        draw.move((0.0, 0.0))
+        draw.move((self.xInitial, self.yInitial))
 
         outFile = self.outFileName + ".ngc"
         mill = self.mill
@@ -490,8 +507,6 @@ class Config():
             self.mill = mill = Mill(self, outFile)
         else:
             mill.init(outFile)
-        if self.tool is not None:
-            mill.toolChange(self.tool, self.toolComment)
         mill.setSpeed(self.speed)
         self.openOutput = False
 
@@ -529,7 +544,47 @@ class Config():
 
     def zPark(self, args):
         self.zPark = float(args[1])
+
+    def park(self, args):
+        result = self.getLocation(args, [self.xPark, self.yPark, self.zPark])
+        (self.xPark, self.yPark, self.zPark) = result
+
+    def xInitial(self, args):
+        self.xInitial = float(args[1])
+
+    def yInitial(self, args):
+        self.yInitial = float(args[1])
+
+    def zInitial(self, args):
+        self.zInitial = float(args[1])
+
+    def initial(self, args):
+        result = self.getLocation(args, [self.xInitial, \
+                                         self.yInitial, self.zInitial])
+        (self.xInitial, self.yInitial, self.zInitial) = result
         
+    def getLocation(self, args, result):
+        self.reLoc = "^.* +([xyz]) *([0-9\.\-]+) *([xyz]) *([0-9\.\-]+)" \
+                     " *([xyz]) *([0-9\.\-]+)"
+        match = re.match(self.reLoc, args[0].lower())
+        if match is not None:
+            groups = len(match.groups())
+            i = 1
+            while i <= groups:
+                axis = match.group(i)
+                i += 1
+                if i > groups:
+                    break
+                val = float(match.group(i))
+                i += 1
+                if axis == 'x':
+                    result[0] = val
+                elif axis == 'y':
+                    result[1] = val
+                elif axis == 'z':
+                    result[1] = val
+        return(result)
+                    
     def setSize(self, args):
         self.ncInit()
         self.xSize = float(args[1])
@@ -590,15 +645,18 @@ class Config():
         self.delay = float(args[1])
 
     def setTool(self, args):
-        self.tool = int(args[1])
-        if len(args) > 2:
-            match = re.match("^[a-zA-z]+ +[0-9]+ +(.*)$",args[0])
+        if len(args) >= 2:
+            self.tool = int(args[1])
+            match = re.match("^[a-zA-z]+ +[0-9]+ +(.*)$", args[0])
             if match is not None:
                 self.toolComment = match.group(1)
+            else:
+                self.toolComment = ""
+            if self.mill is not None:
+                self.mill.toolChange(self.tool, self.toolComment)
         else:
+            self.tool = None
             self.toolComment = ""
-        if self.mill is not None:
-            self.mill.toolChange(self.tool, self.toolComment)
 
     def setLoc(self, args):
         self.x = float(args[1])
@@ -727,7 +785,7 @@ class Config():
         self.dbg = True
         dprtSet(self.dbg, dFile=self.dbgFile)
 
-    def drill(self, args=None, tap=False, size=None):
+    def drill(self, args=None, op=DRILL, size=None):
         self.ncInit()
         if args is not None:
             if len(args) >= 2:
@@ -765,7 +823,7 @@ class Config():
                     else ""
         comment = "hole %d%s x%7.4f y%7.4f" % \
                   (self.count, holeCount, self.x, self.y)
-        if not tap:
+        if op == DRILL:
             offset = 0
             if self.drillAngle != 0.0:
                 offset += -(size / 2) / tan(self.drillAngle)
@@ -792,7 +850,7 @@ class Config():
                     if d < self.depth:
                         d = self.depth
             mill.retract()
-        else:
+        elif op == TAP:
             out.write("m0 (pause insert tap)\n");
             if cfg.variables:
                 z = "[#%s + #%s]" % (self.topVar, self.depthVar)
@@ -802,9 +860,19 @@ class Config():
             out.write("m0 (pause tap hole)\n")
             mill.retract()
             out.write("m0 (pause remove tap)\n")
+        elif op == BORE:
+            mill.setSpeed(self.speed)
+            mill.zTop()
+            mill.zDepth()
+            mill.setSpeed(0)
+            mill.retract()
+            
         out.write("\n")
         self.lastX = self.x
         self.lastY = self.y
+
+    def bore(self, args):
+        self.drill(args, BORE)
 
     def getMillPath(self):
         if self.mp is None:
@@ -991,9 +1059,13 @@ class Config():
         layer = args[1]
         self.tabPoints = self.dxfInput.getPoints(layer)
         self.tabs = len(self.tabPoints)
-        for (i, p) in enumerate(self.tabPoints):
-            dprt("%2d p %7.4f, %7.4f" % (i, p[0], p[1]))
-            # cfg.draw.drawX(p, "t%d" % (i))
+        dbg = True
+        if dbg:
+            dprt("\ntabs %d" % (self.tabs))
+            for (i, p) in enumerate(self.tabPoints):
+                dprt("%2d p %7.4f, %7.4f" % (i, p[0], p[1]))
+                # cfg.draw.drawX(p, "t%d" % (i))
+            dprt()
         
     def dxfOutside(self, args):
         layer = self.getLayer(args)
@@ -1030,7 +1102,7 @@ class Config():
     def dxfOpen(self, args):
         layer = self.getLayer(args)
         dist = self.endMillSize / 2.0 + self.finishAllowance
-        d = self.endMillSize / 2.0 + 0.020
+        d = self.endMillSize / 2.0 + 0.125
         self.segments = self.dxfInput.getPath(layer)
         # self.points = self.dxfInput.getPoints(layer)
         self.points = self.dxfInput.getLabel(layer)
@@ -1061,7 +1133,7 @@ class Config():
             mp.millPath(path, tabPoints, False)
         self.tabPoints = []
 
-    def dxfDrill(self, args, tap=False):
+    def dxfDrill(self, args, op=DRILL):
         dbg = False
         layer = self.getLayer(args)
         size = None if layer is not None else self.drillSize
@@ -1070,8 +1142,12 @@ class Config():
         last = self.mill.last
         for d in drill:
             self.holeCount = len(d.loc)
-            self.mill.out.write("(drill size %6.3f holes %d)\n" % \
-                                (d.size, self.holeCount))
+            if op == DRILL:
+                self.mill.out.write("(drill size %6.3f holes %d)\n" % \
+                                    (d.size, self.holeCount))
+            elif op == BORE:
+                self.mill.out.write("(bore size %6.3f holes %d)\n" % \
+                                    (d.size, self.holeCount))
             self.count = 0
             dLoc = d.loc
             while len(dLoc) != 0:
@@ -1091,7 +1167,7 @@ class Config():
                     dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
                 last = loc
                 (self.x, self.y) = loc
-                self.drill(None, tap, d.size)
+                self.drill(None, op, d.size)
 
     def dxfMillHole(self, args, drill=None):
         if drill is None:
@@ -1146,7 +1222,10 @@ class Config():
         self.tabPoints = []
 
     def dxfTap(self, args):
-        self.dxfDrill(args, True)
+        self.dxfDrill(args, TAP)
+
+    def dxfBore(self, args):
+        self.dxfDrill(args, BORE)
 
     def closeFiles(self, args):
         self.dxfInput = None
@@ -2329,6 +2408,7 @@ class Dxf():
         return(holes)
 
     def getPath(self, layer, circle=False, dbg=False, rand=False):
+        dbg = True
         if dbg:
             dprt("getPath %s" % (layer))
         # find everything that matches layer
@@ -2387,7 +2467,8 @@ class Dxf():
             j = i + 1
             while j < len(entities):
                 l1 = entities[j]
-                if (xyDist(l0.p0, l1.p0) < MIN_DIST) and \
+                if (l0.type == l1.type) and \
+                   (xyDist(l0.p0, l1.p0) < MIN_DIST) and \
                    (xyDist(l0.p1, l1.p1) < MIN_DIST):
                     if dbg:
                         dprt("rem %d" % (l1.index))
