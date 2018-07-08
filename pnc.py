@@ -457,6 +457,7 @@ class Config():
                     else:
                         ePrint("%2d %s" % (self.lineNum, l))
                         ePrint("invalid cmd %s" % cmd)
+                        sys.exit()
 
             inp.close()         # close input file
         try:
@@ -471,6 +472,7 @@ class Config():
         if self.mill is not None:
             self.mill.close()
             self.mill = None
+            self.mp = None
         self.lastX = 0.0
         self.lastY = 0.0
         if self.probe:
@@ -516,11 +518,14 @@ class Config():
     def probeInit(self):
         probeFile = self.outFileName + "-prb.ngc"
         self.prb = prb = Mill(self, probeFile, False)
-        prb.out.write("(PROBEOPEN %s.prb)\n" % (probeFile))
+        out = prb.out
+        out.write("(PROBEOPEN %s.prb)\n" % (probeFile))
         tool = self.probeTool
         if tool is not None:
-            prb.out.write("\nG30 (Go to preset G30 location)\n")
-            prb.out.write("T %d M6 G43 H %d\n\n" % (tool, tool))
+            out.blankLine()
+            out.write("G30 (Go to preset G30 location)\n")
+            out.write("T %d M6 G43 H %d\n" % (tool, tool))
+            out.blankLine()
         return(prb)
 
     def probeOpen(self):
@@ -563,9 +568,11 @@ class Config():
                                          self.yInitial, self.zInitial])
         (self.xInitial, self.yInitial, self.zInitial) = result
         
-    def getLocation(self, args, result):
-        self.reLoc = "^.* +([xyz]) *([0-9\.\-]+) *([xyz]) *([0-9\.\-]+)" \
-                     " *([xyz]) *([0-9\.\-]+)"
+    def getLocation(self, args, result=None):
+        if result is None:
+            result = [0.0, 0.0, 0.0]
+        self.reLoc = "^.*? +([xyz]) *([0-9\.\-]+) *([xyz]*) *([0-9\.\-]*)" \
+                     " *([xyz]*) *([0-9\.\-]*)"
         match = re.match(self.reLoc, args[0].lower())
         if match is not None:
             groups = len(match.groups())
@@ -573,6 +580,8 @@ class Config():
             while i <= groups:
                 axis = match.group(i)
                 i += 1
+                if len(axis) == 0:
+                    break
                 if i > groups:
                     break
                 val = float(match.group(i))
@@ -867,7 +876,7 @@ class Config():
             mill.setSpeed(0)
             mill.retract()
             
-        out.write("\n")
+        out.blankLine()
         self.lastX = self.x
         self.lastY = self.y
 
@@ -1480,6 +1489,7 @@ class MillPath():
             else:
                 self.currentDepth = self.depth
 
+        self.mill.blankLine()
         self.mill.out.write("(pass %d depth %7.4f" % \
                            (self.passNum, self.currentDepth))
 

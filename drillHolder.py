@@ -232,11 +232,13 @@ class DrillHolder():
             prb = cfg.prb
             (x, y) = self.holeInfo[0][0:2]
             prb.write("g0 x %7.4f y %7.4f\n" % (x, y + self.textOffset))
-            prb.write("g1 z%6.4f\n\n" % (cfg.retract))
+            prb.write("g1 z%6.4f\n" % (cfg.retract))
+            prb.blankLine()
             prb.write("g38.2 z%6.4f f%3.1f(reference probe)\n" %
                       (cfg.probeDepth, cfg.probeFeed))
             prb.write("g10 L20 P0 z0.000 (zero z)\n")
-            prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+            prb.write("g0 z%6.4f\n" % (cfg.retract))
+            prb.blankLine()
 
         if cfg.level:
             try:
@@ -288,7 +290,8 @@ class DrillHolder():
                     prb.write("g0 x %7.4f y %7.4f\n" % (x, y))
                     prb.write("g38.2 z%6.4f f%3.1f(reference probe)\n" %
                               (cfg.probeDepth, cfg.probeFeed))
-                    prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+                    prb.write("g0 z%6.4f\n" % (cfg.retract))
+                    prb.blankLine()
 
                 if cfg.level:
                     found = False

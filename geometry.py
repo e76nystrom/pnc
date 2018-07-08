@@ -1189,8 +1189,9 @@ def arcArc(l0, l1):
     d = sqrt(dx * dx + dy * dy) # center distance
     d0 = (d*d + r0*r0 - r1*r1) / (2 * d) # distance along center line
     p = None
-    if d0 <= r0:                         # if intersection
-        h = sqrt(r0 * r0 - d0 * d0)      # distance above center line
+    if abs(abs(d0) - abs(r0)) < MIN_DIST: # if intersection
+        # h = sqrt(r0 * r0 - d0 * d0)  # distance above center line
+        h = 0
         dprt("d %6.3f d0 %6.3f h %6.3f" % (d, d0, h))
 
         cosA = dx / d

@@ -16,6 +16,7 @@ class Mill():
 
     def init(self, outFile, draw=True):
         cfg = self.cfg
+        self.blank = False
         self.drawFlag = draw
         self.draw = cfg.draw if draw else None
         self.last = (0.0, 0.0)
@@ -66,17 +67,25 @@ class Mill():
             if cfg.homePause:
                 self.move((cfg.xInitial, cfg.yInitial))
                 self.pause()
-            out.write("\n")
+            else:
+                out.write("\n")
         else:
             self.toolChange(cfg.tool, cfg.toolComment)
 
     def write(self, str):
         self.out.write(str)
+        self.blank = False
         if self.cfg.printGCode:
             dprt(str.rstrip('\n'))
 
+    def blankLine(self):
+        if not self.blank:
+            self.blank = True
+            self.write("\n")
+
     def pause(self):
         self.out.write("m0 (pause)\n")
+        self.blankLine();
 
     def toolChange(self, tool, toolComment=""):
         if tool != self.tool:
@@ -86,8 +95,9 @@ class Mill():
             self.out.write("\nG30 (Go to preset G30 location)\n")
             if len(toolComment) != 0:
                 toolComment = " (" + toolComment + ")"
-            self.out.write("T %d M6 G43 H %d%s\n\n" % \
+            self.out.write("T %d M6 G43 H %d%s\n" % \
                            (tool, tool, toolComment))
+            self.blankLine()
             self.safeZ()
             self.setSpeed(self.speed)
 
@@ -267,7 +277,8 @@ class Mill():
             
         out.write("g0 x%7.4f y%7.4f\n" % end)
         out.write("g38.2 z%6.4f f%0.1f%s\n" % (cfg.probeDepth, feed, str))
-        out.write("g0 z%6.4f\n\n" % (cfg.retract))
+        out.write("g0 z%6.4f\n" % (cfg.retract))
+        self.blankLIne()
         self.last = end
 
     def probeSetZ(self, feed=1.0, z=0.00):
