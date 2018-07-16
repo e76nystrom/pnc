@@ -147,6 +147,7 @@ class Config():
         self.curFeed = 0.0      # current feed rate
 
         self.depthPass = 0.0    # depth per pass
+        self.evenDepth = False  # same depth for each pass
 
         self.widthPasses = 0
         self.widthPerPass = 0
@@ -203,6 +204,7 @@ class Config():
             ('top', self.setTop), \
             ('depth', self.setDepth), \
             ('depthpass', self.setDepthPass), \
+            ('evendepth', self.setEvenDepth), \
 
             ('feed', self.setFeed), \
             ('zfeed', self.setZFeed), \
@@ -704,6 +706,9 @@ class Config():
     def setDepthPass(self, args):
         self.depthPass = abs(float(args[1]))
 
+    def setEvenDepth(self, args):
+        self.evenDepth = int(args[1]) != 0
+
     def setWidth(self, args):
         self.width = abs(float(args[1]))
 
@@ -876,7 +881,7 @@ class Config():
             mill.setSpeed(0)
             mill.retract()
             
-        out.blankLine()
+        mill.blankLine()
         self.lastX = self.x
         self.lastY = self.y
 
@@ -1388,16 +1393,22 @@ class MillPath():
             self.finalPass = self.tabDepth
             self.absDepth -= self.finalPass
             self.depth += self.finalPass
+
         tmp = self.absDepth / self.depthPass
         if tmp - floor(tmp) < 0.002:
             self.passes = int(floor(tmp))
         else:
             self.passes = int(ceil(tmp))
         self.passCount = self.passes
+        
+        if self.cfg.evenDepth:
+            self.depthPass = self.absDepth / self.passes
+
         dprt("passes %d cfgDepth %6.4f depth %6.4f " \
               "depthPass %6.4f finalPass %6.4f" % \
               (self.passes, self.cfgDepth, self.depth, \
                self.depthPass, self.finalPass))
+
         self.rampPass = 0
         self.tabPass = 0
         # if self.closed and self.rampAngle != 0.0 and not self.cfg.shortRamp:
