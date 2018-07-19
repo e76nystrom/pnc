@@ -3,7 +3,8 @@ import pyclipper
 import sys
 from dbgprt import dprtSet, dprt, dflush
 from geometry import Arc, Line
-from geometry import calcAngle, degAtan2, fix, orientation, oStr, pathDir, xyDist
+from geometry import calcAngle, degAtan2, fix, orientation, oStr, \
+    pathDir, xyDist
 from geometry import ARC, LINE, CCW, CW, MIN_DIST, MAX_VALUE
 from math import acos, atan2, ceil, cos, degrees, pi, radians, sin, sqrt
 
