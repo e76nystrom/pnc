@@ -2428,6 +2428,18 @@ class Dxf():
                         d.addLoc(p)
         return(holes)
 
+    def getCircles(self, layer=None, size=None):
+        circles = []
+        for e in self.modelspace:
+            # dprt("layer %s" % (e.get_dxf_attrib("layer")))
+            if (layer is None) or (layer == e.get_dxf_attrib("layer")):
+                type = e.dxftype()
+                if type == 'CIRCLE':
+                    p = self.fix(e.get_dxf_attrib("center")[:2])
+                    radius = e.get_dxf_attrib("radius")
+                    circles.append((p, 2*radius))
+        return(circles)
+    
     def getPath(self, layer, circle=False, dbg=False, rand=False):
         dbg = True
         if dbg:
