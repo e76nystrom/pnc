@@ -632,10 +632,18 @@ class Line():
     def horizontalTrim(self, yVal, yPlus):
         (x0, y0) = self.p0
         (x1, y1) = self.p1
+        if yPlus:
+            if (yVal <= y0) and (yVal <= y1):
+                return(None)
+            if (yVal >= y0) and (yVal >= y1):
+                return(self)
+        else:
+            if (yVal >= y0) and (yVal >= y1):
+                return(None)
+            if (yVal <= y0) and (yVal <= y1):
+                return(self)
         dx = x1 - x0
         dy = y1 - y0
-        if (yVal > y0) and (yVal > y1):
-            return(self)
         if abs(dy) < MIN_DIST:  # horizontal
             if yPlus:
                 if y0 >= yPlus:
@@ -668,6 +676,51 @@ class Line():
         return(self)
 
     def verticalTrim(self, xVal, xPlus):
+        (x0, y0) = self.p0
+        (x1, y1) = self.p1
+        if xPlus:
+            if (xVal <= x0) and (xVal <= x1):
+                return(None)
+            if (xVal >= x0) and (xVal >= x1):
+                return(self)
+        else:
+            if (xVal >= x0) and (xVal >= x1):
+                return(None)
+            if (xVal <= x0) and (xVal <= x1):
+                return(self)
+        dx = x1 - x0
+        dy = y1 - y0
+        if (xVal > x0) and (xVal > x1):
+            return(self)
+        if abs(dx) < MIN_DIST:  # vertical
+            if xPlus:
+                if x0 >= xPlus:
+                    return(None)
+                else:
+                    return(self)
+            else:
+                if x0 <= xPlus:
+                    return(None)
+                else:
+                    return(self)
+        elif abs(dy) < MIN_DIST: # horizontal
+            p = (y0, xVal)
+        else:
+            m = dy / dx
+            b = y0 - m * x0
+            y = m * xVal + b
+            p = (y, xVal)
+
+        if xPlus:
+            if x0 > xVal:
+                self.p0 = p
+            else:
+                self.p1 = p
+        else:
+            if x0 < xVal:
+                self.p0 = p
+            else:
+                self.p1 = p
         return(self)
 
     def mill(self, mill, zEnd=None, comment=None):
@@ -706,7 +759,7 @@ class Line():
 # dxf arcs are always counter clockwise.
 
 class Arc():
-    def __init__(self, c, r, a0, a1, i=-1, e=None, dir=None):
+    def __init__(self, c, r, a0, a1, i=-1, e=None, dir=CCW):
         self.c = c
         (cX, cY) = c
         a0R = radians(a0)
@@ -871,19 +924,30 @@ class Arc():
         return(p)
 
     def horizontalTrim(self, yVal, yPlus):
+        if yPlus:
+            if self.p0[1] >= yVal and self.p1[1] >= yVal:
+                return(None)
+        else:
+            if self.p0[1] <= yVal and self.p1[1] <= yVal:
+                return(None)
         (cX, cY) = self.c
         r = self.r
         y = yVal - cY
         if abs(y) > r:
             return(self)
         aRad = asin(y / r)
+        # xMid = (self.p0[0] + self.p1[0]) / 2 - cX
+        # if xMid < 0:
+        #     aRad = -aRad
         a = degrees(aRad)
         if a < 0.0:
             a += 360.0
-        self.prt()
         dprt("yVal %7.4f yPlus %s y %7.4f r %7.4f a %5.1f" % \
              (yVal, yPlus, y, r, a))
-        if self.a0 < a and a <= self.a1:
+        a1 = self.a1
+        if a1 < self.a0:
+            a1 += 360.0
+        if self.a0 < a and a <= a1:
             x = r * cos(aRad)
             p = (x + cX, y + cY)
             if yPlus:
@@ -899,27 +963,37 @@ class Arc():
                 a0 = self.swapped
 
             if a0:
-                a0 = a
+                self.a0 = a
             else:
-                a1 = a
-            return(self)
-        else:
-            return(None)
+                self.a1 = a
+            self.length = self.calcLen()
+        return(self)
         
     def verticalTrim(self, xVal, xPlus):
+        if xPlus:
+            if self.p0[0] >= xVal and self.p1[0] >= xVal:
+                return(None)
+        else:
+            if self.p0[0] <= xVal and self.p1[0] <= xVal:
+                return(None)
         (cX, cY) = self.c
         r = self.r
         x = xVal - cX
         if abs(x) > r:
             return(self)
         aRad = acos(x / r)
+        yMid = (self.p0[1] + self.p1[1]) / 2 - cY
+        if yMid < 0:
+            aRad = -aRad
         a = degrees(aRad)
         if a < 0.0:
             a += 360.0
-        self.prt()
         dprt("xVal %7.4f xPlus %s x %7.4f r %7.4f a %5.1f" % \
              (xVal, xPlus, x, r, a))
-        if self.a0 < a and a <= self.a1:
+        a1 = self.a1
+        if a1 < self.a0:
+            a1 += 360.0
+        if self.a0 < a and a <= a1:
             y = r * sin(aRad)
             p = (x + cX, y + cY)
             if xPlus:
@@ -935,12 +1009,10 @@ class Arc():
                 a0 = self.swapped
 
             if a0:
-                a0 = a
+                self.a0 = a
             else:
-                a1 = a
-            return(self)
-        else:
-            return(None)
+                self.a1 = a
+        return(self)
 
     def point90(self, p, dist):
         (i, j) = self.c
@@ -1533,17 +1605,13 @@ def pathLength(seg):
     # dprt()
     return(totalLength)
 
-def reverseSeg(seg):
-    # dprt("reverseSeg")
-    # segDirection(seg)
+def reverseSeg(seg, makeCopy=True):
     newSeg = []
     for l in reversed(seg):
-        l1 = copy(l)
-        newSeg.append(l1)
-        l1.swap()
-    #     l1.prt()
-    # dprt()
-    # segDirection(newSeg)
+        if makeCopy:
+            l = copy(l)
+        l.swap()
+        newSeg.append(l)
     return(newSeg)
 
 def splitArcs(seg):
