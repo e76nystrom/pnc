@@ -10,6 +10,12 @@ from math import acos, atan2, ceil, cos, degrees, pi, radians, sin, sqrt
 
 SCALE = 1000000.0
 
+NO_SYMMETRY = 0
+UPPER = 1
+LOWER = 2
+RIGHT = 3
+LEFT = 4
+
 def floatScale(p):
     return(float(p[0]) / SCALE, float(p[1]) / SCALE)
 
@@ -23,12 +29,24 @@ class pocket():
         self.stepOver = 0.85
         self.arcs = False
         self.dbg = False
+        self.symmetry = NO_SYMMETRY
+        self.symmetryValues = \
+        ( \
+          ('none', NO_SYMMETRY), \
+          ('upper', UPPER), \
+          ('lower', LOWER), \
+          ('right', RIGHT), \
+          ('left', LEFT), \
+        )
         self.cmds = \
         ( \
           ('pocket', self.pocket), \
           ('stepover', self.setStepOver), \
           ('pocketarcs', self.pocketArcs), \
           ('pocketdbg', self.pocketDbg), \
+
+          ('outside', self.outside), \
+          ('symmetry', self.setSymmetry), \
           # ('', self.), \
         )
         dprtSet(True)
@@ -41,6 +59,13 @@ class pocket():
 
     def pocketDbg(self, args):
         self.dbg = int(args[1]) != 0
+
+    def setSymmetry(self, args):
+        val = args[1].lower()
+        for (x, i) in self.symmetryValues:
+            if val == x:
+                self.symmetry = i
+                break
 
     def pocket(self, args, dbg=None):
         if dbg is None:
@@ -207,6 +232,94 @@ class pocket():
                     break
             for path in offsetPaths:
                 mp.millPath(path, closed=False, minDist=False)
+
+    def outside(self, args, dbg=True):
+        layer = args[1]
+        cfg = self.cfg
+        dir = CCW
+        if cfg.dir is not None and cfg.dir == 'CW':
+            dir = CW
+        stepOver = cfg.endMillSize * self.stepOver
+        cfg.ncInit()
+        segments = cfg.dxfInput.getPath(layer)
+        dxf = cfg.dxfInput
+        s = self.symmetry
+        if s == NO_SYMMETRY:
+            pass
+        elif s == UPPER:
+            yMin = (dxf.yMax + dxf.yMin) / 2
+            p0 = (dxf.xMin, dxf.yMax)
+            p1 = (dxf.xMax, dxf.yMax)
+            p2 = (dxf.xMax, yMin)
+            p3 = (dxf.xMin, yMin)
+        elif s == LOWER:
+            pass
+        elif s == RIGHT:
+            pass
+        elif s == LEFT:
+            pass
+        else:
+            pass
+        p0 = intScale(p0)
+        p1 = intScale(p1)
+        p2 = intScale(p2)
+        p3 = intScale(p3)
+        pco = pyclipper.PyclipperOffset()
+        pc = pyclipper.Pyclipper()
+        clip = (p0, p1, p2, p3)
+        mp = cfg.getMillPath()
+        self.last = cfg.mill.last
+        for seg in segments:
+            self.pDir = pathDir(seg)
+            mainPath = []
+            for (i, l) in enumerate(seg):
+                l.draw()
+                if dbg:
+                    l.prt()
+                if l.type == LINE:
+                    mainPath.append(intScale(l.p0))
+                elif l.type == ARC:
+                    self.arcLines(mainPath, l, dbg=dbg)
+
+            if dbg:
+                dprt("\nclip")
+                for (i, p) in enumerate(clip):
+                    (x, y) = floatScale(p)
+                    dprt("%3d (%7.4f %7.4f)" % (i, x, y))
+
+                dprt("\nmainPath")
+                for (i, p) in enumerate(mainPath):
+                    (x, y) = floatScale(p)
+                    dprt("%3d (%7.4f %7.4f)" % (i, x, y))
+
+            pco.Clear()
+            pco.AddPath(mainPath, pyclipper.JT_ROUND, False)
+            offset = int((cfg.endMillSize / 2.0) * SCALE)
+            offsetResult = pco.Execute(offset)
+
+            if dbg:
+                dprt("\noffsetResult len %d" % (len(offsetResult)))
+                for r in offsetResult:
+                    dprt("r len %d" % (len(r)))
+                    for (i, p) in enumerate(r):
+                        (x, y) = floatScale(p)
+                        dprt("%3d (%7.4f %7.4f)" % (i, x, y))
+                    dprt()
+
+            pc.Clear()
+            pc.AddPath(clip, pyclipper.PT_CLIP, True)
+            pc.AddPath(mainPath, pyclipper.PT_SUBJECT, False)
+            result = pc.Execute(pyclipper.CT_INTERSECTION,
+                                pyclipper.PFT_EVENODD,
+                                pyclipper.PFT_EVENODD)
+
+            if dbg:
+                for r in result:
+                    dprt("\nresult")
+                    for (i, p) in enumerate(r):
+                        (x, y) = floatScale(p)
+                        dprt("%3d (%7.4f %7.4f)" % (i, x, y))
+                    dprt()
 
     def closest(self, path):
         p0 = self.last

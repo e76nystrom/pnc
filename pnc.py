@@ -1984,11 +1984,16 @@ class Draw():
                 p1 = (-xSize, 0.0)
                 p2 = (-xSize, ySize)
                 p3 = (0.0, ySize)
-            elif orientation == O_CENTER or orientation == O_POINT:
+            elif orientation == O_CENTER:
                 p0 = (-xSize/2, -ySize/2)
                 p1 = (xSize/2, -ySize/2)
                 p2 = (xSize/2, ySize/2)
                 p3 = (-xSize/2, ySize/2)
+            elif orientation == O_POINT:
+                p0 = (self.xMin, self.yMin)
+                p1 = (self.xMin, self.yMax)
+                p2 = (self.xMax, self.yMax)
+                p3 = (self.xMax, self.yMin)
             else:
                 ePrint("invalid orientation")
             self.d.add(dxf.line(p0, p1, layer=self.lBorder))
@@ -2357,6 +2362,11 @@ class Dxf():
                         (x, y) = e.get_dxf_attrib("center")[:2]
                         self.xOffset = -x
                         self.yOffset = -y
+
+        self.xMin += self.xOffset
+        self.xMax += self.xOffset
+        self.yMin += self.yOffset
+        self.yMax += self.yOffset
 
         dprt("%d xOffset %7.4f yOffset %7.4f\n" % \
                (orientation, self.xOffset, self.yOffset))
