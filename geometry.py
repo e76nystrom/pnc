@@ -936,9 +936,9 @@ class Arc():
         if abs(y) > r:
             return(self)
         aRad = asin(y / r)
-        # xMid = (self.p0[0] + self.p1[0]) / 2 - cX
-        # if xMid < 0:
-        #     aRad = -aRad
+        xMid = (self.p0[0] + self.p1[0]) / 2 - cX
+        if xMid < 0:
+            aRad = pi - aRad
         a = degrees(aRad)
         if a < 0.0:
             a += 360.0

@@ -198,10 +198,10 @@ class corner():
             if self.xPlus:
                 x += r; a0 = 180; a1 = 270; dir = CW
             else:
-                x -= r; a0 = 270; a1 = 360; dir = CW
+                x -= r; a0 = 0;   a1 = 90;  dir = CW
         elif abs(y - self.trimY) < MIN_DIST:
             if self.yPlus:
-                y += r; a0 = 180; a1 = 270; dir = CCW
+                y += r; a0 = 270; a1 = 360; dir = CW
             else:
                 y -= r; a0 = 90;  a1 = 180; dir = CW
         # elif abs(y - self.refY) < MIN_DIST:
@@ -217,14 +217,14 @@ class corner():
         r = self.leadRadius
         if abs(x - self.trimX) < MIN_DIST:
             if self.xPlus:
-                x += r; a0 = 90; a1 = 180;  dir = CW
+                x += r; a0 = 90;  a1 = 180;  dir = CW
             else:
-                x -= r; a0 = 0;   a1 = 90;  dir = CCW
+                x -= r; a0 = 270; a1 = 360;  dir = CW
         elif abs(y - self.trimY) < MIN_DIST:
             if self.yPlus:
                 y += r; a0 = 180; a1 = 270; dir = CW
             else:
-                y -= r; a0 = 90;  a1 = 180; dir = CCW
+                y -= r; a0 = 0;   a1 = 90;  dir = CW
         # elif abs(y - self.refY) < MIN_DIST:
         #     if self.yPlus:
         #         y -= r; a0 = 180; a1 = 270; dir = CCW
@@ -288,12 +288,18 @@ class corner():
             self.trimX = dxf.xMin - offset
             self.trimY = dxf.yMax + offset
             self.refY = self.minY
+            draw.move((dxf.xMax, self.trimY))
+            draw.line((self.trimX, self.trimY))
+            draw.line((self.trimX, self.refY))
         elif q == XMINUS_YMINUS:
             self.xPlus = False
             self.yPlus = False
             self.trimX = dxf.xMin - offset
             self.trimY = dxf.yMin - offset
             self.refY = self.maxY
+            draw.move((dxf.xMax, self.trimY))
+            draw.line((self.trimX, self.trimY))
+            draw.line((self.trimX, self.refY))
         elif q == XPLUS_YMINUS:
             self.xPlus = True
             self.yPlus = False
