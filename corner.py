@@ -27,7 +27,8 @@ class corner():
         self.symmetry = NO_SYMMETRY
         self.quadrant = None
         self.leadRadius = 0.025
-        self.passOffset = 0.035
+        self.passOffset = 0.027
+        self.maxPasses = 20
         self.symmetryValues = \
         ( \
           ('none', NO_SYMMETRY), \
@@ -48,6 +49,9 @@ class corner():
           ('corner', self.corner), \
           ('symmetry', self.setSymmetry), \
           ('quadrant', self.setQuadrant), \
+          ('corpasscut', self.setPassCut), \
+          ('corleadradius' , self.setLead), \
+          ('corpasses' , self.setPasses), \
           # ('', self.), \
         )
         dprtSet(True)
@@ -65,6 +69,15 @@ class corner():
             if val == x:
                 self.quadrant = i
                 break
+
+    def setPassCut(self, args):
+        self.offset = float(args[1])
+
+    def setLead(self, args):
+        self.leadRadius = float(args[1])
+
+    def setPasses(self, args):
+        self.maxPasses = int(args[1])
           
     def corner(self, args, dbg=True):
         cfg = self.cfg
@@ -148,7 +161,7 @@ class corner():
         dprt("maxD %7.4f" % (maxD))
 
         path = []
-        for i in range(20):
+        for i in range(self.maxPasses):
             dprt("\npass %2d offset %7.4f\n" % (i, offset))
             seg2 = createPath(seg1, offset, outside=True, keepIndex=True,
                               split=False, dbg=False)[0]
@@ -180,58 +193,86 @@ class corner():
             lastPoint = finalPath[-1].p1
         finalPath = reverseSeg(finalPath, makeCopy=False)
 
+        self.addEntry(finalPath)
+        self.addExit(finalPath)
+
         dprt()
         for l in finalPath:
             l.prt()
             l.draw()
 
-        self.addEntry(finalPath)
-        self.addExit(finalPath)
-
         mp = cfg.getMillPath()
         mp.millPath(finalPath, closed=False, minDist=False)
 
     def addEntry(self, seg):
-        (x, y) = seg[0].p0
+        l = seg[0]
+        (x, y) = l.p0
+        dx = x - l.p1[0]
+        dy = y - l.p1[1]
         r = self.leadRadius
         if abs(x - self.trimX) < MIN_DIST:
             if self.xPlus:
-                x += r; a0 = 180; a1 = 270; dir = CW
+                x += r
+                if dy > 0:
+                    a0 = 90;  a1 = 180; dir = CCW; en = 0
+                else:
+                    a0 = 180; a1 = 270; dir = CW;  en = 1
             else:
-                x -= r; a0 = 0;   a1 = 90;  dir = CW
+                x -= r
+                if dy < 0:
+                    a0 = 270; a1 = 360; dir = CCW; en = 2
+                else:
+                    a0 = 0;   a1 = 90;  dir = CW;  en = 3
         elif abs(y - self.trimY) < MIN_DIST:
             if self.yPlus:
-                y += r; a0 = 270; a1 = 360; dir = CW
+                y += r
+                if dx < 0:
+                    a0 = 180; a1 = 270; dir = CCW; en = 4
+                else:
+                    a0 = 270; a1 = 360; dir = CW;  en = 5
             else:
-                y -= r; a0 = 90;  a1 = 180; dir = CW
-        # elif abs(y - self.refY) < MIN_DIST:
-        #     if self.yPlus:
-        #         y -= r; a0 = 180; a1 = 270; dir = CCW
-        #     else:
-        #         y += r; a0 = 180; a1 = 90;  dir = CW
+                y -= r
+                if dx > 0:
+                    a0 = 0;   a1 = 90;  dir = CCW; en = 6
+                else:
+                    a0 = 90;  a1 = 180; dir = CW;  en = 7
+        dprt("entry %d dir %s" % (en, oStr(self.cfg.dir)))
         l = Arc((x, y), r, a0, a1, dir=dir)
         seg.insert(0, l)
 
     def addExit(self, seg):
-        (x, y) = seg[-1].p1
+        l = seg[-1]
+        (x, y) = l.p1
+        dx = x - l.p0[0]
+        dy = y - l.p0[1]
         r = self.leadRadius
         if abs(x - self.trimX) < MIN_DIST:
             if self.xPlus:
-                x += r; a0 = 90;  a1 = 180;  dir = CW
+                x += r
+                if dy > 0:
+                    a0 = 90;  a1 = 180; dir = CW;  ex = 0
+                else:
+                    a0 = 180; a1 = 270; dir = CCW; ex = 1
             else:
-                x -= r; a0 = 270; a1 = 360;  dir = CW
+                x -= r
+                if dy < 0:
+                    a0 = 270; a1 = 360; dir = CW;  ex = 2
+                else:
+                    a0 = 0;   a1 = 90;  dir = CCW; ex = 3
         elif abs(y - self.trimY) < MIN_DIST:
             if self.yPlus:
-                y += r; a0 = 180; a1 = 270; dir = CW
+                y += r
+                if dx < 0:
+                    a0 = 180; a1 = 270; dir = CW;  ex = 4
+                else:
+                    a0 = 270; a1 = 360; dir = CCW; ex = 5
             else:
-                y -= r; a0 = 0;   a1 = 90;  dir = CW
-        # elif abs(y - self.refY) < MIN_DIST:
-        #     if self.yPlus:
-        #         y -= r; a0 = 180; a1 = 270; dir = CCW
-        #     else:
-        #         y += r; a0 = 180; a1 = 90;  dir = CW
-        else:
-            pass
+                y -= r
+                if dx > 0:
+                    a0 = 0;   a1 = 90;  dir = CW;  ex = 6
+                else:
+                    a0 = 90;  a1 = 180; dir = CCW; ex = 7
+        dprt("exit %d dir %s" % (ex, oStr(self.cfg.dir)))
         l = Arc((x, y), r, a0, a1, dir=dir)
         seg.append(l)
 

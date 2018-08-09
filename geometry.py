@@ -1743,7 +1743,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
 
     d = abs(dist)
     if closed:                  # closed path
-        curDir = pathDir(newSeg, 0.050)
+        curDir = pathDir(newSeg, dbg)
         if dbg:
             dprt("curdir %s" % (oStr(curDir)))
 
@@ -1757,13 +1757,14 @@ def createPath(seg, dist, outside, tabPoints=None, \
                 dir = CW            #  cw ^ |  / normal
             else:                   #       | ^ cutter turns cw
                 dir = CCW           # ccw v |  \ climb
-        			    #        \
+        cfg.dir = dir
+
         if curDir != dir:
             if dbg:
                 dprt("reverse direction")
             newSeg = reverseSeg(newSeg)
 
-        curDir = pathDir(newSeg, 0.100)
+        curDir = pathDir(newSeg, dbg)
         if dbg:
             dprt("%s %s dir %s" % (('normal', 'climb')[cfg.climb], \
                                    ('inside', 'outside')[outside], oStr(curDir)))
