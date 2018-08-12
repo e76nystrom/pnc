@@ -1536,7 +1536,7 @@ def inside(p, seg, dbg=False):
             elif x0 < x1:       # if start x < end x
                 if x0 < x and x <= x1: # if point lies between ends
                     test = True         # test y
-            elif x1 <= x and x < x0: # if point lies between ends
+            elif x1 < x and x <= x0:  # if point lies between ends
                 test = True           # test y
             if test:                  # if y test needed
                 if y < y0 and y < y1: # if point below both ends
@@ -1623,7 +1623,13 @@ def splitArcs(seg):
         if l.type == ARC:
             l.prt()
             a0 = degrees(calcAngle(l.c, l.p0))
+            aTmp = round(a0 / 90) * 90
+            if abs(a0 - aTmp) < MIN_DIST:
+                a0 = aTmp
             a1 = degrees(calcAngle(l.c, l.p1))
+            aTmp = round(a1 / 90) * 90
+            if abs(a1 - aTmp) < MIN_DIST:
+                a1 = aTmp
             if not l.swapped:   # clockwise
                 if a1 < a0:
                     a1 += 360.0

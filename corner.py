@@ -8,46 +8,40 @@ from geometry import ARC, INDEX_MARKER, LINE, CCW, CW, MIN_DIST, \
     MIN_VALUE, MAX_VALUE
 from math import acos, atan2, ceil, cos, degrees, pi, radians, sin, sqrt
 
-NO_SYMMETRY = 0
-UPPER = 1
-LOWER = 2
-RIGHT = 3
-LEFT = 4
-
-XPLUS_YPLUS = 0
-XMINUS_YPLUS = 1
+XPLUS_YPLUS   = 0
+XMINUS_YPLUS  = 1
 XMINUS_YMINUS = 2
-XPLUS_YMINUS = 3
+XPLUS_YMINUS  = 3
+XPLUS  = 4
+YPLUS  = 5
+XMINUS = 6
+YMINUS = 7
+
+SIMPLE_BOX = False
 
 class corner():
     def __init__(self, cfg):
         self.cfg = cfg
         print("corner loaded")
         self.dbg = False
-        self.symmetry = NO_SYMMETRY
         self.quadrant = None
         self.leadRadius = 0.025
         self.passOffset = 0.027
-        self.maxPasses = 20
-        self.symmetryValues = \
-        ( \
-          ('none', NO_SYMMETRY), \
-          ('upper', UPPER), \
-          ('lower', LOWER), \
-          ('right', RIGHT), \
-          ('left', LEFT), \
-        )
+        self.maxPasses = 0
         self.quadrantValues = \
         ( \
-          ('xplus_yplus', XPLUS_YPLUS), \
-          ('xminus_yplus', XMINUS_YPLUS), \
+          ('xplus_yplus',   XPLUS_YPLUS), \
+          ('xminus_yplus',  XMINUS_YPLUS), \
           ('xminus_yminus', XMINUS_YMINUS), \
-          ('xplus_yminus', XPLUS_YMINUS), \
+          ('xplus_yminus',  XPLUS_YMINUS), \
+          ('xplus',  XPLUS), \
+          ('yplus',  YPLUS), \
+          ('xminus', XMINUS), \
+          ('yminus', YMINUS), \
         )
         self.cmds = \
         ( \
           ('corner', self.corner), \
-          ('symmetry', self.setSymmetry), \
           ('quadrant', self.setQuadrant), \
           ('corpasscut', self.setPassCut), \
           ('corleadradius' , self.setLead), \
@@ -55,13 +49,6 @@ class corner():
           # ('', self.), \
         )
         dprtSet(True)
-
-    def setSymmetry(self, args):
-        val = args[1].lower()
-        for (x, i) in self.symmetryValues:
-            if val == x:
-                self.symmetry = i
-                break
 
     def setQuadrant(self, args):
         val = args[1].lower()
@@ -91,118 +78,158 @@ class corner():
         xMax = dxf.xMax
         yMin = dxf.yMin
         yMax = dxf.yMax
-        s = self.symmetry
-        if s == NO_SYMMETRY:
-            pass
-        elif s == UPPER:
-            yMin = (yMax + yMin) / 2
-        elif s == LOWER:
-            yMax = (yMax + yMin) / 2
-        elif s == RIGHT:
-            xMax = (xMax + xMin) / 2
-        elif s == LEFT:
-            xMin = (xMax + xMin) / 2
-        else:
-            pass
 
-        p0 = (xMin, yMax)
-        p1 = (xMax, yMax)
-        p2 = (xMax, yMin)
-        p3 = (xMin, yMin)
-        box = []
-        box.append(Line(p0, p1))
-        box.append(Line(p1, p2))
-        box.append(Line(p2, p3))
-        box.append(Line(p3, p0))
+        if SIMPLE_BOX:
+            q = self.quadrant
+            if q == XPLUS_YPLUS:
+                xMin = (xMax + xMin) / 2
+                yMin = (yMax + yMin) / 2
+            elif q == XMINUS_YPLUS:
+                xMax = (xMax + xMin) / 2
+                yMin = (yMax + yMin) / 2
+            elif q == XMINUS_YMINUS:
+                xMax = (xMax + xMin) / 2
+                yMax = (yMax + yMin) / 2
+            elif q == XPLUS_YMINUS:
+                xMin = (xMax + xMin) / 2
+                yMax = (yMax + yMin) / 2
+
+            p0 = (xMin, yMax)
+            p1 = (xMax, yMax)
+            p2 = (xMax, yMin)
+            p3 = (xMin, yMin)
+            box = []
+            box.append(Line(p0, p1))
+            box.append(Line(p1, p2))
+            box.append(Line(p2, p3))
+            box.append(Line(p3, p0))
+
+            dprt("\nsimple box")
+            for l in box:
+                l.prt()
+                # l.draw()
+            dprt()
+
         layer = args[1]
         segments = cfg.dxfInput.getPath(layer)
 
-        # dprt("\nbox")
-        # for s in box:
-        #     s.prt()
-        #     s.draw()
-        # dprt()
+        # for seg in segments:
+        #     for l in seg:
+        #         l.prt()
+        #         l.draw()
+        #     dprt()
 
-        seg = segments[0]
+        mp = cfg.getMillPath()
+        for seg in segments:
+            splitSeg = splitArcs(seg)
 
-        seg0 = splitArcs(seg)
-        seg1 = []
-        for l in seg0:
-            (x0, y0) = l.p0
-            (x1, y1) = l.p1
-            if l.type == ARC:
-                p = ((x0 + x1) / 2, (y0 + y1) / 2)
-                if inside(p, box) == 1:
-                    seg1.append(l)
-            elif l.type == LINE:
-                if (x0 < xMin) or (x0 > xMax) or (y0 < yMin) or (y0 > yMax):
+            # for l in splitSeg:
+            #     l.draw()
+
+            if not SIMPLE_BOX:
+                box = self.createBox(splitSeg)
+                if box is None:
                     continue
+                dprt("\ngeneral box")
+                for l in box:
+                    l.prt()
+                    l.draw()
+                dprt()
+                
+            seg1 = []
+            for l in splitSeg:
+                (x0, y0) = l.p0
+                (x1, y1) = l.p1
+                if l.type == ARC:
+                    p = ((x0 + x1) / 2, (y0 + y1) / 2)
+                    if (inside(p, box) & 1) == 0:
+                        continue
+                elif l.type == LINE:
+                    if (inside(l.p0, box) & 1) == 0 and \
+                       (inside(l.p1, box) & 1) == 0:
+                        continue
                 seg1.append(l)
 
-        self.closePath(seg1)
-        for s in seg1:
-            s.prt()
-            s.draw()
-
-        self.setTrim()
-
-        offset = cfg.endMillSize / 2.0 + cfg.finishAllowance
-
-        dprt("\nfind max dist")
-        maxD = MIN_VALUE
-        for l in seg1:
-            if l.index == INDEX_MARKER:
+            dprt("seg len %d" % (len(seg1)))
+            if len(seg1) == 0:
                 continue
-            d = l.pointDistance((self.trimX, self.trimY))
-            if d is not None:
-                l.prt()
-                dprt("d %7.4f" % (d))
-                maxD = max(maxD, d)
-        dprt("maxD %7.4f" % (maxD))
 
-        path = []
-        for i in range(self.maxPasses):
-            dprt("\npass %2d offset %7.4f\n" % (i, offset))
-            seg2 = createPath(seg1, offset, outside=True, keepIndex=True,
-                              split=False, dbg=False)[0]
-
-            dprt()
-            seg3 = self.trim(seg2)
-
-            print("seg3Len %d" % (len(seg3)))
-            if len(seg3) == 0:
-                break
-
-            path.append(seg3)
-
-            # dprt()
-            # for l in seg3:
+            # for l in seg1:
             #     l.prt()
             #     l.draw()
 
-            offset += self.passOffset
+            self.closePath(seg1)
 
-        finalPath = []
-        lastPoint = None
-        for (i, seg) in enumerate(path):
-            if (i & 1) != 0:
-                seg = reverseSeg(seg)
-            if lastPoint is not None:
-                finalPath.append(Line(lastPoint, seg[0].p0))
-            finalPath += seg
-            lastPoint = finalPath[-1].p1
-        finalPath = reverseSeg(finalPath, makeCopy=False)
+            for l in seg1:
+                l.prt()
+                l.draw()
 
-        self.addEntry(finalPath)
-        self.addExit(finalPath)
+            self.setTrim()
 
-        dprt()
-        for l in finalPath:
-            l.prt()
-            l.draw()
+            offset = cfg.endMillSize / 2.0 + cfg.finishAllowance
 
-        mp = cfg.getMillPath()
-        mp.millPath(finalPath, closed=False, minDist=False)
+            passes = self.maxPasses
+            passOffset = self.passOffset
+            if passes == 0:
+                dprt("\nfind max dist")
+                maxD = MIN_VALUE
+                for l in seg1:
+                    if l.index == INDEX_MARKER:
+                        continue
+                    d = l.pointDistance((self.trimX, self.trimY))
+                    if d is not None:
+                        l.prt()
+                        dprt("d %7.4f" % (d))
+                    maxD = max(maxD, d)
+
+                total = maxD - offset
+                passes = int(round(total / self.passOffset))
+                passOffset = total / passes
+                dprt("maxD %7.4f total %7.4f passes %d passOffset %7.4f" % \
+                     (maxD, total, passes, self.passOffset))
+
+            path = []
+            for i in range(passes):
+                dprt("\npass %2d offset %7.4f\n" % (i, offset))
+                seg2 = createPath(seg1, offset, outside=True, keepIndex=True,
+                                  split=False, dbg=False)[0]
+
+                dprt()
+                seg3 = self.trim(seg2)
+
+                print("seg3Len %d" % (len(seg3)))
+                if len(seg3) == 0:
+                    break
+
+                path.append(seg3)
+
+                # dprt()
+                # for l in seg3:
+                #     l.prt()
+                #     l.draw()
+
+                offset += self.passOffset
+
+            finalPath = []
+            lastPoint = None
+            for (i, seg) in enumerate(path):
+                if (i & 1) != 0:
+                    seg = reverseSeg(seg)
+                if lastPoint is not None:
+                    finalPath.append(Line(lastPoint, seg[0].p0))
+                finalPath += seg
+                lastPoint = finalPath[-1].p1
+            finalPath = reverseSeg(finalPath, makeCopy=False)
+
+            self.addEntry(finalPath)
+            self.addExit(finalPath)
+
+            dprt()
+            for l in finalPath:
+                l.prt()
+                l.draw()
+
+            mp.millPath(finalPath, closed=False, minDist=False)
 
     def addEntry(self, seg):
         l = seg[0]
@@ -306,14 +333,161 @@ class corner():
         dprt("\ntrim done")
         return(rtnSeg)
 
+    def createBox(self, path):
+            dxf = self.cfg.dxfInput
+            xMin = dxf.xMin
+            xMax = dxf.xMax
+            yMin = dxf.yMin
+            yMax = dxf.yMax
+            p = self.findQuadrantPoints(path)
+            if p is None:
+                return(None)
+            q = self.quadrant
+            if q == XPLUS_YPLUS:
+                (xMin, yMin) = p
+            elif q == XMINUS_YPLUS:
+                (xMax, yMin) = p
+            elif q == XMINUS_YMINUS:
+                (xMax, yMax) = p
+            elif q == XPLUS_YMINUS:
+                (xMin, yMax) = p
+            elif q == XPLUS:
+                pass
+            elif q == YPLUS:
+                pass
+            elif q == XMINUS:
+                pass
+            elif q == YMINUS:
+                pass
+
+            p0 = (xMin, yMax)
+            p1 = (xMax, yMax)
+            p2 = (xMax, yMin)
+            p3 = (xMin, yMin)
+            box = []
+            box.append(Line(p0, p1))
+            box.append(Line(p1, p2))
+            box.append(Line(p2, p3))
+            box.append(Line(p3, p0))
+            return(box)
+
+    def findQuadrantPoints(self, path):
+        if not self.pathInQuadrant(path):
+            return(None)
+        q = self.quadrant
+        if q == XPLUS_YPLUS:
+            pX = self.getPtForMaxX(path)
+            pY = self.getPtForMaxY(path)
+        elif q == XMINUS_YPLUS:
+            pX = self.getPtForMinX(path)
+            pY = self.getPtForMaxY(path)
+        elif q == XMINUS_YMINUS:
+            pX = self.getPtForMinX(path)
+            pY = self.getPtForMinY(path)
+        elif q == XPLUS_YMINUS:
+            pX = self.getPtForMaxX(path)
+            pY = self.getPtForMinY(path)
+        elif q == XPLUS:
+            pass
+        elif q == YPLUS:
+            pass
+        elif q == XMINUS:
+            pass
+        elif q == YMINUS:
+            pass
+        (x, y) = (pY[0], pX[1])
+        return((x, y))
+
+    def pathInQuadrant(self, path):
+        xMax = yMax = MIN_VALUE
+        xMin = yMin = MAX_VALUE
+        for l in path:
+            l.prt()
+            for (x, y) in (l.p0, l.p1):
+                if x > xMax:    # check x
+                    xMax = x
+                if x < xMin:
+                    xMin = x
+                if y > yMax:    # check y
+                    yMax = y
+                if y < yMin:
+                    yMin = y
+        dxf = self.cfg.dxfInput
+        q = self.quadrant
+        if q == XPLUS_YPLUS:
+            result = abs(xMax - dxf.xMax) < MIN_DIST and \
+                     abs(yMax - dxf.yMax) < MIN_DIST
+        elif q == XMINUS_YPLUS:
+            result = abs(xMin - dxf.xMin) < MIN_DIST and \
+                     abs(yMax - dxf.yMax) < MIN_DIST
+        elif q == XMINUS_YMINUS:
+            result = abs(xMin - dxf.xMin) < MIN_DIST and \
+                     abs(yMin - dxf.yMin) < MIN_DIST
+        elif q == XPLUS_YMINUS:
+            result = abs(xMax - dxf.xMax) < MIN_DIST and \
+                     abs(yMin - dxf.yMin) < MIN_DIST
+        elif q == XPLUS:
+            pass
+        elif q == YPLUS:
+            pass
+        elif q == XMINUS:
+            pass
+        elif q == YMINUS:
+            pass
+        return(result)
+
+    def getPtForMinX(self, path):
+        minX = MAX_VALUE
+        for l in path:
+            if l.p0[0] < minX:
+                p = l.p0
+                minX = l.p0[0]
+            if l.p1[0] < minX:
+                p = l.p1
+                minX = l.p1[0]
+        return(p)
+
+    def getPtForMaxX(self, path):
+        maxX = MIN_VALUE
+        for l in path:
+            if l.p0[0] > maxX:
+                p = l.p0
+                maxX = l.p0[0]
+            if l.p1[0] > maxX:
+                p = l.p1
+                maxX = l.p1[0]
+        return(p)
+
+    def getPtForMinY(self, path):
+        minY = MAX_VALUE
+        for l in path:
+            if l.p0[1] < minY:
+                p = l.p0
+                minY = l.p0[1]
+            if l.p1[1] < minY:
+                p = l.p1
+                minY = l.p1[1]
+        return(p)
+                
+    def getPtForMaxY(self, path):
+        maxY = MIN_VALUE
+        for l in path:
+            if l.p0[1] > maxY:
+                p = l.p0
+                maxY = l.p0[1]
+            if l.p1[1] > maxY:
+                p = l.p1
+                maxY = l.p1[1]
+        return(p)
+
     def setTrim(self):
         cfg = self.cfg
         dxf = cfg.dxfInput
         draw = cfg.draw
         offset = self.cfg.endMillSize / 2.0
-        q = self.quadrant
         dprt("xMin %7.4f xMax %7.4f ymin %7.4f yMax %7.4f" % \
              (dxf.xMin, dxf.xMax, dxf.yMin, dxf.yMax))
+        q = self.quadrant
         if q == XPLUS_YPLUS:
             self.xPlus = True
             self.yPlus = True
@@ -350,6 +524,14 @@ class corner():
             draw.move((dxf.xMin, self.trimY))
             draw.line((self.trimX, self.trimY))
             draw.line((self.trimX, self.refY))
+        elif q == XPLUS:
+            pass
+        elif q == YPLUS:
+            pass
+        elif q == XMINUS:
+            pass
+        elif q == YMINUS:
+            pass
 
     def closePath(self, seg):
         q = self.quadrant
@@ -361,6 +543,14 @@ class corner():
             p = (self.setMaxX(seg), self.setMaxY(seg))
         elif q == XPLUS_YMINUS:
             p = (self.setMinX(seg), self.setMaxY(seg))
+        elif q == XPLUS:
+            pass
+        elif q == YPLUS:
+            pass
+        elif q == XMINUS:
+            pass
+        elif q == YMINUS:
+            pass
         pStr = seg[0].p0
         pEnd = seg[-1].p1
         seg.append(Line(pEnd, p, i=INDEX_MARKER))
@@ -401,4 +591,3 @@ class corner():
             maxY = max(maxY, y0, y1)
         self.maxY = maxY
         return(maxY)
-            
