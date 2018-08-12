@@ -14,7 +14,7 @@ MIN_DIST = .0001
 MAX_VALUE = 999999
 MIN_VALUE = -999999
 
-INDEX_MARKER = -99
+INDEX_MARKER = -8
 
 draw = None                     # draw class
 cfg = None                      # config class

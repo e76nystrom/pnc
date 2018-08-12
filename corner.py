@@ -164,7 +164,8 @@ class corner():
                 l.prt()
                 l.draw()
 
-            self.setTrim()
+            if self.quadrant <= XPLUS_YMINUS:
+                self.setTrim()
 
             offset = cfg.endMillSize / 2.0 + cfg.finishAllowance
 
@@ -174,7 +175,7 @@ class corner():
                 dprt("\nfind max dist")
                 maxD = MIN_VALUE
                 for l in seg1:
-                    if l.index == INDEX_MARKER:
+                    if l.index <= INDEX_MARKER:
                         continue
                     d = l.pointDistance((self.trimX, self.trimY))
                     if d is not None:
@@ -194,8 +195,16 @@ class corner():
                 seg2 = createPath(seg1, offset, outside=True, keepIndex=True,
                                   split=False, dbg=False)[0]
 
-                dprt()
-                seg3 = self.trim(seg2)
+
+                if self.quadrant <= XPLUS_YMINUS:
+                    dprt()
+                    seg3 = self.trim(seg2)
+                else:
+                    seg3 = []
+                    for l in seg2:
+                        if l.index <= INDEX_MARKER:
+                            continue
+                        seg3.append(l)
 
                 print("seg3Len %d" % (len(seg3)))
                 if len(seg3) == 0:
@@ -221,8 +230,12 @@ class corner():
                 lastPoint = finalPath[-1].p1
             finalPath = reverseSeg(finalPath, makeCopy=False)
 
-            self.addEntry(finalPath)
-            self.addExit(finalPath)
+            if self.quadrant <= XPLUS_YMINUS:
+                self.addEntry(finalPath)
+                self.addExit(finalPath)
+            else:
+                self.addEntry1(finalPath)
+                self.addExit1(finalPath)
 
             dprt()
             for l in finalPath:
@@ -231,8 +244,8 @@ class corner():
 
             mp.millPath(finalPath, closed=False, minDist=False)
 
-    def addEntry(self, seg):
-        l = seg[0]
+    def addEntry(self, path):
+        l = path[0]
         (x, y) = l.p0
         dx = x - l.p1[0]
         dy = y - l.p1[1]
@@ -265,10 +278,32 @@ class corner():
                     a0 = 90;  a1 = 180; dir = CW;  en = 7
         dprt("entry %d dir %s" % (en, oStr(self.cfg.dir)))
         l = Arc((x, y), r, a0, a1, dir=dir)
-        seg.insert(0, l)
+        path.insert(0, l)
 
-    def addExit(self, seg):
-        l = seg[-1]
+    def addEntry1(self, path):
+        q = self.quadrant
+        (x, y) = path[0].p0
+        (xEnd, yEnd) = path[-1].p1
+        r = self.leadRadius
+        if q == XPLUS:
+            if y > yEnd:
+                y += r
+                a0 = 180; a1 = 270; dir = CCW; en = 0
+            else:
+                y -= r
+                a0 = 90;  a1 = 180; dir = CW;  en = 1
+        elif q == YPLUS:
+            pass
+        elif q == XMINUS:
+            pass
+        elif q == YMINUS:
+            pass
+        dprt("entry %d dir %s" % (en, oStr(self.cfg.dir)))
+        l = Arc((x, y), r, a0, a1, dir=dir)
+        path.insert(0, l)
+
+    def addExit(self, path):
+        l = path[-1]
         (x, y) = l.p1
         dx = x - l.p0[0]
         dy = y - l.p0[1]
@@ -301,19 +336,41 @@ class corner():
                     a0 = 90;  a1 = 180; dir = CCW; ex = 7
         dprt("exit %d dir %s" % (ex, oStr(self.cfg.dir)))
         l = Arc((x, y), r, a0, a1, dir=dir)
-        seg.append(l)
+        path.append(l)
 
-    def trim(self, seg):
+    def addExit1(self, path):
+        q = self.quadrant
+        (x, y) = path[-1].p1
+        (xStr, yStr) = path[0].p0
+        r = self.leadRadius
+        if q == XPLUS:
+            if y > yStr:
+                y += r
+                a0 = 180; a1 = 270; dir = CW; ex = 0
+            else:
+                y -= r
+                a0 = 90;  a1 = 180; dir = CCW;  ex = 1
+        elif q == YPLUS:
+            pass
+        elif q == XMINUS:
+            pass
+        elif q == YMINUS:
+            pass
+        dprt("exit %d dir %s" % (ex, oStr(self.cfg.dir)))
+        l = Arc((x, y), r, a0, a1, dir=dir)
+        path.append(l)
+
+    def trim(self, path):
         dprt("trim start")
-        rtnSeg = []
-        for l in seg:
+        rtnPath = []
+        for l in path:
             if l.index == INDEX_MARKER:
                 continue
             if l.type == ARC:
                 if xyDist((self.trimX, self.trimY), l.c) < l.r:
                     continue
             # elif l.type == LINE:
-            #     rtnSeg.append(l)
+            #     rtnPath.append(l)
             #     continue
             dprt()
             l.prt()
@@ -325,13 +382,13 @@ class corner():
                 l1 = l.verticalTrim(self.trimX, self.xPlus)
                 if l1 != None:
                     l1.prt()
-                    rtnSeg.append(l1)
+                    rtnPath.append(l1)
                 else:
                     dprt("vert returned None")
             else:
                 dprt("horz returned None")
         dprt("\ntrim done")
-        return(rtnSeg)
+        return(rtnPath)
 
     def createBox(self, path):
             dxf = self.cfg.dxfInput
@@ -339,31 +396,43 @@ class corner():
             xMax = dxf.xMax
             yMin = dxf.yMin
             yMax = dxf.yMax
-            p = self.findQuadrantPoints(path)
-            if p is None:
-                return(None)
             q = self.quadrant
-            if q == XPLUS_YPLUS:
-                (xMin, yMin) = p
-            elif q == XMINUS_YPLUS:
-                (xMax, yMin) = p
-            elif q == XMINUS_YMINUS:
-                (xMax, yMax) = p
-            elif q == XPLUS_YMINUS:
-                (xMin, yMax) = p
-            elif q == XPLUS:
-                pass
-            elif q == YPLUS:
-                pass
-            elif q == XMINUS:
-                pass
-            elif q == YMINUS:
-                pass
+            if q <= XPLUS_YMINUS:
+                p = self.findQuadrantPoints(path)
+                if p is None:
+                    return(None)
+                if q == XPLUS_YPLUS:
+                    (xMin, yMin) = p
+                elif q == XMINUS_YPLUS:
+                    (xMax, yMin) = p
+                elif q == XMINUS_YMINUS:
+                    (xMax, yMax) = p
+                elif q == XPLUS_YMINUS:
+                    (xMin, yMax) = p
+                p0 = (xMin, yMax)
+                p1 = (xMax, yMax)
+                p2 = (xMax, yMin)
+                p3 = (xMin, yMin)
+            else:
+                p0 = (xMin, yMax)
+                p1 = (xMax, yMax)
+                p2 = (xMax, yMin)
+                p3 = (xMin, yMin)
+                (xStr, yStr) = path[0].p0
+                (xEnd, yEnd) = path[-1].p1
+                if q == XPLUS:
+                    if abs(xStr - xEnd) > MIN_DIST:
+                        if xEnd < xStr:
+                            xStr = xEnd
+                    p0 = (xStr, yMax)
+                    p3 = (xStr, yMin)
+                elif q == YPLUS:
+                    pass
+                elif q == XMINUS:
+                    pass
+                elif q == YMINUS:
+                    pass
 
-            p0 = (xMin, yMax)
-            p1 = (xMax, yMax)
-            p2 = (xMax, yMin)
-            p3 = (xMin, yMin)
             box = []
             box.append(Line(p0, p1))
             box.append(Line(p1, p2))
@@ -427,13 +496,13 @@ class corner():
             result = abs(xMax - dxf.xMax) < MIN_DIST and \
                      abs(yMin - dxf.yMin) < MIN_DIST
         elif q == XPLUS:
-            pass
+            result = abs(xMax - dxf.xMax) < MIN_DIST
         elif q == YPLUS:
-            pass
+            result = abs(yMax - dxf.yMax) < MIN_DIST
         elif q == XMINUS:
-            pass
+            result = abs(xMin - dxf.xMin) < MIN_DIST
         elif q == YMINUS:
-            pass
+            result = abs(yMin - dxf.yMin) < MIN_DIST
         return(result)
 
     def getPtForMinX(self, path):
@@ -533,59 +602,85 @@ class corner():
         elif q == YMINUS:
             pass
 
-    def closePath(self, seg):
+    def closePath(self, path):
         q = self.quadrant
-        if q == XPLUS_YPLUS:
-            p = (self.setMinX(seg), self.setMinY(seg))
-        elif q == XMINUS_YPLUS:
-            p = (self.setMaxX(seg), self.setMinY(seg))
-        elif q == XMINUS_YMINUS:
-            p = (self.setMaxX(seg), self.setMaxY(seg))
-        elif q == XPLUS_YMINUS:
-            p = (self.setMinX(seg), self.setMaxY(seg))
-        elif q == XPLUS:
-            pass
-        elif q == YPLUS:
-            pass
-        elif q == XMINUS:
-            pass
-        elif q == YMINUS:
-            pass
-        pStr = seg[0].p0
-        pEnd = seg[-1].p1
-        seg.append(Line(pEnd, p, i=INDEX_MARKER))
-        seg.append(Line(p, pStr, i=INDEX_MARKER))
+        if q <= XPLUS_YMINUS:
+            if q == XPLUS_YPLUS:
+                p = (self.setMinX(path), self.setMinY(path))
+            elif q == XMINUS_YPLUS:
+                p = (self.setMaxX(path), self.setMinY(path))
+            elif q == XMINUS_YMINUS:
+                p = (self.setMaxX(path), self.setMaxY(path))
+            elif q == XPLUS_YMINUS:
+                p = (self.setMinX(path), self.setMaxY(path))
+            pStr = path[0].p0
+            pEnd = path[-1].p1
+            path.append(Line(pEnd, p, i=INDEX_MARKER))
+            path.append(Line(p, pStr, i=INDEX_MARKER))
+        else:
+            path[0].prt()
+            path[-1].prt()
+            (xStr, yStr) = pStr = path[0].p0
+            (xEnd, yEnd) = pEnd = path[-1].p1
+            dprt("xStr %7.4f yStr %7.4f xEnd %7.4f yEnd %7.4f" %
+                 (xStr, yStr, xEnd, yEnd))
+            if q == XPLUS:
+                if abs(xStr - xEnd) < MIN_DIST:
+                    path.append(Line(pEnd, pStr, i=INDEX_MARKER))
+                else:
+                    if xStr < xEnd:
+                        l0Vertical = True
+                        p = (xStr, yEnd)
+                    else:
+                        l0Vertical = False
+                        p = (xEnd, yStr)
+                    dprt("x %7.4f y %7.4f" % p)
+                    l0 = Line(pEnd, p, i=INDEX_MARKER)
+                    l1 = Line(p, pStr, i=INDEX_MARKER)
+                    if l0Vertical:
+                        l0.index -= 1
+                    else:
+                        l1.index -= 1
+                    path.append(l0)
+                    path.append(l1)
+            elif q == YPLUS:
+                pass
+            elif q == XMINUS:
+                pass
+            elif q == YMINUS:
+                pass
+            dprt()
 
-    def setMinX(self, seg):
+    def setMinX(self, path):
         minX = MAX_VALUE
-        for l in seg:
+        for l in path:
             x0 = l.p0[0]
             x1 = l.p1[0]
             minX = min(minX, x0, x1)
         self.minX = minX
         return(minX)
 
-    def setMaxX(self, seg):
+    def setMaxX(self, path):
         maxX = MIN_VALUE
-        for l in seg:
+        for l in path:
             x0 = l.p0[0]
             x1 = l.p1[0]
             maxX = max(maxX, x0, x1)
         self.maxX = maxX
         return(maxX)
 
-    def setMinY(self, seg):
+    def setMinY(self, path):
         minY = MAX_VALUE
-        for l in seg:
+        for l in path:
             y0 = l.p0[1]
             y1 = l.p1[1]
             minY = min(minY, y0, y1)
         self.minY = minY
         return(minY)
 
-    def setMaxY(self, seg):
+    def setMaxY(self, path):
         maxY = MIN_VALUE
-        for l in seg:
+        for l in path:
             y0 = l.p0[1]
             y1 = l.p1[1]
             maxY = max(maxY, y0, y1)
