@@ -465,15 +465,15 @@ class corner():
                 elif q == XMINUS:
                     if abs(xStr - xEnd) > MIN_DIST:
                         if xEnd > xStr:
-                            xEnd = xStr
-                    p1 = (xEnd, yMax)
-                    p2 = (xEnd, yMin)
+                            xStr = xEnd
+                    p1 = (xStr, yMax)
+                    p2 = (xStr, yMin)
                 elif q == YMINUS:
                     if abs(yStr - yEnd) > MIN_DIST:
                         if yEnd > yStr:
                             yEnd = yStr
-                    p0 = (xMin, yEnd)
-                    p1 = (xMax, yEnd)
+                    p0 = (xMin, yStr)
+                    p1 = (xMax, yStr)
             box = []
             box.append(Line(p0, p1))
             box.append(Line(p1, p2))
@@ -707,12 +707,12 @@ class corner():
                 if abs(xStr - xEnd) < MIN_DIST:
                     path.append(Line(pEnd, pStr, i=INDEX_MARKER))
                 else:
-                    if xStr > xEnd:
-                        l0Vertical = True
-                        p = (xStr, yEnd)
-                    else:
+                    if xEnd > xStr:
                         l0Vertical = False
                         p = (xEnd, yStr)
+                    else:
+                        l0Vertical = True
+                        p = (xStr, yEnd)
                     dprt("x %7.4f y %7.4f" % p)
                     l0 = Line(pEnd, p, i=INDEX_MARKER)
                     l1 = Line(p, pStr, i=INDEX_MARKER)
@@ -727,12 +727,12 @@ class corner():
                 if abs(yStr - yEnd) < MIN_DIST:
                     path.append(Line(pEnd, pStr, i=INDEX_MARKER))
                 else:
-                    if yStr < yEnd:
+                    if yEnd > yStr:
                         l0Horizontal = True
-                        p = (xEnd, yStr)
+                        p = (xStr, yEnd)
                     else:
                         l0Horizontal = False
-                        p = (xStr, yEnd)
+                        p = (xEnd, yStr)
                     dprt("x %7.4f y %7.4f" % p)
                     l0 = Line(pEnd, p, i=INDEX_MARKER)
                     l1 = Line(p, pStr, i=INDEX_MARKER)
