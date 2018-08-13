@@ -135,7 +135,7 @@ class corner():
                     l.prt()
                     l.draw()
                 dprt()
-                
+
             seg1 = []
             for l in splitSeg:
                 (x0, y0) = l.p0
@@ -293,11 +293,26 @@ class corner():
                 y -= r
                 a0 = 90;  a1 = 180; dir = CW;  en = 1
         elif q == YPLUS:
-            pass
+            if x > xEnd:
+                x += r
+                a0 = 180; a1 = 270; dir = CW;  en = 4
+            else:
+                x -= r
+                a0 = 270; a1 = 360; dir = CCW; en = 5
         elif q == XMINUS:
-            pass
+            if y > yEnd:
+                y += r
+                a0 = 270; a1 = 360; dir = CW;  en = 2
+            else:
+                y -= r
+                a0 = 0;   a1 = 90;  dir = CCW; en = 3
         elif q == YMINUS:
-            pass
+            if x > xEnd:
+                x += r
+                a0 = 90;  a1 = 180; dir = CCW; en = 6
+            else:
+                x -= r
+                a0 = 0;   a1 = 90;  dir = CW;  en = 7
         dprt("entry %d dir %s" % (en, oStr(self.cfg.dir)))
         l = Arc((x, y), r, a0, a1, dir=dir)
         path.insert(0, l)
@@ -346,16 +361,31 @@ class corner():
         if q == XPLUS:
             if y > yStr:
                 y += r
-                a0 = 180; a1 = 270; dir = CW; ex = 0
+                a0 = 180; a1 = 270; dir = CW;  ex = 0
             else:
                 y -= r
-                a0 = 90;  a1 = 180; dir = CCW;  ex = 1
+                a0 = 90;  a1 = 180; dir = CCW; ex = 1
         elif q == YPLUS:
-            pass
+            if x > xStr:
+                x += r
+                a0 = 180; a1 = 270; dir = CCW; ex = 4
+            else:
+                x -= r
+                a0 = 270; a1 = 360; dir = CW;  ex = 5
         elif q == XMINUS:
-            pass
+            if y > yStr:
+                y += r
+                a0 = 270; a1 = 360; dir = CCW; ex = 2
+            else:
+                y -= r
+                a0 = 0;   a1 = 90;  dir = CW;  ex = 3
         elif q == YMINUS:
-            pass
+            if x > xStr:
+                x += r
+                a0 = 90;  a1 = 180; dir = CW;  ex = 6
+            else:
+                x -= r
+                a0 = 0;   a1 = 90;  dir = CCW; ex = 7
         dprt("exit %d dir %s" % (ex, oStr(self.cfg.dir)))
         l = Arc((x, y), r, a0, a1, dir=dir)
         path.append(l)
@@ -427,12 +457,23 @@ class corner():
                     p0 = (xStr, yMax)
                     p3 = (xStr, yMin)
                 elif q == YPLUS:
-                    pass
+                    if abs(yStr - yEnd) > MIN_DIST:
+                        if yEnd < yStr:
+                            yStr = yEnd
+                    p2 = (xMax, yStr)
+                    p3 = (xMin, yStr)
                 elif q == XMINUS:
-                    pass
+                    if abs(xStr - xEnd) > MIN_DIST:
+                        if xEnd > xStr:
+                            xEnd = xStr
+                    p1 = (xEnd, yMax)
+                    p2 = (xEnd, yMin)
                 elif q == YMINUS:
-                    pass
-
+                    if abs(yStr - yEnd) > MIN_DIST:
+                        if yEnd > yStr:
+                            yEnd = yStr
+                    p0 = (xMin, yEnd)
+                    p1 = (xMax, yEnd)
             box = []
             box.append(Line(p0, p1))
             box.append(Line(p1, p2))
@@ -644,11 +685,63 @@ class corner():
                     path.append(l0)
                     path.append(l1)
             elif q == YPLUS:
-                pass
+                if abs(yStr - yEnd) < MIN_DIST:
+                    path.append(Line(pEnd, pStr, i=INDEX_MARKER))
+                else:
+                    if yStr < yEnd:
+                        l0Horizontal = True
+                        p = (xEnd, yStr)
+                    else:
+                        l0Horizontal = False
+                        p = (xStr, yEnd)
+                    dprt("x %7.4f y %7.4f" % p)
+                    l0 = Line(pEnd, p, i=INDEX_MARKER)
+                    l1 = Line(p, pStr, i=INDEX_MARKER)
+                    if l0Horizontal:
+                        l0.index -= 1
+                    else:
+                        l1.index -= 1
+                    path.append(l0)
+                    path.append(l1)
             elif q == XMINUS:
+                if abs(xStr - xEnd) < MIN_DIST:
+                    path.append(Line(pEnd, pStr, i=INDEX_MARKER))
+                else:
+                    if xStr > xEnd:
+                        l0Vertical = True
+                        p = (xStr, yEnd)
+                    else:
+                        l0Vertical = False
+                        p = (xEnd, yStr)
+                    dprt("x %7.4f y %7.4f" % p)
+                    l0 = Line(pEnd, p, i=INDEX_MARKER)
+                    l1 = Line(p, pStr, i=INDEX_MARKER)
+                    if l0Vertical:
+                        l0.index -= 1
+                    else:
+                        l1.index -= 1
+                    path.append(l0)
+                    path.append(l1)
                 pass
             elif q == YMINUS:
-                pass
+                if abs(yStr - yEnd) < MIN_DIST:
+                    path.append(Line(pEnd, pStr, i=INDEX_MARKER))
+                else:
+                    if yStr < yEnd:
+                        l0Horizontal = True
+                        p = (xEnd, yStr)
+                    else:
+                        l0Horizontal = False
+                        p = (xStr, yEnd)
+                    dprt("x %7.4f y %7.4f" % p)
+                    l0 = Line(pEnd, p, i=INDEX_MARKER)
+                    l1 = Line(p, pStr, i=INDEX_MARKER)
+                    if l0Horizontal:
+                        l0.index -= 1
+                    else:
+                        l1.index -= 1
+                    path.append(l0)
+                    path.append(l1)
             dprt()
 
     def setMinX(self, path):
