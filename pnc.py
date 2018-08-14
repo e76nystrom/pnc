@@ -173,6 +173,8 @@ class Config():
         self.inFile = None      # input file
         self.outFile = None     # output file from command line
 
+        self.ifDisable = False  # if flag
+
         self.runPath = os.path.dirname(sys.argv[0])
 
         self.tabInit()
@@ -291,6 +293,12 @@ class Config():
 
             ('dbg', self.setDbg), \
             ('dbgfile', self.setDbgFile), \
+
+            ('if', self.cmdIf), \
+            ('endif', self.cmdEndIf), \
+
+            ('setx', self.setX), \
+            ('sety', self.setY), \
 
             ('load', self.load), \
         )
@@ -428,11 +436,12 @@ class Config():
                     if len(self.dbgFile) != 0 else "")
 
             for l in inp:
+                self.lineNum += 1
+                dprt("%2d %s" % (self.lineNum, l), end="")
+                dflush()
                 l = l.strip()
                 line = re.sub("\s*#.*$", "", l)
-                self.lineNum += 1
-                dprt("%2d %s" % (self.lineNum, l))
-                dflush()
+                line = re.sub("\s+", " ", line)
                 if len(line) == 0:
                     continue
                 if line.startswith('#'):
@@ -442,20 +451,23 @@ class Config():
                     cmd = arg[0].lower()
                     arg[0] = line
                     if cmd in self.cmdAction:
-                        action = self.cmdAction[cmd]
-                        try:
-                            action(arg)
-                            if self.error:
-                                break
-                        # except ValueError:
-                        #     ePrint("Invalid argument line %d %s" % \
-                        #           (self.lineNum, line))
-                        # except IndexError:
-                        #     ePrint("Missing argument line %d %s" % \
-                        #           (self.lineNum, line))
-                        except:
-                            traceback.print_exc()
-                            exit()
+                        if cmd == 'endif':
+                            self.cmdEndIf(arg)
+                        if not self.ifDisable:
+                            action = self.cmdAction[cmd]
+                            try:
+                                action(arg)
+                                if self.error:
+                                    break
+                            # except ValueError:
+                            #     ePrint("Invalid argument line %d %s" % \
+                            #           (self.lineNum, line))
+                            # except IndexError:
+                            #     ePrint("Missing argument line %d %s" % \
+                            #           (self.lineNum, line))
+                            except:
+                                traceback.print_exc()
+                                exit()
                     else:
                         ePrint("%2d %s" % (self.lineNum, l))
                         ePrint("invalid cmd %s" % cmd)
@@ -542,6 +554,26 @@ class Config():
         except IOError:
             ePrint("probe data file %s not found" % (self.probeData))
         return(None)
+        
+    def cmdIf(self, args):
+        self.ifDisable = int(args[1]) == 0
+
+    def cmdEndIf(self, args):
+        self.ifDisable = False
+
+    def setX(self, args):
+        coordinate = int(args[1])
+        xVal = float(args[2])
+        mill = cfg.mill
+        if mill is not None:
+            mill.setX(coordinate, xVal)
+
+    def setY(self, args):
+        coordinate = int(args[1])
+        yVal = float(args[2])
+        mill = cfg.mill
+        if mill is not None:
+            mill.setY(coordinate, yVal)
         
     def xPark(self, args):
         self.xPark = float(args[1])

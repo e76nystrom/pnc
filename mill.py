@@ -288,6 +288,25 @@ class Mill():
         self.curFeed = feed
         self.retract()
 
+    def setCoordinate(self, val):
+        out = self.out
+        if out is not None:
+            out.write("g%d\n" % (val))
+
+    def setX(self, coordinate, val):
+        out = self.out
+        if out is not None:
+            coordinate -= 54
+            coordinate += 1
+            out.write("g10 L20 P%d x%7.4f (set x)\n" % (coordinate, val))
+
+    def setY(self, coordinate, val):
+        out = self.out
+        if out is not None:
+            coordinate -= 54
+            coordinate += 1
+            out.write("g10 L20 P%d y%7.4f (set y)\n" % (coordinate, val))
+            
     def close(self):
         out = self.out
         if out is not None:
