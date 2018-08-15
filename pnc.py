@@ -1277,9 +1277,14 @@ class Config():
         self.dxfInput = None
         self.holeCount = None
         self.count = 0
+        if self.draw is not None:
+            self.draw.close()
+            self.draw = None
         if self.mill is not None:
             self.mill.close()
             self.mill = None
+        self.mp = None
+        self.init = False
 
     def outputFile(self, args):
         self.end()
