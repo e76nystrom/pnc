@@ -1696,6 +1696,9 @@ def combineArcs(seg):
         # l.prt()
         # combine arcs
         if l.type == ARC:
+            if (l.a1 - l.a0) >= 360.0:
+                newSeg = seg
+                break
             a1 = None
             # p0 = l.p0
             j = i

@@ -174,6 +174,7 @@ class Config():
         self.outFile = None     # output file from command line
 
         self.ifDisable = False  # if flag
+        # self.ifStack = []       # stack for nested if
 
         self.runPath = os.path.dirname(sys.argv[0])
 
@@ -450,10 +451,10 @@ class Config():
                 if len(arg) >= 1:
                     cmd = arg[0].lower()
                     arg[0] = line
-                    if cmd in self.cmdAction:
-                        if cmd == 'endif':
-                            self.cmdEndIf(arg)
-                        if not self.ifDisable:
+                    if cmd == 'endif':
+                        self.cmdEndIf(arg)
+                    if not self.ifDisable:
+                        if cmd in self.cmdAction:
                             action = self.cmdAction[cmd]
                             try:
                                 action(arg)
@@ -468,10 +469,10 @@ class Config():
                             except:
                                 traceback.print_exc()
                                 exit()
-                    else:
-                        ePrint("%2d %s" % (self.lineNum, l))
-                        ePrint("invalid cmd %s" % cmd)
-                        sys.exit()
+                        else:
+                            ePrint("%2d %s" % (self.lineNum, l))
+                            ePrint("invalid cmd %s" % cmd)
+                            sys.exit()
 
             inp.close()         # close input file
         try:
@@ -556,10 +557,12 @@ class Config():
         return(None)
         
     def cmdIf(self, args):
+        # self.ifStack.append(self.ifDisable)
         self.ifDisable = int(args[1]) == 0
 
     def cmdEndIf(self, args):
         self.ifDisable = False
+        # self.ifDisable = ifStack.pop()
 
     def setX(self, args):
         coordinate = int(args[1])
@@ -2458,7 +2461,7 @@ class Dxf():
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
                 type = e.dxftype()
-                if type == 'CIRCLE':
+                if type == 'CIRCLE' or type == 'ARC':
                     p = self.fix(e.get_dxf_attrib("center")[:2])
                     radius = e.get_dxf_attrib("radius")
                     drillSize = radius * 2.0
@@ -2481,7 +2484,7 @@ class Dxf():
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
                 type = e.dxftype()
-                if type == 'CIRCLE':
+                if type == 'CIRCLE' or type == 'ARC':
                     p = self.fix(e.get_dxf_attrib("center")[:2])
                     radius = e.get_dxf_attrib("radius")
                     circles.append((p, 2*radius))

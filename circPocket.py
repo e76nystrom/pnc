@@ -13,6 +13,7 @@ class CircularPocket():
         self.spiral = True
         self.distPass = 0.020
         self.leadRadius = 0.025
+        self.finishPasses = 0
         self.cmds = \
         ( \
           ('circpocket', self.pocket), \
@@ -20,6 +21,7 @@ class CircularPocket():
           ('circspiral', self.setSpiral), \
           ('circenlarge', self.enlargeHole), \
           ('circfinish', self.finishHole), \
+          ('circfinishpasses', self.setFinishPasses), \
           ('circstepdist', self.setStepDist), \
           ('circleadradius', self.setCircLeadRadius), \
           # ('', self.), \
@@ -36,7 +38,10 @@ class CircularPocket():
         self.distPass = float(args[1])
 
     def setCircLeadRadius(self, args):
-        self.leadRadius = 0.025
+        self.leadRadius = float(args[1])
+
+    def setFinishPasses(self, args):
+        self.finishPasses = int(args[1])
 
     def pocket(self, args):
         layer = args[1]
@@ -154,7 +159,11 @@ class CircularPocket():
 
     def enlargeHole(self, args):
         outerLayer = args[1]
-        innerLayer = args[2]
+        try:
+            innerD = float(args[2])
+            innerLayer = None
+        except ValueError:
+            innerLayer = args[2]
         cfg = self.cfg
         dir = CCW
         if cfg.dir is not None and cfg.dir == 'CW':
@@ -163,15 +172,17 @@ class CircularPocket():
         endAngle = self.endAngle
         swapped = False
         outer = cfg.dxfInput.getCircles(outerLayer)
-        inner = cfg.dxfInput.getCircles(innerLayer)
+        if innerLayer is not None:
+            inner = cfg.dxfInput.getCircles(innerLayer)
         for (c, outerD) in outer:
-            found = False
-            for (c0, innerD) in inner:
-                if xyDist(c, c0) < MIN_DIST:
-                    found = True
-                    break
-            if not found:
-                continue
+            if innerLayer is not None:
+                found = False
+                for (c0, innerD) in inner:
+                    if xyDist(c, c0) < MIN_DIST:
+                        found = True
+                        break
+                if not found:
+                    continue
             draw = cfg.draw
             if draw is not None:
                 draw.circle(c, innerD / 2.0)
@@ -257,15 +268,21 @@ class CircularPocket():
                     self.addSeg(Arc(leadCenter, self.leadRadius,
                                     0, 90, dir=CW))
 
-            self.addSeg(Arc(c, r0, 0, 360, dir=dir))
+            finishPasses = self.finishPasses
+            if finishPasses == 0:
+                finishPasses = 1
+            for i in range(finishPasses):
+                self.addSeg(Arc(c, r0, 0, 360, dir=dir))
+            self.addSeg(Arc(c, r0, 0,  15, dir=dir))
 
             if self.leadRadius != 0:
-                leadCenter = (r0 - self.leadRadius + xC, yC)
+                tmp = r0 - self.leadRadius
+                a0 = radians(15)
+                leadCenter = (tmp * cos(a0) + xC, tmp * sin(a0) + yC)
                 if dir == CCW:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    0, 90, dir=CCW))
+                                    15, 90 + 15, dir=CCW))
                 else:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
                                     270, 0, dir=CW))
             self.millPath()
-
