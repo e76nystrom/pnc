@@ -97,6 +97,7 @@ class Config():
         self.finishAllowance = 0.0 # finish allowance
         self.alternate = False  # alternate directions on open path
         self.addArcs = False    # add arcs between line segments
+        self.closeOpen = False  # close open path
 
         self.holeMin = 0.0      # hole milling >= size
         self.holeMax = MAX_VALUE # hole milling < size
@@ -257,6 +258,7 @@ class Config():
             ('output', self.setOutput), \
             ('alternate', self.setAlternate), \
             ('addarcs', self.setAddArcs), \
+            ('closeopen', self.setCloseOpen), \
 
             ('dxf', self.readDxf), \
             ('setlayers', self.setLayers), \
@@ -803,6 +805,9 @@ class Config():
     def setAddArcs(self, args):
         self.addArcs = int(args[1]) != 0
 
+    def setCloseOpen(self, args):
+        self.closeOpen = int(args[1]) != 0
+
     def setShortRamp(self, args):
         self.shortRamp = int(args[1]) != 0
 
@@ -1128,7 +1133,8 @@ class Config():
                 ePrint("dxfOutside - segment not closed skipping")
                 continue
             (path, tabPoints) = createPath(seg, dist, True, self.tabPoints, \
-                                           addArcs=self.addArcs)
+                                           addArcs=self.addArcs, \
+                                           closeOpen = self.closeOpen)
             mp.millPath(path, tabPoints)
         self.tabPoints = []
 
@@ -1144,7 +1150,8 @@ class Config():
                 ePrint("dxfInside - segment not closed skipping")
                 continue
             (path, tabPoints) = createPath(seg, dist, False, self.tabPoints, \
-                                           addArcs=self.addArcs)
+                                           addArcs=self.addArcs, \
+                                           closeOpen = self.closeOpen)
             mp.millPath(path, tabPoints)
         self.tabPoints = []
 
@@ -1832,8 +1839,13 @@ class MillPath():
             mill.move(path0[0].p0)
         else:
             #mill.safeZ()
-            mill.retract()
-            mill.move(path0[0].p0)
+            p = path[0].p0
+            dist = xyDist(p, mill.last)
+            # dprt("millPath dist %7.4f last (%7.4f, %7.4f) p (%7.4f, %7.4f)" %\
+            #      (dist, mill.last[0], mill.last[1], p[0], p[1]))
+            if dist > cfg.endMillSize:
+                mill.retract()
+            mill.move(p)
             if cfg.pause:
                 mill.moveZ(cfg.pauseHeight)
                 mill.pause()
@@ -1844,9 +1856,14 @@ class MillPath():
                 break
 
             p = path0[0].p0
-            if abs(mill.last[0] - p[0]) > MIN_DIST or \
-               abs(mill.last[1] - p[1]) > MIN_DIST:
-                mill.retract()
+            dist = xyDist(p, mill.last)
+            # if abs(mill.last[0] - p[0]) > MIN_DIST or \
+            #    abs(mill.last[1] - p[1]) > MIN_DIST:
+            # dprt("millPath dist %7.4f last (%7.4f, %7.4f) p (%7.4f, %7.4f)" %\
+            #      (dist, mill.last[0], mill.last[1], p[0], p[1]))
+            if dist > MIN_DIST:
+                if dist > cfg.endMillSize:
+                    mill.retract()
                 mill.move(p)
                 mill.moveZ(self.lastDepth + cfg.pauseHeight, "moveZ 1")
                 mill.plungeZ(self.lastDepth)

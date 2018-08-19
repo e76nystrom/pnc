@@ -1741,13 +1741,21 @@ def combineArcs(seg):
 
 def createPath(seg, dist, outside, tabPoints=None, \
                closed=True, ref=None, addArcs=False, \
-               split=True, keepIndex=False, dbg=True):
+               split=True, keepIndex=False, closeOpen=False, dbg=True):
     if dbg:
         dprt("createPath")
+
     if split:
         newSeg = splitArcs(seg)
     else:
         newSeg = seg
+
+    if closed and closeOpen:    # if close open path
+        pStr = newSeg[0].p0
+        pEnd = newSeg[-1].p1
+        if xyDist(pStart, pEnd) > MIN_DIST:
+            newSeg.append(Line(pEnd,pStart))
+
     labelPoints(newSeg)
 
     d = abs(dist)
