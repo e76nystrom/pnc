@@ -28,6 +28,7 @@ class corner():
         self.leadRadius = 0.025
         self.passOffset = 0.027
         self.maxPasses = 0
+        self.alternate = True
         self.quadrantValues = \
         ( \
           ('xplus_yplus',   XPLUS_YPLUS), \
@@ -46,6 +47,7 @@ class corner():
           ('corpasscut', self.setPassCut), \
           ('corleadradius' , self.setLead), \
           ('corpasses' , self.setPasses), \
+          ('coralternatedir', self.setAlternate), \
           # ('', self.), \
         )
         dprtSet(True)
@@ -65,6 +67,9 @@ class corner():
 
     def setPasses(self, args):
         self.maxPasses = int(args[1])
+
+    def setAlternate(self, args):
+        self.alternate = int(args[1]) != 0
           
     def corner(self, args, dbg=True):
         cfg = self.cfg
@@ -219,30 +224,45 @@ class corner():
 
                 offset += self.passOffset
 
-            finalPath = []
-            lastPoint = None
-            for (i, seg) in enumerate(path):
-                if (i & 1) != 0:
-                    seg = reverseSeg(seg)
-                if lastPoint is not None:
-                    finalPath.append(Line(lastPoint, seg[0].p0))
-                finalPath += seg
-                lastPoint = finalPath[-1].p1
-            finalPath = reverseSeg(finalPath, makeCopy=False)
+            if self.alternate:
+                finalPath = []
+                lastPoint = None
+                for (i, seg) in enumerate(path):
+                    if (i & 1) != 0:
+                        seg = reverseSeg(seg)
+                    if lastPoint is not None:
+                        finalPath.append(Line(lastPoint, seg[0].p0))
+                    finalPath += seg
+                    lastPoint = finalPath[-1].p1
+                finalPath = reverseSeg(finalPath, makeCopy=False)
 
-            if self.quadrant <= XPLUS_YMINUS:
-                self.addEntry(finalPath)
-                self.addExit(finalPath)
+                if self.quadrant <= XPLUS_YMINUS:
+                    self.addEntry(finalPath)
+                    self.addExit(finalPath)
+                else:
+                    self.addEntry1(finalPath)
+                    self.addExit1(finalPath)
+
+                dprt()
+                for l in finalPath:
+                    l.prt()
+                    l.draw()
+
+                mp.millPath(finalPath, closed=False, minDist=False)
             else:
-                self.addEntry1(finalPath)
-                self.addExit1(finalPath)
+                for seg in reversed(path):
+                    if self.quadrant <= XPLUS_YMINUS:
+                        self.addEntry(seg)
+                        self.addExit(seg)
+                    else:
+                        self.addEntry1(seg)
+                        self.addExit1(seg)
 
-            dprt()
-            for l in finalPath:
-                l.prt()
-                l.draw()
-
-            mp.millPath(finalPath, closed=False, minDist=False)
+                    dprt()
+                    for l in seg:
+                        l.prt()
+                        l.draw()
+                    mp.millPath(seg, closed=False, minDist=False)
 
     def addEntry(self, path):
         l = path[0]
