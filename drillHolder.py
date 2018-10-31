@@ -1,11 +1,37 @@
+<<<<<<< HEAD
 import os
+=======
+from dbgprt import dprt, ePrint
+>>>>>>> 1580003c6fd91e54ddb54492978b482351808951
 from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
 from geometry import MIN_DIST
 
 class DrillHolder():
     def __init__(self, cfg):
         self.cfg = cfg
+<<<<<<< HEAD
+=======
+        self.m = cfg.mill
+        self.d = cfg.draw
+
+>>>>>>> 1580003c6fd91e54ddb54492978b482351808951
         self.letterHeight = 0.1
+
+        self.mountRetract = None
+        self.retract = None
+
+        self.grid = (7, 6)
+        self.offset = (0.5, 0.5)
+        self.spacing = (0.5, 0.5)
+        self.textOffset = -0.25
+        self.top = False
+
+        self.mountSize = 0.125
+        self.xMount = (0.1875, 2)
+        self.yMount = (0.25, 3)
+
+        self.clearance = 0.001
+
         self.cmds = \
         ( \
           ('dhdrillholes', self.millHoles),
@@ -13,16 +39,27 @@ class DrillHolder():
           ('dhletterheight', self.setLetterHeight),
           ('dhdxf', self.dxfHolder),
           ('dhscad', self.scadHolderBase),
+          ('dhmountretract', self.setMountRetract),
+          ('dhretract', self.setRetract),
+          ('dhgrid', self.setGrid),
+          ('dhoffset', self.setOffset),
+          ('dhspacing', self.setSpacing),
+          ('dhtextoffset', self.setTextOffset),
+          ('dhtop', self.setTop),
+          ('dhmountsize', self.setMountSize),
+          ('dhxmount', self.setXMount),
+          ('dhymount', self.setYMount),
+          ('dhclearance', self.setClearance),
           # ('', self.),
         )
         self.holes = \
             ( \
               (0.086, "44"), \
               (0.089, "43"), \
-              (0.140, "4-40"), \
+              (0.141, "4-40"), \
               (0.104, "37"), \
               (0.107, "36"), \
-              (0.140, "6-32"), \
+              (0.141, "6-32"), \
               (0.125, "1/8"), \
 
               (0.128, "30"), \
@@ -59,13 +96,14 @@ class DrillHolder():
 
               (0.250, "1/4"), \
               (0.261, "G"), \
-              (0.318, "5/16-18"), \
+              (0.319, "5/16-18"), \
               (0.277, "J"), \
-              (0.318, "5/16-24"), \
+              (0.319, "5/16-24"), \
               (0.313, "5/16"), \
               (0.375, ""), \
             )
 
+<<<<<<< HEAD
         self.grid = (7, 6)
         self.offset = (0.5, 0.5)
         self.spacing = (0.5, 0.5)
@@ -78,6 +116,8 @@ class DrillHolder():
 
         self.clearance = 0.001
 
+=======
+>>>>>>> 1580003c6fd91e54ddb54492978b482351808951
         self.setup()
 
     def setup(self):
@@ -132,27 +172,79 @@ class DrillHolder():
     def setLetterHeight(self, args):
         self.letterHeight = abs(float(args[1]))
 
+    def setMountRetract(self, args):
+        self.mountRetract = float(args[1])
+
+    def setRetract(self, args):
+        self.retract = float(args[1])
+
+    def setGrid(self, args):
+        self.grid = (int(args[1]), int(args[2]))
+
+    def setOffset(self, args):
+        self.offset = (float(args[1]), float(args[2]))
+
+    def setSpacing(self, args):
+        self.spacing = (float(args[1]), float(args[2]))
+
+    def setTextOffset(self, args):
+        self.textOffset = float(args[1])
+
+    def setTop(self, args):
+        self.top = int(args[1]) != 0
+
+    def setMountSize(self, args):
+        self.mountSize = float(args[1])
+
+    def setXMount(self, args):
+        self.xMount = (float(args[1]), int(args[2]))
+
+    def setYMount(self, args):
+        self.yMount = (float(args[1]), int(args[2]))
+
+    def setClearance(self, args):
+        self.clearance = float(args[1])
+
     def millHoles(self, args):
         holes = []
         d = Drill(self.mountSize)
         for p in self.mountInfo:
             d.addLoc(p)
         holes.append(d)
+        cfg = self.cfg
+        retract = cfg.retract   # save retract value
+        if self.mountRetract is not None:
+            cfg.retract = self.mountRetract
+        else:
+            cfg.retract = cfg.safeZ
+        cfg.dxfMillHole(None, holes)
         
+        holes = []
+        i = 0
         for (x, y, size, text) in self.holeInfo:
+            dprt("%2d (%7.4f, %7.4f) size %7.4f %5s" % \
+                 (i, x, y, size, text))
+            i += 1
             size += self.clearance
+            add = True
             for h in holes:
                 if abs(size - h.size) < MIN_DIST:
+                    dprt("add %7.4f to %7.4f" % (size, h.size))
                     h.addLoc((x, y))
+                    add = False
                     break
-                else:
-                    d = Drill(size)
-                    holes.append(d)
-                    d.addLoc((x, y))
-                    break
+            if add:
+                dprt("new %7.4f" % (size))
+                d = Drill(size)
+                d.addLoc((x, y))
+                holes.append(d)
 
-        self.cfg.dxfMillHole(None, holes)
-        self.cfg.draw.material(self.xSize, self.ySize)
+        if self.retract is not None:
+            cfg.retract = self.retract
+        else:                   # if retract not specified
+            cfg.retract = retract # restore retract value
+        cfg.dxfMillHole(None, holes)
+        cfg.draw.material(self.xSize, self.ySize)
 
     def labelHoles(self, args):
         cfg = self.cfg
@@ -162,15 +254,30 @@ class DrillHolder():
             prb = cfg.prb
             (x, y) = self.holeInfo[0][0:2]
             prb.write("g0 x %7.4f y %7.4f\n" % (x, y + self.textOffset))
-            prb.write("g38.2 z%6.4f (reference probe)\n" % (cfg.probeDepth))
-            prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+            prb.write("g1 z%6.4f\n" % (cfg.retract))
+            prb.blankLine()
+            prb.write("g38.2 z%6.4f f%3.1f(reference probe)\n" %
+                      (cfg.probeDepth, cfg.probeFeed))
+            prb.write("g10 L20 P0 z0.000 (zero z)\n")
+            prb.write("g0 z%6.4f\n" % (cfg.retract))
+            prb.blankLine()
 
         if cfg.level:
-            zRef = inp.readline()[2]
+            try:
+                inp = open(cfg.probeData, "r")
+            except IOError:
+                ePrint("unable to open level data %s" % (cfg.probeData))
+                cfg.level = False
+                return
+            (x0, y0, zRef) = inp.readline().split(" ")[:3]
+            #zRef = float(zRef)
+            x0 = float(x0)
+            y0 = float(y0)
+            zRef = 0.0
             levelData = []
             for probeData in inp:
-                (x, y, z) = probeData[0:3]
-                levelData.append((x, y, z - zRef))
+                (x, y, z) = probeData.split(" ")[:3]
+                levelData.append((float(x), float(y), float(z) - zRef))
             levelIndex = 0
             inp.close()
             
@@ -181,37 +288,59 @@ class DrillHolder():
             offset -= self.letterHeight / 2
         else:
             offset += self.letterHeight / 2
+<<<<<<< HEAD
         m = cfg.mill
+=======
+        m = self.cfg.mill
+>>>>>>> 1580003c6fd91e54ddb54492978b482351808951
         m.safeZ()
+        zOffset = 0.0
+
+        if cfg.level:
+            out = m.out
+            out.write("\nm5	(stop spindle to probe)\n")
+            out.write("g4 p3\n")
+            out.write("g0 x %7.4f y %7.4f\n" % (x0, y0))
+            m.retract()
+            out.write("g38.2 z%6.4f f%3.1f (probe reference point)\n" %
+                      (cfg.probeDepth, cfg.probeFeed))
+            out.write("g10 L20 P0 z0.000 (zero z)\n")
+            m.retract()
+            out.write("m3	(start spindle)\n")
+            out.write("g4 p3\n")
+            
         for (x, y, size, text) in self.holeInfo:
             if len(text) != 0:
+                y += offset
                 if cfg.probe:
-                    prb.write("g0 x %7.4f y %7.4f\n" % \
-                              (x, y + self.textOffset))
-                    prb.write("g38.2 z%6.4f (reference probe)\n" % \
-                              (cfg.probeDepth))
-                    prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+                    prb.write("g0 x %7.4f y %7.4f\n" % (x, y))
+                    prb.write("g38.2 z%6.4f f%3.1f(reference probe)\n" %
+                              (cfg.probeDepth, cfg.probeFeed))
+                    prb.write("g0 z%6.4f\n" % (cfg.retract))
+                    prb.blankLine()
 
                 if cfg.level:
                     found = False
-                    (xProbe, yProbe, zOffset) = levelData[levelIndex]
-                    if abs(x - xProbe) < MIN_DIST and \
-                       abs(y - yProbe) < MIN_DIST:
-                        found = True
-                        levelIndex += 1
-                    else:
+                    if levelIndex < len(levelData):
+                        (xProbe, yProbe, zOffset) = levelData[levelIndex]
+                        if abs(x - xProbe) < MIN_DIST and \
+                           abs(y - yProbe) < MIN_DIST:
+                            found = True
+                            levelIndex += 1
+                    if not found:
                         for levelIndex, (xProbe, yProbe, zOffset) in \
                             enumerate(levelData):
                             if abs(x - xProbe) < MIN_DIST and \
                                abs(y - yProbe) < MIN_DIST:
                                 found = True
                                 levelIndex += 1
-                    if found:
-                        font.setZOffset(zOffset)
-                    else:
+                    if not found:
+                        zOffset = 0.0
                         ePrint("level data not found")
+                    font.setZOffset(zOffset)
 
-                y += offset
+                m.out.write("\n(x %7.4f y %7.4f zOffset %6.4f %s)\n" % \
+                            (x, y, zOffset, text))
                 font.mill((x, y), text, center=True)
 
     def dxfHolder(self, args):

@@ -2,8 +2,8 @@ from __future__ import print_function
 from sys import stdout, stderr
 from copy import copy
 from dbgprt import dprt, dflush, ePrint
-from math import atan2, ceil, cos, degrees, floor, hypot, pi, radians, sin, \
-    sqrt
+from math import acos, asin, atan2, ceil, cos, degrees, floor, hypot, \
+    pi, radians, sin, sqrt
 
 # dxf arcs are always counter clockwise.
 
@@ -11,8 +11,10 @@ LINE = 0
 ARC = 1
 
 MIN_DIST = .0001
-MAX_VALUE = 9999
-MIN_VALUE = -9999
+MAX_VALUE = 999999
+MIN_VALUE = -999999
+
+INDEX_MARKER = -8
 
 draw = None                     # draw class
 cfg = None                      # config class
@@ -20,6 +22,19 @@ cfg = None                      # config class
 lCount = 0
 
 # lineIndex = 0
+
+def quadrant(p):
+    (x, y) = p
+    if x >= 0:
+        if y >= 0:
+            return(0)
+        else:
+            return(3)
+    else:
+        if y >= 0:
+            return(1)
+        else:
+            return(3)
 
 def degAtan2(y, x):
     a = degrees(atan2(y, x))
@@ -265,6 +280,7 @@ class Line():
         self.index = i
         self.e = e
         self.length = xyDist(p0, p1)
+        self.text = None
 
     def updateP0(self, p0):
         self.p0 = p0
@@ -334,7 +350,7 @@ class Line():
                 if dir != CW:
                     pM = pb
             if dbg and draw is not None:
-                l = 'DBG'
+                l = draw.lDebug
                 draw.drawCircle(self.p0, layer=l)
                 draw.drawCircle((xM, yM), 0.020, layer=l)
                 draw.drawCircle(pM, 0.030, layer=l, txt=('+', '-')[dist < 0.0])
@@ -613,6 +629,100 @@ class Line():
             dprt("d %7.4f" % (d))
             return(xm, ym)
 
+    def horizontalTrim(self, yVal, yPlus):
+        (x0, y0) = self.p0
+        (x1, y1) = self.p1
+        if yPlus:
+            if (yVal <= y0) and (yVal <= y1):
+                return(None)
+            if (yVal >= y0) and (yVal >= y1):
+                return(self)
+        else:
+            if (yVal >= y0) and (yVal >= y1):
+                return(None)
+            if (yVal <= y0) and (yVal <= y1):
+                return(self)
+        dx = x1 - x0
+        dy = y1 - y0
+        if abs(dy) < MIN_DIST:  # horizontal
+            if yPlus:
+                if y0 >= yPlus:
+                    return(None)
+                else:
+                    return(self)
+            else:
+                if y0 <= yPlus:
+                    return(None)
+                else:
+                    return(self)
+        elif abs(dx) < MIN_DIST: # vertical
+            p = (x0, yVal)
+        else:
+            m = dx / dy
+            b = x0 - m * y0
+            x = m * yVal + b
+            p = (x, yVal)
+
+        if yPlus:
+            if y0 > yVal:
+                self.p0 = p
+            else:
+                self.p1 = p
+        else:
+            if y0 < yVal:
+                self.p0 = p
+            else:
+                self.p1 = p
+        return(self)
+
+    def verticalTrim(self, xVal, xPlus):
+        (x0, y0) = self.p0
+        (x1, y1) = self.p1
+        if xPlus:
+            if (xVal <= x0) and (xVal <= x1):
+                return(None)
+            if (xVal >= x0) and (xVal >= x1):
+                return(self)
+        else:
+            if (xVal >= x0) and (xVal >= x1):
+                return(None)
+            if (xVal <= x0) and (xVal <= x1):
+                return(self)
+        dx = x1 - x0
+        dy = y1 - y0
+        if (xVal > x0) and (xVal > x1):
+            return(self)
+        if abs(dx) < MIN_DIST:  # vertical
+            if xPlus:
+                if x0 >= xPlus:
+                    return(None)
+                else:
+                    return(self)
+            else:
+                if x0 <= xPlus:
+                    return(None)
+                else:
+                    return(self)
+        elif abs(dy) < MIN_DIST: # horizontal
+            p = (y0, xVal)
+        else:
+            m = dy / dx
+            b = y0 - m * x0
+            y = m * xVal + b
+            p = (y, xVal)
+
+        if xPlus:
+            if x0 > xVal:
+                self.p0 = p
+            else:
+                self.p1 = p
+        else:
+            if x0 < xVal:
+                self.p0 = p
+            else:
+                self.p1 = p
+        return(self)
+
     def mill(self, mill, zEnd=None, comment=None):
         mill.cut(self.p1, zEnd, comment)
 
@@ -622,19 +732,34 @@ class Line():
         draw.move(self.p0)
         draw.line(self.p1)
 
-    def prt(self, out=None, eol="\n"):
-         str = "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \
+    def label(self, text, layer=None):
+        self.text = text
+        if draw is None:
+            return
+        if self.length > 0.5:
+            h = 0.010
+            x = (self.p1[0] + self.p0[0]) / 2.0
+            y = ((self.p0[1] + self.p1[1]) / 2.0) - h
+            draw.text(text, (x, y), h, layer)
+
+    def prt(self, out=None, eol="\n", prefix=None):
+        str = prefix if prefix is not None else ""
+        str += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \
                (self.index, self.p0[0], self.p0[1], \
                 self.p1[0], self.p1[1], self.length, \
                 xyDist(self.p0, self.p1))
-         if out is None:
-             dprt(str)
-         else:
-             out.write(str)
-             out.write(eol)
+        if self.text != None:
+            str += " " + self.text
+        if out is None:
+            dprt(str)
+        else:
+            out.write(str)
+            out.write(eol)
+
+# dxf arcs are always counter clockwise.
 
 class Arc():
-    def __init__(self, c, r, a0, a1, i=-1, e=None, dir=None):
+    def __init__(self, c, r, a0, a1, i=-1, e=None, dir=CCW):
         self.c = c
         (cX, cY) = c
         a0R = radians(a0)
@@ -693,10 +818,13 @@ class Arc():
     def calcLen(self):
         a1 = self.a1
         a0 = self.a0
-        if a1 < a0:
-            a1 += 360.0
-        self.arcLen = a1 - a0
-        return(self.r * radians(self.arcLen))
+        if abs(abs(a1 - a0) - 360.0) > MIN_DIST:
+            if a1 < a0:
+                a1 += 360.0
+            self.arcLen = a1 - a0
+            return(self.r * radians(self.arcLen))
+        else:
+            return(pi * 2.0 * self.r)
 
     def swap(self):
         (self.p0, self.p1) = (self.p1, self.p0)
@@ -746,7 +874,7 @@ class Arc():
                 dprt("%2d arc dir %s midPoint dir %s swapped %s" % \
                       (self.index, oStr(d0), oStr(d1), self.swapped))
                 if draw is not None:
-                    l = 'DBG'
+                    l = draw.lDebug
                     draw.drawCircle(self.p0, layer=l)
                     draw.drawCircle(pM, 0.020, layer=l)
                     draw.drawCircle(self.p1, 0.015, layer=l)
@@ -766,10 +894,12 @@ class Arc():
     def split(self, dist):
         r = self.r
         arcLen = dist / r
+        # dprt("dist %7.4f r %7.4f arclen %7.4f" % (dist, r, arcLen))
         if self.swapped:
             a = degrees(radians(self.a1) - arcLen)
         else:
             a = degrees(radians(self.a0) + arcLen)
+        # dprt("swapped %s a %7.3f" % (self.swapped, a))
         a0 = Arc(self.c, self.r, self.a0, a, self.index)
         a1 = Arc(self.c, self.r, a, self.a1, self.index)
         if self.swapped:
@@ -792,6 +922,97 @@ class Arc():
         #     dprt("a no intersection s %7.4f, %7.4f e %7.4f %7.4f" % \
         #           (self.p1[0], self.p1[1], l.p0[0], l.p1[1]))
         return(p)
+
+    def horizontalTrim(self, yVal, yPlus):
+        if yPlus:
+            if self.p0[1] >= yVal and self.p1[1] >= yVal:
+                return(None)
+        else:
+            if self.p0[1] <= yVal and self.p1[1] <= yVal:
+                return(None)
+        (cX, cY) = self.c
+        r = self.r
+        y = yVal - cY
+        if abs(y) > r:
+            return(self)
+        aRad = asin(y / r)
+        xMid = (self.p0[0] + self.p1[0]) / 2 - cX
+        if xMid < 0:
+            aRad = pi - aRad
+        a = degrees(aRad)
+        if a < 0.0:
+            a += 360.0
+        dprt("yVal %7.4f yPlus %s y %7.4f r %7.4f a %5.1f" % \
+             (yVal, yPlus, y, r, a))
+        a1 = self.a1
+        if a1 < self.a0:
+            a1 += 360.0
+        if self.a0 < a and a <= a1:
+            x = r * cos(aRad)
+            p = (x + cX, y + cY)
+            if yPlus:
+                p0 = self.p0[1] > self.p1[1]
+            else:
+                p0 = self.p0[1] < self.p1[1]
+
+            if p0:
+                self.p0 = p
+                a0 = not self.swapped
+            else:
+                self.p1 = p
+                a0 = self.swapped
+
+            if a0:
+                self.a0 = a
+            else:
+                self.a1 = a
+            self.length = self.calcLen()
+        return(self)
+        
+    def verticalTrim(self, xVal, xPlus):
+        if xPlus:
+            if self.p0[0] >= xVal and self.p1[0] >= xVal:
+                return(None)
+        else:
+            if self.p0[0] <= xVal and self.p1[0] <= xVal:
+                return(None)
+        (cX, cY) = self.c
+        r = self.r
+        x = xVal - cX
+        if abs(x) > r:
+            return(self)
+        aRad = acos(x / r)
+        yMid = (self.p0[1] + self.p1[1]) / 2 - cY
+        if yMid < 0:
+            aRad = -aRad
+        a = degrees(aRad)
+        if a < 0.0:
+            a += 360.0
+        dprt("xVal %7.4f xPlus %s x %7.4f r %7.4f a %5.1f" % \
+             (xVal, xPlus, x, r, a))
+        a1 = self.a1
+        if a1 < self.a0:
+            a1 += 360.0
+        if self.a0 < a and a <= a1:
+            y = r * sin(aRad)
+            p = (x + cX, y + cY)
+            if xPlus:
+                p0 = self.p0[0] > self.p1[0]
+            else:
+                p0 = self.p0[0] < self.p1[0]
+
+            if p0:
+                self.p0 = p
+                a0 = not self.swapped
+            else:
+                self.p1 = p
+                a0 = self.swapped
+
+            if a0:
+                self.a0 = a
+            else:
+                self.a1 = a
+        return(self)
 
     def point90(self, p, dist):
         (i, j) = self.c
@@ -903,13 +1124,14 @@ class Arc():
             draw.move(self.p1)
             draw.arc(self.p0, self.c)
 
-    def prt(self, out=None, eol="\n"):
-        str = "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f arc%s" \
-              " c%6.3f%6.3f r %5.3f %4.0f %4.0f" % \
-              (self.index, self.p0[0], self.p0[1], \
-               self.p1[0], self.p1[1], self.length, \
-               (' ', 's')[self.swapped], self.c[0], self.c[1], \
-               self.r, self.a0, self.a1)
+    def prt(self, out=None, eol="\n", prefix=None):
+        str = prefix if prefix is not None else ""
+        str += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f arc%s" \
+               " c%6.3f%6.3f r %5.3f %4.0f %4.0f" % \
+               (self.index, self.p0[0], self.p0[1], \
+                self.p1[0], self.p1[1], self.length, \
+                (' ', 's')[self.swapped], self.c[0], self.c[1], \
+                self.r, self.a0, self.a1)
         if out is None:
             dprt(str)
         else:
@@ -1156,6 +1378,9 @@ def lineArc(l0, l1, end):
     # x = (p^2 + r^2 - s^2) / 2*p
 
 def arcArc(l0, l1):
+    if (xyDist(l0.c, l1.c) < MIN_DIST) and \
+       (abs(l0.r - l1.r) < MIN_DIST): # if already intersecting
+        return(l0.p1)
     (x0, y0) = l0.c             # arc 0
     r0 = l0.r
     (x1, y1) = l1.c             # arc 1
@@ -1166,8 +1391,9 @@ def arcArc(l0, l1):
     d = sqrt(dx * dx + dy * dy) # center distance
     d0 = (d*d + r0*r0 - r1*r1) / (2 * d) # distance along center line
     p = None
-    if d0 <= r0:                         # if intersection
-        h = sqrt(r0 * r0 - d0 * d0)      # distance above center line
+    if abs(abs(d0) - abs(r0)) < MIN_DIST: # if intersection
+        # h = sqrt(r0 * r0 - d0 * d0)  # distance above center line
+        h = 0
         dprt("d %6.3f d0 %6.3f h %6.3f" % (d, d0, h))
 
         cosA = dx / d
@@ -1310,7 +1536,7 @@ def inside(p, seg, dbg=False):
             elif x0 < x1:       # if start x < end x
                 if x0 < x and x <= x1: # if point lies between ends
                     test = True         # test y
-            elif x1 <= x and x < x0: # if point lies between ends
+            elif x1 < x and x <= x0:  # if point lies between ends
                 test = True           # test y
             if test:                  # if y test needed
                 if y < y0 and y < y1: # if point below both ends
@@ -1379,21 +1605,17 @@ def pathLength(seg):
     # dprt()
     return(totalLength)
 
-def reverseSeg(seg):
-    # dprt("reverseSeg")
-    # segDirection(seg)
+def reverseSeg(seg, makeCopy=True):
     newSeg = []
     for l in reversed(seg):
-        l1 = copy(l)
-        newSeg.append(l1)
-        l1.swap()
-    #     l1.prt()
-    # dprt()
-    # segDirection(newSeg)
+        if makeCopy:
+            l = copy(l)
+        l.swap()
+        newSeg.append(l)
     return(newSeg)
 
 def splitArcs(seg):
-    dprt("splitArcs")
+    dprt("splitArcs in")
     newSeg = []
     i = 0
     for l in seg:
@@ -1401,7 +1623,13 @@ def splitArcs(seg):
         if l.type == ARC:
             l.prt()
             a0 = degrees(calcAngle(l.c, l.p0))
+            aTmp = round(a0 / 90) * 90
+            if abs(a0 - aTmp) < MIN_DIST:
+                a0 = aTmp
             a1 = degrees(calcAngle(l.c, l.p1))
+            aTmp = round(a1 / 90) * 90
+            if abs(a1 - aTmp) < MIN_DIST:
+                a1 = aTmp
             if not l.swapped:   # clockwise
                 if a1 < a0:
                     a1 += 360.0
@@ -1452,10 +1680,10 @@ def splitArcs(seg):
             l1 = copy(l)
             newSeg.append(l1)
             i += 1
-    # dprt()
-    # for l in newSeg:
-    #     l.prt()
-    # dprt()
+    dprt("\nsplitArcs out")
+    for l in newSeg:
+        l.prt()
+    dprt()
     return(newSeg)
 
 def combineArcs(seg):
@@ -1468,6 +1696,9 @@ def combineArcs(seg):
         # l.prt()
         # combine arcs
         if l.type == ARC:
+            if (l.a1 - l.a0) >= 360.0:
+                newSeg = seg
+                break
             a1 = None
             # p0 = l.p0
             j = i
@@ -1502,21 +1733,36 @@ def combineArcs(seg):
         i += 1
         k += 1
 
-    # for l in newSeg:
-    #     l.prt()
-    # dprt()
+    dprt()
+    for l in newSeg:
+        l.prt()
+    dprt()
     return(newSeg)
 
 def createPath(seg, dist, outside, tabPoints=None, \
-               closed=True, ref=None, addArcs=False):
-    dprt("createPath")
-    newSeg = splitArcs(seg)
+               closed=True, ref=None, addArcs=False, \
+               split=True, keepIndex=False, closeOpen=False, dbg=True):
+    if dbg:
+        dprt("createPath")
+
+    if split:
+        newSeg = splitArcs(seg)
+    else:
+        newSeg = seg
+
+    if closed and closeOpen:    # if close open path
+        pStr = newSeg[0].p0
+        pEnd = newSeg[-1].p1
+        if xyDist(pStart, pEnd) > MIN_DIST:
+            newSeg.append(Line(pEnd,pStart))
+
     labelPoints(newSeg)
 
     d = abs(dist)
     if closed:                  # closed path
-        curDir = pathDir(newSeg, 0.050)
-        dprt("curdir %s" % (oStr(curDir)))
+        curDir = pathDir(newSeg, dbg)
+        if dbg:
+            dprt("curdir %s" % (oStr(curDir)))
 
         if cfg.climb:               #      \  outside path
             dir = CW                # ccw ^ |  / normal
@@ -1528,14 +1774,17 @@ def createPath(seg, dist, outside, tabPoints=None, \
                 dir = CW            #  cw ^ |  / normal
             else:                   #       | ^ cutter turns cw
                 dir = CCW           # ccw v |  \ climb
-        			    #        \
+        cfg.dir = dir
+
         if curDir != dir:
-            dprt("reverse direction")
+            if dbg:
+                dprt("reverse direction")
             newSeg = reverseSeg(newSeg)
 
-        curDir = pathDir(newSeg, 0.100)
-        dprt("%s %s dir %s" % (('normal', 'climb')[cfg.climb], \
-                                ('inside', 'outside')[outside], oStr(curDir)))
+        curDir = pathDir(newSeg, dbg)
+        if dbg:
+            dprt("%s %s dir %s" % (('normal', 'climb')[cfg.climb], \
+                                   ('inside', 'outside')[outside], oStr(curDir)))
 
         if outside:                 # outside ^    cw <-|
             if dir == CCW:          #  dir cw | dir ccw |
@@ -1547,26 +1796,32 @@ def createPath(seg, dist, outside, tabPoints=None, \
         pFirst = newSeg[0].p0
         pLast = newSeg[-1].p1
         if xyDist(ref, pLast) < xyDist(ref, pFirst):
-            dprt("reverse direction")
+            if dbg:
+                dprt("reverse direction")
             newSeg = reverseSeg(newSeg)
         l = newSeg[0]
         dir = orientation(l.p0, l.p1, ref)
         if dir == CW:
             d = -d
 
-    for l in newSeg:
-        l.prt()
+    if dbg:
+        for l in newSeg:
+            l.prt()
 
     intersect = True
     segPath = []
     prev = None
-    segTabPoints = []
+    if tabPoints is not None:
+        segTabPoints = []
+    else:
+        segTabPoints = None
     for (i, l) in enumerate(newSeg):
-        dprt("processing %d" % (l.index))
-        l.prt()
-        dprt()
-        l.draw()
-        pMid = l.midPoint(d, True)
+        if dbg:
+            dprt("processing %d" % (l.index))
+            l.prt()
+            dprt()
+            l.draw()
+        pMid = l.midPoint(d, dbg)
         if closed:
             cross = inside(pMid, newSeg, False)
             # if draw is not None
@@ -1575,8 +1830,12 @@ def createPath(seg, dist, outside, tabPoints=None, \
                 ePrint("creatPath - parallel line not on correct side")
                 dprt("choose distance negative %d" % (cross))
                 d = -d
-        l1 = l.parallel(d)
-        l1.index = i
+        if l.index != INDEX_MARKER:
+            l1 = l.parallel(d)
+        else:
+            l1 = copy(l)
+        if not keepIndex:
+            l1.index = i
         if prev is not None:
             # dprt("intersect %d %s and %d %s" % \
             #       (prev.index, prev.str[0], l1.index, l1.str[0]))
@@ -1586,15 +1845,18 @@ def createPath(seg, dist, outside, tabPoints=None, \
         if tabPoints is not None:
             for (n, p) in enumerate(tabPoints):
                 dp = l.pointDistance(p)
-                # if dp is not None:
-                #     dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
-                if dp is not None and abs(dp) < MIN_DIST:
-                    p0 = l.point90(p, d)
-                    dp = l1.pointDistance(p0)
-                    # dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
-                    segTabPoints.append(p0)
-                    if draw is not None:
-                        draw.drawX(p0, "T%d" % (n), True)
+                if dp is not None:
+                    if abs(dp) < MIN_DIST:
+                        p0 = l.point90(p, d)
+                        dp = l1.pointDistance(p0)
+                        if dbg:
+                            dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
+                            if draw is not None:
+                                draw.drawX(p0, "T%d" % (n), True)
+                        segTabPoints.append(p0)
+                    else:
+                        if dbg:
+                            dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
         prev = l1
 
     if intersect and closed:
@@ -1602,16 +1864,23 @@ def createPath(seg, dist, outside, tabPoints=None, \
         # dprt("intersect %d and %d" % (prev.index, l1.index))
         prev.intersect(l1)
 
-    dprt("offset path")
-    for l in segPath:
-        l.prt()
-    dprt()
+    if dbg:
+        dprt("offset path")
+        for l in segPath:
+            l.prt()
+        dprt()
 
     if segTabPoints is not None:
+        if dbg:
+            dprt("tab points")
+            for (n, p) in enumerate(segTabPoints):
+                dprt("%d (%7.4f %7.4f)" % (n, p[0], p[1]))
+            dprt()
         segTabPoints = list(set(segTabPoints))
 
     if addArcs and closed:
-        dprt("add arcs")
+        if dbg:
+            dprt("add arcs")
         prev = None
         if closed:
             prev = segPath[-1]
@@ -1624,7 +1893,8 @@ def createPath(seg, dist, outside, tabPoints=None, \
                     newPath.append(arc)
             newPath.append(l)
             prev = l
-            dprt()
+            if dbg:
+                dprt()
     else:
         newPath = segPath
 
@@ -1640,13 +1910,15 @@ def createPath(seg, dist, outside, tabPoints=None, \
         elif prev is not None and l.type == ARC and l.index == -1:
             prev.updateP1(l.p0)
             p1 = l.p1
-        l.index = i
+        if not keepIndex:
+            l.index = i
         prev = l
 
-    for l in newPath:
-        l.draw()
-        labelP(l.p0, "%s %d" % (l.str[0].upper(), l.index))
-    dprt()
+    if dbg:
+        for l in newPath:
+            l.draw()
+            labelP(l.p0, "%s %d" % (l.str[0].upper(), l.index))
+        dprt()
     return(newPath, segTabPoints)
 
 def labelPoints(seg):

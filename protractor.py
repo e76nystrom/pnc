@@ -74,9 +74,11 @@ class Engrave():
         m.move((x0, y0))
         if cfg.probe:
             prb = cfg.prb
-            prb.write("g0 z%7.4f\n\n" % (cfg.retract))
+            prb.write("g0 z%7.4f\n" % (cfg.retract))
+            prb.blankLine()
             prb.write("g38.2 z%6.4f (reference probe)\n" % (cfg.probeDepth))
-            prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+            prb.write("g0 z%6.4f\n" % (cfg.retract))
+            prb.blankLine()
 
         min_dist = cfg.min_dist
         for i in range(0, self.ticks+1):
@@ -91,7 +93,8 @@ class Engrave():
             if cfg.probe:
                 prb.write("g0 x%7.4f y%7.4f\n" % (x0, y0))
                 prb.write("g38.2 z%6.4f\n" % (cfg.probeDepth))
-                prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+                prb.write("g0 z%6.4f\n" % (cfg.retract))
+                prb.blankLine()
             if cfg.level:
                 zOffset = 0.0
                 if i < len(levelData):

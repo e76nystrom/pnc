@@ -24,7 +24,7 @@ class RectPocket():
     def setSpiral(self, args):
         self.spiral = int(args[1]) != 0
 
-    def pocket(self, args):
+    def rectPocket(self, args):
         layer = args[1]
         cfg = self.cfg
         dir = CCW

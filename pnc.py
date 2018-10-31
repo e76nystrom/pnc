@@ -34,11 +34,23 @@ from hershey import Font
 from os import getcwd
 from imp import load_source
 
+import random
+
 O_UPPER_LEFT = 0
 O_LOWER_LEFT = 1
-O_CENTER = 2
-O_POINT = 3
-O_MAX = 4
+O_UPPER_RIGHT = 2
+O_LOWER_RIGHT = 3
+O_CENTER = 4
+O_POINT = 5
+O_MAX = 6
+
+DRILL = 0
+TAP = 1
+BORE = 2
+
+# print("%s" % (os.environ['TZ'],))
+# os.environ['TZ'] = 'America/New_York'
+# print("%s" % (os.environ['TZ'],))
 
 # dxf arcs are always counter clockwise.
 
@@ -54,6 +66,7 @@ class Config():
         self.draw = None        # Draw class
         self.drawDxf = False    # create dxf drawing
         self.drawSvg = False    # create svg drawing
+        self.oneDxf = False     # combine ouput into one dxf
         self.slot = None        # Slot class
         self.move = None        # Move class
         self.mp = None          # millPath class
@@ -73,6 +86,7 @@ class Config():
         self.test = False       # test flag
         self.orientation = None # default orientation
         self.orientationLayer = None # layer for orientation point
+        self.layer = None       # layer from command line
           
         self.dbg = False        # debugging output
         self.dbgFile = ""       # debug file
@@ -83,6 +97,7 @@ class Config():
         self.finishAllowance = 0.0 # finish allowance
         self.alternate = False  # alternate directions on open path
         self.addArcs = False    # add arcs between line segments
+        self.closeOpen = False  # close open path
 
         self.holeMin = 0.0      # hole milling >= size
         self.holeMax = MAX_VALUE # hole milling < size
@@ -95,17 +110,26 @@ class Config():
         self.yPark = 0.0        # y park location
         self.zPark = 1.5        # z park location
 
+        self.xInitial = 0.0     # x initial location
+        self.yInitial = 0.0     # y initial location
+        self.zInitial = 1.5     # z initial location
+        
         self.xOffset = 0.0      # drill x approach offset
         self.yOffset = 0.0      # drill y approach offset
         self.x = 0.0            # drill x location
         self.y = 0.0            # dirll y location
         self.drillSize = 0.1    # current drill size
+        self.drillAngle = 0.0   # drill point angle
+        self.drillExtra = 0.0   # extra drill Depth
         self.peckDepth = 0.0    # peck depth
 
         self.pause = False       # enable pause
         self.pauseCenter = False # pause at center of hole
         self.pauseHeight = 0.025 # height to pause at
+        self.homePause = True    # start by pausing at home position
 
+        self.tool = None        # tool number
+        self.toolComment = ""   # tool comment
         self.delay = 3.0        # spindle start delay
         self.speed = 1800       # spindle speed
         self.coordinate = 54    # coordinate system
@@ -124,6 +148,7 @@ class Config():
         self.curFeed = 0.0      # current feed rate
 
         self.depthPass = 0.0    # depth per pass
+        self.evenDepth = False  # same depth for each pass
 
         self.widthPasses = 0
         self.widthPerPass = 0
@@ -141,8 +166,16 @@ class Config():
         self.prb = None         # probe output file
         self.probe = False      # generate probe file
         self.probeDepth = 0.0   # probe depth
+        self.probeFeed = 0.0    # probe feed
+        self.probeTool = None   # probe tool number
         self.level = False      # probe input file
         self.probeData = None   # output from probing
+
+        self.inFile = None      # input file
+        self.outFile = None     # output file from command line
+
+        self.ifDisable = False  # if flag
+        # self.ifStack = []       # stack for nested if
 
         self.runPath = os.path.dirname(sys.argv[0])
 
@@ -154,9 +187,17 @@ class Config():
             ('xpark', self.xPark), \
             ('ypark', self.yPark), \
             ('zpark', self.zPark), \
+            ('park', self.park), \
+
+            ('xinitial', self.xInitial), \
+            ('yinitial', self.yInitial), \
+            ('zinitial', self.zInitial), \
+            ('initial', self.initial), \
 
             ('size', self.setSize), \
             ('drillsize', self.setDrillSize), \
+            ('drillangle', self.setDrillAngle), \
+            ('drillextra', self.setDrillExtra), \
             ('peckdepth', self.setPeckDepth), \
 
             ('coordinate', self.setCoord), \
@@ -167,12 +208,14 @@ class Config():
             ('top', self.setTop), \
             ('depth', self.setDepth), \
             ('depthpass', self.setDepthPass), \
+            ('evendepth', self.setEvenDepth), \
 
             ('feed', self.setFeed), \
             ('zfeed', self.setZFeed), \
 
             ('speed', self.setSpeed), \
             ('delay', self.setDelay), \
+            ('tool', self.setTool), \
 
             ('x', self.setLocX), \
             ('y', self.setLocY), \
@@ -180,10 +223,12 @@ class Config():
             ('xoffset', self.setXOffset), \
             ('yoffset', self.setYOffset), \
             ('drill', self.drill), \
+            ('bore', self.bore), \
 
             ('pause', self.setPause), \
             ('pausecenter', self.setPauseCenter), \
             ('pauseheight', self.setPauseHeight), \
+            ('homepause', self.setHomePause), \
 
             ('rampangle', self.setRampAngle), \
             ('shortramp', self.setShortRamp), \
@@ -213,6 +258,7 @@ class Config():
             ('output', self.setOutput), \
             ('alternate', self.setAlternate), \
             ('addarcs', self.setAddArcs), \
+            ('closeopen', self.setCloseOpen), \
 
             ('dxf', self.readDxf), \
             ('setlayers', self.setLayers), \
@@ -228,22 +274,34 @@ class Config():
             ('dxfinside', self.dxfInside), \
             ('dxfopen', self.dxfOpen), \
             ('dxfdrill', self.dxfDrill), \
+            ('dxfbore', self.dxfBore), \
             ('dxfmillhole', self.dxfMillHole), \
             ('dxftap', self.dxfTap), \
 
+            ('close', self.closeFiles), \
             ('outputfile', self.outputFile), \
 
             ('setfont', self.setFont), \
             ('engrave', self.engrave), \
             ('probe', self.setProbe), \
             ('probedepth', self.setProbeDepth), \
+            ('probefeed', self.setProbeFeed), \
+            ('probetool', self.setProbeTool), \
             ('level', self.setLevel), \
 
             ('drawdxf', self.setDrawDxf), \
             ('drawsvg', self.setDrawSvg), \
+            ('onedxf', self.setOneDxf), \
+            ('closedxf', self.closeDxf), \
 
             ('dbg', self.setDbg), \
             ('dbgfile', self.setDbgFile), \
+
+            ('if', self.cmdIf), \
+            ('endif', self.cmdEndIf), \
+
+            ('setx', self.setX), \
+            ('sety', self.setY), \
 
             ('load', self.load), \
         )
@@ -294,6 +352,11 @@ class Config():
                         if n < len(sys.argv):
                             self.level = True
                             self.probeData = sys.argv[n]
+                    elif tmp == 'layer':
+                        n += 1
+                        if n < len(sys.argv):
+                            self.level = True
+                            self.layer = sys.argv[n]
                     elif tmp == 'dxf':
                         n += 1
                         if n < len(sys.argv):
@@ -310,7 +373,7 @@ class Config():
                     tmp = val[1]
                     if tmp == "d":
                         self.dbg = True
-                    elif tmp == "l":
+                    elif tmp == "c":
                         self.linuxCNC = True
                     elif tmp == "g":
                         cfg.gui = True
@@ -318,19 +381,28 @@ class Config():
                         self.drawSvg = True
                     elif tmp == 'x':
                         self.drawDxf = True
+                    elif tmp == 'o':
+                        n += 1
+                        if n < len(sys.argv):
+                            self.out = True
+                            self.outFile = sys.argv[n]
                     elif tmp == 'h':
                         self.help()
             elif val.startswith('?'):
                 self.help();
             else:
-                if self.inFile is None:
-                    self.inFile = val
-                    if not re.search('\.[a-zA-Z0-9]*$', self.inFile):
-                        self.inFile += ".pnc"
-                    dprt(self.inFile)
-                    dflush()
-                else:
+                inFile = val
+                if ".dxf" in inFile:
                     self.dxfFile = val
+                else:
+                    if not re.search('\.[a-zA-Z0-9]*$', inFile):
+                        inFile += ".pnc"
+                    dprt(inFile)
+                    dflush()
+                    if self.inFile is None:
+                        self.inFile = [inFile, ]
+                    else:
+                        self.inFile.append(inFile)
             n += 1
 
     def help(self):
@@ -338,10 +410,12 @@ class Config():
         print(" ?            help\n" \
               " -d           debug\n" \
               " -h           help\n" \
+              " -c           linuxcnc format\n" \
               " -s           output svf file\n" \
               " -x           output dxf file\n" \
               " --dbg file   debug output file\n" \
               " --dxf file   dxf input file\n" \
+              " --layer layer layer for dxf commands\n" \
               " --level file level input file\n" \
               " --probe      generate probe data" \
         )
@@ -349,55 +423,64 @@ class Config():
         
     def open(self):
         self.setupVars()
-        inp = open(self.inFile, 'r')
-        self.dirPath = os.path.dirname(self.inFile)
-        self.fileName = os.path.basename(self.inFile).replace(".pnc", "")
-        if len(self.dirPath) != 0:
-            self.baseName = os.path.join(self.dirPath, self.fileName)
-        else:
-            self.baseName = self.fileName
-
-        dprtSet(self.dbg, os.path.join(self.dirPath, self.dbgFile) \
-                if len(self.dbgFile) != 0 else "")
-
-        for l in inp:
-            l = l.strip()
-            line = re.sub("\s*#.*$", "", l)
-            self.lineNum += 1
-            dprt("%2d %s" % (self.lineNum, l))
-            dflush()
-            if len(line) == 0:
-                continue
-            if line.startswith('#'):
-                continue
-            arg = line.split(' ')
-            if len(arg) >= 1:
-                cmd = arg[0].lower()
-                arg[0] = line
-                if cmd in self.cmdAction:
-                    action = self.cmdAction[cmd]
-                    try:
-                        action(arg)
-                        if self.error:
-                            break
-                    # except ValueError:
-                    #     ePrint("Invalid argument line %d %s" % \
-                    #           (self.lineNum, line))
-                    # except IndexError:
-                    #     ePrint("Missing argument line %d %s" % \
-                    #           (self.lineNum, line))
-                    except:
-                        traceback.print_exc()
-                        exit()
+        for inFile in self.inFile:
+            inp = open(inFile, 'r')
+            self.dirPath = os.path.dirname(inFile)
+            self.fileName = os.path.basename(inFile).replace(".pnc", "")
+            if self.outFile is None:
+                if len(self.dirPath) != 0:
+                    self.baseName = os.path.join(self.dirPath, self.fileName)
                 else:
-                    ePrint("%2d %s" % (self.lineNum, l))
-                    ePrint("invalid cmd %s" % cmd)
+                    self.baseName = self.fileName
+            else:
+                self.baseName = os.path.join(self.dirPath, self.outFile)
 
+            dprtSet(self.dbg, os.path.join(self.dirPath, self.dbgFile) \
+                    if len(self.dbgFile) != 0 else "")
+
+            for l in inp:
+                self.lineNum += 1
+                dprt("%2d %s" % (self.lineNum, l), end="")
+                dflush()
+                l = l.strip()
+                line = re.sub("\s*#.*$", "", l)
+                line = re.sub("\s+", " ", line)
+                if len(line) == 0:
+                    continue
+                if line.startswith('#'):
+                    continue
+                arg = line.split(' ')
+                if len(arg) >= 1:
+                    cmd = arg[0].lower()
+                    arg[0] = line
+                    if cmd == 'endif':
+                        self.cmdEndIf(arg)
+                    if not self.ifDisable:
+                        if cmd in self.cmdAction:
+                            action = self.cmdAction[cmd]
+                            try:
+                                action(arg)
+                                if self.error:
+                                    break
+                            # except ValueError:
+                            #     ePrint("Invalid argument line %d %s" % \
+                            #           (self.lineNum, line))
+                            # except IndexError:
+                            #     ePrint("Missing argument line %d %s" % \
+                            #           (self.lineNum, line))
+                            except:
+                                traceback.print_exc()
+                                exit()
+                        else:
+                            ePrint("%2d %s" % (self.lineNum, l))
+                            ePrint("invalid cmd %s" % cmd)
+                            sys.exit()
+
+            inp.close()         # close input file
         try:
             self.draw.close()   # close drawing files
         except:
             pass
-        inp.close()             # close input file
         dclose()                # close debug file
         self.end()              # close nc files
 
@@ -405,6 +488,8 @@ class Config():
         self.init = False
         if self.mill is not None:
             self.mill.close()
+            self.mill = None
+            self.mp = None
         self.lastX = 0.0
         self.lastY = 0.0
         if self.probe:
@@ -433,14 +518,15 @@ class Config():
             else:
                 self.draw.material(dxfInput.xSize, dxfInput.ySize)
 
-        draw.move((0.0, 0.0))
+        draw.move((self.xInitial, self.yInitial))
 
         outFile = self.outFileName + ".ngc"
-        if self.mill is None:
-            self.mill = Mill(self, outFile)
+        mill = self.mill
+        if mill is None:
+            self.mill = mill = Mill(self, outFile)
         else:
-            self.mill.init(outFile)
-        self.mill.setSpeed(self.speed)
+            mill.init(outFile)
+        mill.setSpeed(self.speed)
         self.openOutput = False
 
         if self.probe:
@@ -449,7 +535,14 @@ class Config():
     def probeInit(self):
         probeFile = self.outFileName + "-prb.ngc"
         self.prb = prb = Mill(self, probeFile, False)
-        prb.out.write("(PROBEOPEN %s.prb)\n" % (probeFile))
+        out = prb.out
+        out.write("(PROBEOPEN %s.prb)\n" % (probeFile))
+        tool = self.probeTool
+        if tool is not None:
+            out.blankLine()
+            out.write("G30 (Go to preset G30 location)\n")
+            out.write("T %d M6 G43 H %d\n" % (tool, tool))
+            out.blankLine()
         return(prb)
 
     def probeOpen(self):
@@ -465,6 +558,28 @@ class Config():
             ePrint("probe data file %s not found" % (self.probeData))
         return(None)
         
+    def cmdIf(self, args):
+        # self.ifStack.append(self.ifDisable)
+        self.ifDisable = int(args[1]) == 0
+
+    def cmdEndIf(self, args):
+        self.ifDisable = False
+        # self.ifDisable = ifStack.pop()
+
+    def setX(self, args):
+        coordinate = int(args[1])
+        xVal = float(args[2])
+        mill = cfg.mill
+        if mill is not None:
+            mill.setX(coordinate, xVal)
+
+    def setY(self, args):
+        coordinate = int(args[1])
+        yVal = float(args[2])
+        mill = cfg.mill
+        if mill is not None:
+            mill.setY(coordinate, yVal)
+        
     def xPark(self, args):
         self.xPark = float(args[1])
 
@@ -473,8 +588,53 @@ class Config():
 
     def zPark(self, args):
         self.zPark = float(args[1])
+
+    def park(self, args):
+        result = self.getLocation(args, [self.xPark, self.yPark, self.zPark])
+        (self.xPark, self.yPark, self.zPark) = result
+
+    def xInitial(self, args):
+        self.xInitial = float(args[1])
+
+    def yInitial(self, args):
+        self.yInitial = float(args[1])
+
+    def zInitial(self, args):
+        self.zInitial = float(args[1])
+
+    def initial(self, args):
+        result = self.getLocation(args, [self.xInitial, \
+                                         self.yInitial, self.zInitial])
+        (self.xInitial, self.yInitial, self.zInitial) = result
         
+    def getLocation(self, args, result=None):
+        if result is None:
+            result = [0.0, 0.0, 0.0]
+        self.reLoc = "^.*? +([xyz]) *([0-9\.\-]+) *([xyz]*) *([0-9\.\-]*)" \
+                     " *([xyz]*) *([0-9\.\-]*)"
+        match = re.match(self.reLoc, args[0].lower())
+        if match is not None:
+            groups = len(match.groups())
+            i = 1
+            while i <= groups:
+                axis = match.group(i)
+                i += 1
+                if len(axis) == 0:
+                    break
+                if i > groups:
+                    break
+                val = float(match.group(i))
+                i += 1
+                if axis == 'x':
+                    result[0] = val
+                elif axis == 'y':
+                    result[1] = val
+                elif axis == 'z':
+                    result[1] = val
+        return(result)
+                    
     def setSize(self, args):
+        self.ncInit()
         self.xSize = float(args[1])
         self.ySize = float(args[2])
         if len(args) >= 4:
@@ -491,6 +651,12 @@ class Config():
     def setDrillSize(self, args):
         self.drillSize = float(args[1])
 
+    def setDrillAngle(self, args):
+        self.drillAngle = radians(float(args[1])) / 2
+
+    def setDrillExtra(self, args):
+        self.drillExtra = float(args[1])
+        
     def setPeckDepth(self, args):
         self.peckDepth = float(args[1])
 
@@ -525,6 +691,20 @@ class Config():
 
     def setDelay(self, args):
         self.delay = float(args[1])
+
+    def setTool(self, args):
+        if len(args) >= 2:
+            self.tool = int(args[1])
+            match = re.match("^[a-zA-z]+ +[0-9]+ +(.*)$", args[0])
+            if match is not None:
+                self.toolComment = match.group(1)
+            else:
+                self.toolComment = ""
+            if self.mill is not None:
+                self.mill.toolChange(self.tool, self.toolComment)
+        else:
+            self.tool = None
+            self.toolComment = ""
 
     def setLoc(self, args):
         self.x = float(args[1])
@@ -563,6 +743,9 @@ class Config():
     def setDepthPass(self, args):
         self.depthPass = abs(float(args[1]))
 
+    def setEvenDepth(self, args):
+        self.evenDepth = int(args[1]) != 0
+
     def setWidth(self, args):
         self.width = abs(float(args[1]))
 
@@ -577,6 +760,9 @@ class Config():
 
     def setPause(self, args):
         self.pause = int(args[1]) != 0
+
+    def setHomePause(self, args):
+        self.homePause = int(args[1]) != 0
 
     def setTest(self, args):
         self.test = int(args[1]) != 0
@@ -619,6 +805,9 @@ class Config():
     def setAddArcs(self, args):
         self.addArcs = int(args[1]) != 0
 
+    def setCloseOpen(self, args):
+        self.closeOpen = int(args[1]) != 0
+
     def setShortRamp(self, args):
         self.shortRamp = int(args[1]) != 0
 
@@ -634,6 +823,13 @@ class Config():
     def setDrawSvg(self, args):
         self.drawSvg = int(args[1]) != 0
 
+    def setOneDxf(self, args):
+        self.oneDxf = int(args[1]) != 0
+
+    def closeDxf(self, args):
+        if self.draw is not None:
+            self.draw.close()
+
     def setDbg(self, args):
         self.dbg = int(args[1]) != 0
         dprtSet(dbgFlag=self.dbg)
@@ -643,13 +839,15 @@ class Config():
         self.dbg = True
         dprtSet(self.dbg, dFile=self.dbgFile)
 
-    def drill(self, args=None, tap=False):
+    def drill(self, args=None, op=DRILL, size=None):
         self.ncInit()
         if args is not None:
             if len(args) >= 2:
                 self.x = float(args[1])
             if len(args) >= 3:
                 self.y = float(args[2])
+        if size is None:
+            size = self.drillSize
         self.count += 1
         mill = self.mill
         out = mill.out
@@ -674,19 +872,27 @@ class Config():
                     gMove = "1"
                     mill.setFeed(self.feed)
                 out.write("g%s x%7.4f y%7.4f\n" % (gMove, self.x, self.y))
-        self.draw.hole((self.x, self.y), self.drillSize)
+        self.draw.hole((self.x, self.y), size)
         holeCount = "/%d" % (self.holeCount) if self.holeCount is not None \
                     else ""
         comment = "hole %d%s x%7.4f y%7.4f" % \
                   (self.count, holeCount, self.x, self.y)
-        if not tap:
+        if op == DRILL:
+            offset = 0
+            if self.drillAngle != 0.0:
+                offset += -(size / 2) / tan(self.drillAngle)
+                dprt("drill size %7.4f z offset %7.4f" % (size, offset))
+            if self.drillExtra != 0.0:
+                offset += self.drillExtra
+                dprt("drill z offset %7.4f" % (offset))
             if self.pause:
                 mill.moveZ(self.pauseHeight)
                 out.write("m0 (pause)\n")
             mill.zTop()
             if self.peckDepth == 0:
-                mill.zDepth(comment=comment)
+                mill.zDepth(offset, comment=comment)
             else:
+                self.depth += offset
                 d = self.peckDepth
                 while True:
                     mill.plungeZ(d, comment)
@@ -698,7 +904,7 @@ class Config():
                     if d < self.depth:
                         d = self.depth
             mill.retract()
-        else:
+        elif op == TAP:
             out.write("m0 (pause insert tap)\n");
             if cfg.variables:
                 z = "[#%s + #%s]" % (self.topVar, self.depthVar)
@@ -708,9 +914,19 @@ class Config():
             out.write("m0 (pause tap hole)\n")
             mill.retract()
             out.write("m0 (pause remove tap)\n")
-        out.write("\n")
+        elif op == BORE:
+            mill.setSpeed(self.speed)
+            mill.zTop()
+            mill.zDepth()
+            mill.setSpeed(0)
+            mill.retract()
+            
+        mill.blankLine()
         self.lastX = self.x
         self.lastY = self.y
+
+    def bore(self, args):
+        self.drill(args, BORE)
 
     def getMillPath(self):
         if self.mp is None:
@@ -803,6 +1019,8 @@ class Config():
     def setOrientation(self, args):
         o = ((O_UPPER_LEFT, "upperleft"), \
              (O_LOWER_LEFT, "lowerleft"), \
+             (O_UPPER_RIGHT, "upperright"), \
+             (O_LOWER_RIGHT, "lowerright"), \
              (O_CENTER, "center"), \
              (O_POINT, "point"), \
         )
@@ -827,7 +1045,7 @@ class Config():
     def readDxf(self, args):
         if self.orientation is None:
             self.error = True
-            dprt("orientation not set")
+            ePrint("orientation not set")
             dflush()
         l = args[0]
         fileName = l.split(' ', 1)[-1]
@@ -835,23 +1053,27 @@ class Config():
             if self.dxfFile is not None:
                 if re.search("\.dxf$", self.dxfFile):
                     fileName = self.dxfFile
-                    self.baseName = fileName.replace(".dxf", "")
                 else:
-                    self.baseName = self.dxfFile
                     fileName = self.dxfFile + ".dxf"
             else:
                 fileName = self.fileName + ".dxf"
-                self.baseName = fileName
-        else:
-            self.baseName = fileName.split('.')[0]
 
         fileDir = os.path.dirname(fileName)
         if len(fileDir) == 0 and len(self.dirPath) != 0:
             fileName = os.path.join(self.dirPath, fileName)
 
-        baseDir = os.path.dirname(self.baseName)
-        if len(baseDir) == 0 and len(self.dirPath) != 0:
-            self.baseName = os.path.join(self.dirPath, self.baseName)
+        if self.outFile is None:
+            if fileName == "*":
+                if self.dxfFile is not None:
+                    self.baseName = fileName.replace(".dxf", "")
+                else:
+                    self.baseName = fileName
+            else:
+                self.baseName = fileName.split('.')[0]
+        else:
+            baseDir = os.path.dirname(self.baseName)
+            if len(baseDir) == 0 and len(self.dirPath) != 0:
+                self.baseName = os.path.join(self.dirPath, self.baseName)
 
         dprt("fileName %s" % fileName)
         dprt("baseName %s" % self.baseName)
@@ -866,8 +1088,20 @@ class Config():
             self.line = MillLine(self, self.mill, self.draw)
         self.line.millLines(args[1])
 
-    def dxfPath(self, args):
+    def getLayer(self, args):
+        if len(args) <= 1:
+            return(None)
         layer = args[1]
+        if layer == '*':
+            if self.layer is not None:
+                layer = self.layer
+            else:
+                ePrint("layer not specified")
+                sys.exit()
+        return(layer)
+
+    def dxfPath(self, args):
+        layer = self.getLayer(args)
         self.segments = self.dxfInput.getPath(layer)
 
     def dxfPoint(self, args):
@@ -879,12 +1113,16 @@ class Config():
         layer = args[1]
         self.tabPoints = self.dxfInput.getPoints(layer)
         self.tabs = len(self.tabPoints)
-        for (i, p) in enumerate(self.tabPoints):
-            dprt("%2d p %7.4f, %7.4f" % (i, p[0], p[1]))
-            # cfg.draw.drawX(p, "t%d" % (i))
+        dbg = True
+        if dbg:
+            dprt("\ntabs %d" % (self.tabs))
+            for (i, p) in enumerate(self.tabPoints):
+                dprt("%2d p %7.4f, %7.4f" % (i, p[0], p[1]))
+                # cfg.draw.drawX(p, "t%d" % (i))
+            dprt()
         
     def dxfOutside(self, args):
-        layer = args[1]
+        layer = self.getLayer(args)
         dist = self.endMillSize / 2 + self.finishAllowance
         self.segments = self.dxfInput.getPath(layer, True)
         self.ncInit()
@@ -895,12 +1133,13 @@ class Config():
                 ePrint("dxfOutside - segment not closed skipping")
                 continue
             (path, tabPoints) = createPath(seg, dist, True, self.tabPoints, \
-                                           addArcs=self.addArcs)
+                                           addArcs=self.addArcs, \
+                                           closeOpen = self.closeOpen)
             mp.millPath(path, tabPoints)
         self.tabPoints = []
 
     def dxfInside(self, args):
-        layer = args[1]
+        layer = self.getLayer(args)
         dist = self.endMillSize / 2 + self.finishAllowance
         self.segments = self.dxfInput.getPath(layer, True)
         self.ncInit()
@@ -911,16 +1150,18 @@ class Config():
                 ePrint("dxfInside - segment not closed skipping")
                 continue
             (path, tabPoints) = createPath(seg, dist, False, self.tabPoints, \
-                                           addArcs=self.addArcs)
+                                           addArcs=self.addArcs, \
+                                           closeOpen = self.closeOpen)
             mp.millPath(path, tabPoints)
         self.tabPoints = []
 
     def dxfOpen(self, args):
-        layer = args[1]
+        layer = self.getLayer(args)
         dist = self.endMillSize / 2.0 + self.finishAllowance
-        d = self.endMillSize / 2.0 + 0.020
+        d = self.endMillSize / 2.0 + 0.125
         self.segments = self.dxfInput.getPath(layer)
-        self.points = self.dxfInput.getPoints(layer)
+        # self.points = self.dxfInput.getPoints(layer)
+        self.points = self.dxfInput.getLabel(layer)
         if len(self.segments) == 0:
             return
         self.ncInit()
@@ -948,15 +1189,21 @@ class Config():
             mp.millPath(path, tabPoints, False)
         self.tabPoints = []
 
-    def dxfDrill(self, args, tap=False):
-        layer = args[1]
-        drill = self.dxfInput.getHoles(layer)
+    def dxfDrill(self, args, op=DRILL):
+        dbg = False
+        layer = self.getLayer(args)
+        size = None if layer is not None else self.drillSize
+        drill = self.dxfInput.getHoles(layer, size)
         self.ncInit()
         last = self.mill.last
         for d in drill:
             self.holeCount = len(d.loc)
-            self.mill.out.write("(drill size %6.3f holes %d)\n" % \
-                                (d.size, self.holeCount))
+            if op == DRILL:
+                self.mill.out.write("(drill size %6.3f holes %d)\n" % \
+                                    (d.size, self.holeCount))
+            elif op == BORE:
+                self.mill.out.write("(bore size %6.3f holes %d)\n" % \
+                                    (d.size, self.holeCount))
             self.count = 0
             dLoc = d.loc
             while len(dLoc) != 0:
@@ -964,20 +1211,25 @@ class Config():
                 index = 0
                 for (i, loc) in enumerate(dLoc):
                     dist = xyDist(last, loc)
-                    # dprt("%d last %7.4f %7.4g loc %7.4f %7.4f dist %7.4f" % \
-                    #       (i, last[0], last[1], loc[0], loc[1], dist))
+                    if dbg:
+                        dprt("%d last %7.4f %7.4f " \
+                             "loc %7.4f %7.4f dist %7.4f" % \
+                             (i, last[0], last[1], loc[0], loc[1], dist))
                     if dist < minDist:
                         minDist = dist
                         index = i
                 loc = dLoc.pop(index)
-                # dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
+                if dbg:
+                    dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
                 last = loc
-                self.drill(loc, tap)
+                (self.x, self.y) = loc
+                self.drill(None, op, d.size)
 
     def dxfMillHole(self, args, drill=None):
         if drill is None:
-            layer = args[1]
-            drill = self.dxfInput.getHoles(layer)
+            layer = self.getLayer(args)
+            size = None if layer is not None else self.drillSize
+            drill = self.dxfInput.getHoles(layer, size)
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
@@ -1026,13 +1278,33 @@ class Config():
         self.tabPoints = []
 
     def dxfTap(self, args):
-        self.dxfDrill(args, True)
+        self.dxfDrill(args, TAP)
+
+    def dxfBore(self, args):
+        self.dxfDrill(args, BORE)
+
+    def closeFiles(self, args):
+        self.dxfInput = None
+        self.holeCount = None
+        self.count = 0
+        if self.draw is not None:
+            self.draw.close()
+            self.draw = None
+        if self.mill is not None:
+            self.mill.close()
+            self.mill = None
+        self.mp = None
+        self.init = False
 
     def outputFile(self, args):
         self.end()
-        if self.draw is not None:   # close drawing files
-            self.draw.close()
-            self.draw = None
+        draw = self.draw
+        if draw is not None:
+            if self.oneDxf:
+                draw.nextLayer()
+            else:
+                draw.close()
+                self.draw = None
         self.tabInit()          # reset tabs
         self.finishAllowance = 0.0 # reset finish allowance
         l = args[0]
@@ -1040,8 +1312,12 @@ class Config():
         if fileName.startswith('*'):
             fileName = self.baseName + fileName[1:]
         else:
+<<<<<<< HEAD
             if len(os.path.dirname(fileName)) == 0:
                 fileName = os.pth.join(self.dirPath, fileName)
+=======
+            fileName = os.path.join(self.dirPath, fileName)
+>>>>>>> 1580003c6fd91e54ddb54492978b482351808951
         self.outFileName = fileName
 
     def setFont(self, args):
@@ -1094,6 +1370,12 @@ class Config():
 
     def setProbeDepth(self, args):
         self.probeDepth = float(args[1])
+
+    def setProbeFeed(self, args):
+        self.probeFeed = float(args[1])
+
+    def setProbeTool(self, args):
+        self.probeTool = int(args[1])
 
     def setLevel(self, args):
         self.probeData = args[1]
@@ -1163,16 +1445,22 @@ class MillPath():
             self.finalPass = self.tabDepth
             self.absDepth -= self.finalPass
             self.depth += self.finalPass
+
         tmp = self.absDepth / self.depthPass
         if tmp - floor(tmp) < 0.002:
             self.passes = int(floor(tmp))
         else:
             self.passes = int(ceil(tmp))
         self.passCount = self.passes
+        
+        if self.cfg.evenDepth:
+            self.depthPass = self.absDepth / self.passes
+
         dprt("passes %d cfgDepth %6.4f depth %6.4f " \
               "depthPass %6.4f finalPass %6.4f" % \
               (self.passes, self.cfgDepth, self.depth, \
                self.depthPass, self.finalPass))
+
         self.rampPass = 0
         self.tabPass = 0
         # if self.closed and self.rampAngle != 0.0 and not self.cfg.shortRamp:
@@ -1264,6 +1552,7 @@ class MillPath():
             else:
                 self.currentDepth = self.depth
 
+        self.mill.blankLine()
         self.mill.out.write("(pass %d depth %7.4f" % \
                            (self.passNum, self.currentDepth))
 
@@ -1505,7 +1794,7 @@ class MillPath():
         l.mill(self.mill, zEnd, comment)
         self.passLoc += l.length
 
-    def millPath(self, path, tabPoints=None, closed=True):
+    def millPath(self, path, tabPoints=None, closed=True, minDist=True):
         cfg = self.cfg
         if not cfg.output:
             return
@@ -1517,11 +1806,13 @@ class MillPath():
         path0 = combineArcs(path)
 
         mill = self.mill
-        if closed:
-            path0 = rotateMinDist(mill.last, path0)
-        else:
-            if xyDist(mill.last, path0[-1].p0) < xyDist(mill.last, path0[0].p0):
-                path0 = reverseSeg(path0)
+        if minDist:
+            if closed:
+                path0 = rotateMinDist(mill.last, path0)
+            else:
+                if xyDist(mill.last, path0[-1].p0) < \
+                   xyDist(mill.last, path0[0].p0):
+                    path0 = reverseSeg(path0)
 
         out = self.mill.out
         for l in path0:
@@ -1537,12 +1828,13 @@ class MillPath():
             d = 0.050
             last = draw.last
             draw.move((x - d, y - d))
-            draw.line((x, y))
-            draw.line((x + d, y - d))
+            l = draw.lDebug
+            draw.line((x, y), layer=l)
+            draw.line((x + d, y - d), layer=l)
             dir = pathDir(path0)
             draw.add(dxf.text("start %s" % (oStr(dir)), (x, y - d), 0.010, \
                               alignpoint=(x, y - d), halign=CENTER, \
-                              layer = 'TEXT'))
+                              layer = draw.lText))
             draw.move(last)
 
         rampLine = self.rampSetup()
@@ -1551,8 +1843,14 @@ class MillPath():
         if cfg.pauseCenter and len(path0) == 1:
             mill.move(path0[0].p0)
         else:
-            mill.safeZ()
-            mill.move(path0[0].p0)
+            #mill.safeZ()
+            p = path[0].p0
+            dist = xyDist(p, mill.last)
+            # dprt("millPath dist %7.4f last (%7.4f, %7.4f) p (%7.4f, %7.4f)" %\
+            #      (dist, mill.last[0], mill.last[1], p[0], p[1]))
+            if dist > cfg.endMillSize:
+                mill.retract()
+            mill.move(p)
             if cfg.pause:
                 mill.moveZ(cfg.pauseHeight)
                 mill.pause()
@@ -1563,9 +1861,14 @@ class MillPath():
                 break
 
             p = path0[0].p0
-            if abs(mill.last[0] - p[0]) > MIN_DIST or \
-               abs(mill.last[1] - p[1]) > MIN_DIST:
-                mill.retract()
+            dist = xyDist(p, mill.last)
+            # if abs(mill.last[0] - p[0]) > MIN_DIST or \
+            #    abs(mill.last[1] - p[1]) > MIN_DIST:
+            # dprt("millPath dist %7.4f last (%7.4f, %7.4f) p (%7.4f, %7.4f)" %\
+            #      (dist, mill.last[0], mill.last[1], p[0], p[1]))
+            if dist > MIN_DIST:
+                if dist > cfg.endMillSize:
+                    mill.retract()
                 mill.move(p)
                 mill.moveZ(self.lastDepth + cfg.pauseHeight, "moveZ 1")
                 mill.plungeZ(self.lastDepth)
@@ -1614,6 +1917,12 @@ class MillPath():
             self.passNum += 1
         out.write("\n")
 
+BORDER = 'BORDER'
+PATH = 'PATH'
+HOLE = 'HOLE'
+TEXT = 'TEXT'
+DEBUG = 'DEBUG'
+
 class Draw():
     def __init__(self, d=None, svg=None):
         self.d = d
@@ -1627,9 +1936,15 @@ class Draw():
         self.pScale = 25.4 * 2
         self.xOffset = 50
         self.yOffset = 350
+        self.layerIndex = 0
+        self.lBorder = BORDER
+        self.lPath = PATH
+        self.lHole = HOLE
+        self.lText = TEXT
+        self.lDebug = DEBUG
 
     def open(self, file, drawDxf=True, drawSvg=True):
-        if drawSvg:
+        if drawSvg and self.svg is None:
             svgFile = file + ".svg"
             try:
                 self.svg = Drawing(svgFile, profile='full', fill='black')
@@ -1639,16 +1954,30 @@ class Draw():
                 self.path = None
                 ePrint("svg file open error %s" % (svgFile))
 
-        if drawDxf:
+        if drawDxf and self.d is None:
             dxfFile = file + "_ngc.dxf"
             try:
                 self.d = dxf.drawing(dxfFile)
-                self.layers = ['BORDER', 'PATH', 'HOLE', 'TEXT']
-                for l in self.layers:
-                    self.d.add_layer(l)
+                self.layerIndex = 0
+                self.setupLayers()
             except IOError:
                 self.d = None
                 ePrint("dxf file open error %s" % (dxfFile))
+
+    def nextLayer(self):
+        self.layerIndex += 1
+        self.setupLayers()
+
+    def setupLayers(self):
+        i = str(self.layerIndex)
+        self.layers = [['lBorder', i + BORDER], \
+                       ['lPath', i + PATH], \
+                       ['lHole', i + HOLE], \
+                       ['lText', i + TEXT], \
+                       ['lDebug', i + DEBUG]]
+        for (var, l) in self.layers:
+            self.d.add_layer(l)
+            exec("self." + var + "='" + l + "'")
 
     def close(self):
         if self.d is not None:
@@ -1657,7 +1986,7 @@ class Draw():
             self.d = None
 
         if self.svg is not None:
-            self.svg.add(self.path)
+            self.svg.add(self.lPath)
             if self.materialPath is not None:
                 self.svg.add(self.materialPath)
                 self.svg.save()
@@ -1707,17 +2036,32 @@ class Draw():
                 p1 = (xSize, 0.0)
                 p2 = (xSize, ySize)
                 p3 = (0.0, ySize)
-            elif orientation == O_CENTER or orientation == O_POINT:
+            elif orientation == O_UPPER_RIGHT:
+                p0 = (0.0, 0.0)
+                p1 = (-xSize, 0.0)
+                p2 = (-xSize, -ySize)
+                p3 = (0.0, -ySize)
+            elif orientation == O_LOWER_RIGHT:
+                p0 = (0.0, 0.0)
+                p1 = (-xSize, 0.0)
+                p2 = (-xSize, ySize)
+                p3 = (0.0, ySize)
+            elif orientation == O_CENTER:
                 p0 = (-xSize/2, -ySize/2)
                 p1 = (xSize/2, -ySize/2)
                 p2 = (xSize/2, ySize/2)
                 p3 = (-xSize/2, ySize/2)
+            elif orientation == O_POINT:
+                p0 = (self.xMin, self.yMin)
+                p1 = (self.xMin, self.yMax)
+                p2 = (self.xMax, self.yMax)
+                p3 = (self.xMax, self.yMin)
             else:
                 ePrint("invalid orientation")
-            self.d.add(dxf.line(p0, p1, layer='BORDER'))
-            self.d.add(dxf.line(p1, p2, layer='BORDER'))
-            self.d.add(dxf.line(p2, p3, layer='BORDER'))
-            self.d.add(dxf.line(p3, p0, layer='BORDER'))
+            self.d.add(dxf.line(p0, p1, layer=self.lBorder))
+            self.d.add(dxf.line(p1, p2, layer=self.lBorder))
+            self.d.add(dxf.line(p2, p3, layer=self.lBorder))
+            self.d.add(dxf.line(p3, p0, layer=self.lBorder))
 
     def materialOutline(self, lines):
         if self.svg is not None:
@@ -1740,7 +2084,7 @@ class Draw():
             for l in lines:
                 (start, end) = l
                 self.d.add(dxf.line(cfg.dxfInput.fix(start), \
-                                    cfg.dxfInput.fix(end), layer='BORDER'))
+                                    cfg.dxfInput.fix(end), layer=self.lBorder))
 
     def move(self, end):
         if self.enable:
@@ -1750,17 +2094,19 @@ class Draw():
             # dprt("   move %7.4f %7.4f" % end)
             self.last = end
 
-    def line(self, end):
+    def line(self, end, layer=None):
         if self.enable:
             if self.svg is not None:
                 self.path.push('L', self.scaleOffset(end))
                 # dprt("svg line %7.4f %7.4f" % self.scaleOffset(end))
             if self.d is not None:
-                self.d.add(dxf.line(self.last, end, layer='PATH'))
+                if layer is None:
+                    layer = self.lPath
+                self.d.add(dxf.line(self.last, end, layer=layer))
             # dprt("   line %7.4f %7.4f" % end)
             self.last = end
 
-    def arc(self, end, center):
+    def arc(self, end, center, layer=None):
         if self.enable:
             r = xyDist(end, center)
             if self.svg is not None:
@@ -1768,10 +2114,12 @@ class Draw():
                                     large_arc=True, angle_dir='+', \
                                     absolute=True)
             if self.d is not None:
+                if layer is None:
+                    layer = self.lPath
                 p0 = self.last
                 p1 = end
                 if xyDist(p0, p1) < MIN_DIST:
-                    self.d.add(dxf.circle(r, center, layer='PATH'))
+                    self.d.add(dxf.circle(r, center, layer=layer))
                 else:
                     # dprt("p0 (%7.4f, %7.4f) p1 (%7.4f, %7.4f)" % \
                     #      (p0[0], p0[1], p1[0], p1[1]))
@@ -1782,15 +2130,15 @@ class Draw():
                     if a1 == 0.0:
                         a1 = 360.0
                     # dprt("a0 %5.1f a1 %5.1f" % (a0, a1))
-                    self.d.add(dxf.arc(r, center, a0, a1, layer='PATH'))
+                    self.d.add(dxf.arc(r, center, a0, a1, layer=layer))
                 self.last = end
 
-    def circle(self, end, r, l='HOLE'):
+    def circle(self, end, r, layer=None):
         if self.enable:
             if self.d is not None:
-                if not l in self.layers:
-                    self.d.add_layer(l)
-                self.d.add(dxf.circle(r, end, layer=l))
+                if layer is None:
+                    layer = self.lHole
+                self.d.add(dxf.circle(r, end, layer=layer))
         self.last = end
 
     def hole(self, end, drillSize):
@@ -1803,34 +2151,40 @@ class Draw():
                                     stroke='black', stroke_width=.5, \
                                     fill="none"))
             if self.d is not None:
-                self.d.add(dxf.line(self.last, end, layer='PATH'))
-                self.d.add(dxf.circle(drillSize / 2, end, layer='HOLE'))
+                self.d.add(dxf.line(self.last, end, layer=self.lPath))
+                self.d.add(dxf.circle(drillSize / 2, end, layer=self.lHole))
         self.last = end
 
-    def text(self, txt, p0, height):
+    def text(self, txt, p0, height, layer=None):
         if self.enable:
             if self.d is not None:
-                self.d.add(dxf.text(txt, p0, height, layer='TEXT'))
+                if layer is None:
+                    layer = self.lText
+                self.d.add(dxf.text(txt, p0, height, layer=layer))
 
     def add(self, entity):
         if self.enable:
             if self.d is not None:
                 self.d.add(entity)
 
-    def drawCross(self, p):
+    def drawCross(self, p, layer=None):
         global lCount
+        if layer is None:
+            layer = self.lDebug
         (x, y) = p
         dprt("cross %2d %7.4f, %7.4f" % (lCount, x, y))
         labelP(p, "%d" % (lCount))
         last = self.last
         self.move((x - 0.02, y))
-        self.line((x + 0.02, y))
+        self.line((x + 0.02, y), layer)
         self.move((x, y - 0.02))
-        self.line((x, y + 0.02))
+        self.line((x, y + 0.02), layer)
         lCount += 1
         self.move(last)
 
-    def drawX(self, p, txt, swap=False):
+    def drawX(self, p, txt, swap=False, layer=None):
+        if layer is None:
+            layer = self.lDebug
         (x, y) = p
         xOfs = 0.020
         yOfs = 0.010
@@ -1838,14 +2192,16 @@ class Draw():
             (xOfs, yOfs) = (yOfs, xOfs)
         last = self.last
         self.move((x - xOfs, y - yOfs))
-        self.line((x + xOfs, y + yOfs))
+        self.line((x + xOfs, y + yOfs), layer)
         self.move((x - xOfs, y + yOfs))
-        self.line((x + xOfs, y - yOfs))
+        self.line((x + xOfs, y - yOfs), layer)
         self.move(p)
-        self.text('%s' % (txt), (x + xOfs, y - yOfs), .010)
+        self.text('%s' % (txt), (x + xOfs, y - yOfs), .010, layer)
         self.move(last)
 
-    def drawCircle(self, p, d=0.010, layer='DBG', txt=None):
+    def drawCircle(self, p, d=0.010, layer=None, txt=None):
+        if layer is None:
+            layer = self.lDebug
         last = self.last
         self.circle(p, d / 2.0, layer)
         if txt is not None:
@@ -1862,6 +2218,69 @@ class Draw():
         p = (index * 1, 3)
         self.drawLine(p, m, b, 2 * r)
         self.hole(offset((0, 0), p), 2 * r)
+
+class Point():
+    def __init__(self, p, l, end, index):
+        self.index = index
+        self.p = p
+        self.ends = 0
+        self.l = [None, None]
+        self.lIndex = [-1, -1]
+        self.lEnd = [0, 0]
+        self.add(l, end)
+
+    def add(self, l, end):
+        i = self.ends
+        if self.l[i] is None:
+            self.l[i] = l
+            self.lIndex[i] = l.index
+            self.lEnd[i] = end
+            self.ends += 1
+        else:
+            dprt("err, pt %d" % (self.index))
+            self.prt()
+
+    def prt(self):
+        dprt("point %2d ends %d (%7.4f %7.4f) "\
+             "connects line %2d:%d to %2d:%d" % \
+             (self.index, self.ends, self.p[0], self.p[1], \
+              self.lIndex[0], self.lEnd[0], \
+              self.lIndex[1], self.lEnd[1]))
+
+class LinePoints():
+    def __init__(self, l):
+        self.p = [None, None]
+        self.pIndex = [-1, -1]
+        self.l = l
+        self.index = l.index
+        
+    def add(self, p, end):
+        self.p[end] = p
+        self.pIndex[end] = p.index
+
+    def next(self, dbg=False):
+        if self.p[0].l[1] is None:
+            self.swap()
+        if dbg:
+            self.dbgPrt()
+        return(self.p)
+
+    def dbgPrt(self):
+        (p0, p1) = self.p
+        dprt("line %2d from p0 %2d l0 %2d l1 %2d " \
+             "to p1 %2d l0 %2d l1 %2d" % \
+             (self.index, p0.index, p0.lIndex[0], p0.lIndex[1], \
+              p1.index, p1.lIndex[0], p1.lIndex[1]))
+        
+    def swap(self):
+        self.l.swap()
+        self.p = [self.p[1], self.p[0]]
+        self.pIndex = [self.pIndex[1], self.pIndex[0]]
+        return(self.p)
+
+    def prt(self):
+        dprt("line %2d is from point %2d to point %2d" % \
+             (self.index, self.pIndex[0], self.pIndex[1]))
 
 class Dxf():
     def __init__(self, d=None, svg=None):
@@ -1981,21 +2400,22 @@ class Dxf():
             
         self.xMul = 1
         self.yMul = 1
-        if orientation == 0:            # manual mill vice
-            self.xMul = 1
-            self.yMul = -1
-            self.xOffset = -self.xMin
-            self.yOffset = self.yMax
-        elif orientation == 1:          # upper left
+        if orientation == O_UPPER_LEFT:
             self.xOffset = -self.xMin
             self.yOffset = -self.yMax
-        elif orientation == 2:          # lower left
+        elif orientation == O_LOWER_LEFT:
             self.xOffset = -self.xMin
             self.yOffset = -self.yMin
-        elif orientation == 3:          # center
+        elif orientation == O_UPPER_RIGHT:
+            self.xOffset = -self.xMax
+            self.yOffset = -self.yMax
+        elif orientation == O_LOWER_RIGHT:
+            self.xOffset = -self.xMax
+            self.yOffset = -self.yMin
+        elif orientation == O_CENTER:
             self.xOffset = -(self.xMin + (self.xMax - self.xMin) / 2)
             self.yOffset = -(self.yMin + (self.yMax - self.yMin) / 2)
-        elif orientation == 4:
+        elif orientation == O_POINT:
             if layer is not None:
                 for e in self.modelspace:
                     if layer != e.get_dxf_attrib("layer"):
@@ -2004,6 +2424,11 @@ class Dxf():
                         (x, y) = e.get_dxf_attrib("center")[:2]
                         self.xOffset = -x
                         self.yOffset = -y
+
+        self.xMin += self.xOffset
+        self.xMax += self.xOffset
+        self.yMin += self.yOffset
+        self.yMax += self.yOffset
 
         dprt("%d xOffset %7.4f yOffset %7.4f\n" % \
                (orientation, self.xOffset, self.yOffset))
@@ -2038,37 +2463,68 @@ class Dxf():
                 points.append((xCen, yCen))
         return(points)
 
-    def getHoles(self, layer):
+    def getLabel(self, layer):
+        points = []
+        for e in self.modelspace:
+            # dprt("layer %s" % (e.get_dxf_attrib("layer")))
+            # if layer != e.get_dxf_attrib("layer"):
+            #     continue
+            type = e.dxftype()
+            if type == 'MTEXT':
+                with e.edit_data() as str:
+                    if layer in str.text:
+                        (xCen, yCen) = self.fix(e.get_dxf_attrib("insert")[:2])
+                        points.append((xCen, yCen))
+        return(points)
+
+    def getHoles(self, layer=None, size=None):
         holes = []
         for e in self.modelspace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
-            if layer != e.get_dxf_attrib("layer"):
-                continue
-            type = e.dxftype()
-            if type == 'CIRCLE':
-                p = self.fix(e.get_dxf_attrib("center")[:2])
-                radius = e.get_dxf_attrib("radius")
-                drillSize = radius * 2.0
-                for h in holes:
-                    if abs(drillSize - h.size) < MIN_DIST:
-                        h.addLoc(p)
-                        break
-                else:
-                    d = Drill(drillSize)
-                    holes.append(d)
-                    d.addLoc(p)
+            if (layer is None) or (layer == e.get_dxf_attrib("layer")):
+                type = e.dxftype()
+                if type == 'CIRCLE' or type == 'ARC':
+                    p = self.fix(e.get_dxf_attrib("center")[:2])
+                    radius = e.get_dxf_attrib("radius")
+                    drillSize = radius * 2.0
+                    if size is not None:
+                        if abs(size - drillSize) > MIN_DIST:
+                            continue
+                    for h in holes:
+                        if abs(drillSize - h.size) < MIN_DIST:
+                            h.addLoc(p)
+                            break
+                    else:
+                        d = Drill(drillSize)
+                        holes.append(d)
+                        d.addLoc(p)
         return(holes)
 
-    def getPath(self, layer, circle=False):
-        # dprt("getPath %s" % (layer))
+    def getCircles(self, layer=None, size=None):
+        circles = []
+        for e in self.modelspace:
+            # dprt("layer %s" % (e.get_dxf_attrib("layer")))
+            if (layer is None) or (layer == e.get_dxf_attrib("layer")):
+                type = e.dxftype()
+                if type == 'CIRCLE' or type == 'ARC':
+                    p = self.fix(e.get_dxf_attrib("center")[:2])
+                    radius = e.get_dxf_attrib("radius")
+                    circles.append((p, 2*radius))
+        return(circles)
+    
+    def getPath(self, layer, circle=False, dbg=False, rand=False):
+        dbg = True
+        if dbg:
+            dprt("getPath %s" % (layer))
         # find everything that matches layer
         linNum = 0
         entities = []
         for e in self.modelspace:
-            # dprt("layer %s" % (e.get_dxf_attrib("layer")))
+            type = e.dxftype()
+            if dbg:
+                dprt("type %-10s layer %s" % (type, e.get_dxf_attrib("layer")))
             if layer != e.get_dxf_attrib("layer"):
                 continue
-            type = e.dxftype()
             if type == 'LINE':
                 l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
                           self.fix(e.get_dxf_attrib("end")[:2]), \
@@ -2100,47 +2556,99 @@ class Dxf():
                 continue
             else:
                 continue
-            # l0.prt()
+            if dbg:
+                l0.prt()
             entities.append(l0)
             linNum += 1
-        # dprt()
+        if dbg:
+            dprt()
 
-        # create unconnected segments
+        # remove duplicates
+        
+        i = 0
+        remove = False
+        while i < len(entities):
+            l0 = entities[i]
+            j = i + 1
+            while j < len(entities):
+                l1 = entities[j]
+                if (l0.type == l1.type) and \
+                   (xyDist(l0.p0, l1.p0) < MIN_DIST) and \
+                   (xyDist(l0.p1, l1.p1) < MIN_DIST):
+                    if dbg:
+                        dprt("rem %d" % (l1.index))
+                        l1.prt()
+                    entities.pop(j)
+                    remove = True
+                    continue
+                j += 1
+            i += 1
+
+        if remove:
+            for (i, l0) in enumerate(entities):
+                l0.index = i
+
+        if dbg and rand:
+            dprt("testing randomize list")
+            random.shuffle(entities)
+            for (i, l0) in enumerate(entities):
+                l0.index = i
+                l0.prt()
+            dprt()
+
+        return(self.connect1(entities, dbg))
+
+    def connect0(self, entities, dbg=False):
+        for l0 in entities:
+            l0.prt()
+        dprt()
 
         segments = []
         segCount = 0
         for l0 in entities:
+            l0.prt()
             found = False
             segNum = []
-            for (i, seg) in enumerate(segments):
+            for (i, seg) in enumerate(segments): # i is segment number
+                if dbg:
+                    dprt("check seg %d" % i)
                 j = 0
                 lineCount = len(seg)
                 while j < lineCount:
                     l1 = seg[j]
-                    # l1.prt()
+                    l1.prt()
                     for p0 in (l0.p0, l0.p1):
                         for p1 in (l1.p0, l1.p1):
                             if xyDist(p0, p1) <= MIN_DIST:
-                                # dprt("match seg %d ind %d l0 %d l1 %d" % \
-                                #       (i, j, l0.index, l1.index))
-                                # dflush()
+                                if dbg:
+                                    dprt("match seg %d ind %d l0 %d l1 %d" % \
+                                         (i, j, l0.index, l1.index))
+                                    dflush()
                                 if not i in segNum:
                                     segNum.append(i)
+                                    if dbg:
+                                        dprt("add %d to seg %d\n" % \
+                                             (l0.index, l1.index))
                                 if not found:
                                     found = True
                                     seg.append(l0)
+                                    if dbg:
+                                        dprt("add %d to seg %d\n" % \
+                                             (l0.index, i))
                                 break
                     j += 1
             if not found:
                 seg = []
                 seg.append(l0)
                 segments.append(seg)
-                # dprt("add segment %d" % (segCount))
+                if dbg:
+                    dprt("add %d to new segment %d\n" % (l0.index, segCount))
                 segCount += 1
             else:
                 if len(segNum) > 1:
-                    # dprt(segNum)
-                    # dflush()
+                    if dbg:
+                        dprt(segNum)
+                        dflush()
                     seg = []
                     for i in reversed(segNum):
                         for line in segments.pop(i):
@@ -2156,9 +2664,10 @@ class Dxf():
             for l0 in seg:
                 self.addPoint(points, l0.p0)
                 self.addPoint(points, l0.p1)
-            # for (p, count) in points:
-            #     dprt("%7.4f %7.4f %d" % (p[0], p[1], count))
-            # dprt()
+            if dbg:
+                for (p, count) in points:
+                    dprt("%7.4f %7.4f %d" % (p[0], p[1], count))
+                dprt()
             p = points[0]
             for (p, count) in points:
                 if count == 1:
@@ -2179,8 +2688,9 @@ class Dxf():
                         break
                     if xyDist(p, end) <= MIN_DIST:
                         p = start
-                        # dprt("swap %d %s" % \
-                        #        (l0.index, ('line', 'arc')[l0.type]))
+                        if dbg:
+                            dprt("swap %d %s" % \
+                                 (l0.index, ('line', 'arc')[l0.type]))
                         l0.swap()
                         newSeg.append(l0)
                         break
@@ -2188,17 +2698,19 @@ class Dxf():
                 if i < len(seg):
                     seg.pop(i)
                 else:
-                    # dprt("segment out of range %d" % (i))
-                    pass
+                    if dbg:
+                        dprt("segment out of range %d" % (i))
             segments[j] = newSeg
             j += 1
-            # dprt()
+            if dbg:
+                dprt()
 
-        # for (i, seg) in enumerate(segments):
-        #     dprt("seg %d" % (i))
-        #     for l0 in seg:
-        #         l0.prt()
-        #     dprt()
+        if dbg:
+            for (i, seg) in enumerate(segments):
+                dprt("seg %d" % (i))
+                for l0 in seg:
+                    l0.prt()
+                dprt()
         return(segments)
 
     def addPoint(self, points, p):
@@ -2212,6 +2724,126 @@ class Dxf():
         if not found:
             points.append((p, 1))
 
+    def connect1(self, entities, dbg=False):
+        if dbg:
+            for l0 in entities:
+                l0.prt()
+            dprt()
+
+        points = []
+        linePoints = []
+        index = 0
+        for l0 in entities:
+            if dbg:
+                l0.prt()
+            lPt = LinePoints(l0)
+            linePoints.append(lPt)
+            for (end, pl) in enumerate((l0.p0, l0.p1)):
+                found = False
+                for pt in points:
+                    if xyDist(pl, pt.p) < MIN_DIST:
+                        if dbg:
+                            dprt("fnd pt %2d (%8.4f %8.4f) for line %2d:%d" % \
+                                 (pt.index, pl[0], pl[1], l0.index, end))
+                        found = True
+                        pt.add(l0, end)
+                        lPt.add(pt, end)
+                        break
+                if not found:
+                    if dbg:
+                        dprt("new pt %2d (%8.4f %8.4f) for line %2d:%d" % \
+                             (index, pl[0], pl[1], l0.index, end))
+                    pt = Point(pl, l0, end, index)
+                    points.append(pt)
+                    lPt.add(pt, end)
+                    index += 1
+            if dbg:
+                dprt()
+                dflush()
+
+        if dbg:
+            for l0 in entities:
+                l0.prt()
+            dprt()
+                            
+            for p in points:
+                p.prt()
+            dprt()
+
+            for lPt in linePoints:
+                lPt.prt()
+            dprt()
+                            
+        segments = []
+
+        for index in range(len(entities)):
+            if dbg:
+                print("index %d" % (index,))
+            l0 = entities[index] # take line off list
+            if l0 is not None:   # if entry
+                start = index = l0.index # save start index
+                lastPoint = linePoints[index].p[0]
+                seg = []         # initialize segment list
+                while True:
+                    entities[index] = None  # clear entry
+                    seg.append(l0)          # append to segment list
+                    (p0, p1) = linePoints[index].next(dbg) # get next point
+                    if dbg:
+                        dprt("line %2d lastPoint %2d p0 %2d p1 %2d" % \
+                             (index, lastPoint.index, p0.index, p1.index))
+                        l0.prt()
+
+                    if p1.ends == 1:         # if end of of line
+                        index = seg[0].index # get index of fisrt
+                        if not dbg:
+                            (p0, p1) = linePoints[index].p
+                        else:
+                            lPt = linePoints[index] # look up points
+                            lPt.prt()
+                            (p0, p1) = lPt.p
+                            p0.prt()
+                            p1.prt()
+
+                        if p0.ends == 1: # if both are end of line
+                            break        # done
+
+                        for i in range(len(seg)-1, -1, -1):
+                            l0 = seg.pop(i)
+                            linePoints[l0.index].swap()
+                            seg.append(l0)
+
+                        index = seg[-1].index
+                        p = p0
+                    else:
+                        p = p0 if p0 is not lastPoint else p1
+
+                    if p.lIndex[0] != index: # if l0 not the same line
+                        (l0, end) = (p.l[0], p.lEnd[0]) # use l0 for next
+                    else:
+                        (l0, end) = (p.l[1], p.lEnd[1]) # use l1 for next
+
+                    index = l0.index   # get index
+                    if end != 0:       # if next end to end 0
+                        linePoints[index].swap() # swap ends
+
+                    if index == start: # if back at start
+                        break          # done
+                    lastPoint = p      # set new last point
+                    if dbg:
+                        dprt()
+                segments.append(seg)   # save segment
+                if dbg:
+                    dprt()
+                    for l0 in seg:
+                        linePoints[l0.index].prt()
+                        l0.prt()
+                    dprt()
+        if dbg:
+            dprt()
+            dflush()
+
+        return(segments)
+            
     # def printSeg(self, l):
     #     dprt("%2d p0 %7.4f, %7.4f - p1 %7.4f, %7.4f %s" % \
     #            (l.index, l.p0[0], l.p0[1], l.p1[0], l.p1[1], l.str))

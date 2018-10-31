@@ -8,14 +8,28 @@ class Surface():
         self.cfg = cfg
         self.stepOver = 0.85
         self.edge = 0.020
+        self.xSize = 0.0
+        self.ySize = 0.0
+        self.xOffset = 0.0
+        self.yOffset = 0.0
         self.cmds = \
         ( \
           ('surface', self.surface), \
+          ('surfsize', self.setSurfSize), \
+          ('surfoffset', self.setSurfOffset), \
           ('surfstepover', self.setStepOver), \
           ('surfedge', self.setEdge), \
           # ('', self.), \
         )
         dprtSet(True)
+
+    def setSurfSize(self, args):
+        self.xSize = float(args[1])
+        self.ySize = float(args[2])
+
+    def setSurfOffset(self, args):
+        self.xOffset = float(args[1])
+        self.yOffset = float(args[2])
 
     def setStepOver(self, args):
         self.stepOver = float(args[1]) / 100.0
@@ -24,13 +38,27 @@ class Surface():
         self.edge = float(args[1])
 
     def surface(self, args):
-        layer = args[1]
         cfg = self.cfg
         cfg.ncInit()
-        segments = cfg.dxfInput.getPath(layer)
+        if len(args) < 2:
+            p0 = (self.xOffset, self.yOffset)
+            p1 = (self.xOffset + self.xSize, self.yOffset)
+            p2 = (self.xOffset + self.xSize, self.yOffset + self.ySize)
+            p3 = (self.xOffset, self.yOffset + self.ySize)
+            seg = []
+            seg.append(Line(p0, p1))
+            seg.append(Line(p1, p2))
+            seg.append(Line(p2, p3))
+            seg.append(Line(p3, p0))
+            segments = []
+            segments.append(seg)
+        else:
+            layer = args[1]
+            segments = cfg.dxfInput.getPath(layer)
+
         for seg in segments:
             if len(seg) != 4:
-                ePrint("rectPocket wrong number if sides")
+                ePrint("surface wrong number if sides")
                 continue
             vert = []
             horiz = []
@@ -41,13 +69,13 @@ class Surface():
                     elif abs(l.p0[1] - l.p1[1]) < MIN_DIST:
                         horiz.append(l)
                     else:
-                        ePrint("rectPocket line not horizontal or vertical")
+                        ePrint("surface line not horizontal or vertical")
                         continue
                 else:
-                    ePrint("rectPocket segment not a line")
+                    ePrint("surface segment not a line")
                     contiue
             if len(vert) != 2 or len(horiz) != 2:
-                ePrint("rectPocket incorrect number of sides")
+                ePrint("surface incorrect number of sides")
                 continue
             hl0 = horiz[0]
             vl0 = vert[0]

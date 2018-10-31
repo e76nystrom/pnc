@@ -69,11 +69,13 @@ class Engrave():
                 prb.write("g0 x%7.4f y%7.4f\n" % (x0, y0 + tick10))
             else:
                 prb.write("g0 x%7.4f y%7.4f\n" % (x0 + tick10, y0))
-            prb.write("g0 z%7.4f\n\n" % (cfg.retract))
+            prb.write("g0 z%7.4f\n" % (cfg.retract))
+            prb.blankLine()
 
             prb.write("g0 a%7.4f\n" % (self.startAngle))
             prb.write("g38.2 z%6.4f (reference probe)\n" % (cfg.probeDepth))
-            prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+            prb.write("g0 z%6.4f\n" % (cfg.retract))
+            prb.blankLine()
 
         if cfg.level:
             inp = open(cfg.probeData, 'r')
@@ -98,7 +100,8 @@ class Engrave():
             if cfg.probe:
                 prb.write("g0 a%7.4f\n" % (angle))
                 prb.write("g38.2 z%6.4f\n" % (cfg.probeDepth))
-                prb.write("g0 z%6.4f\n\n" % (cfg.retract))
+                prb.write("g0 z%6.4f\n" % (cfg.retract))
+                prb.blankLine()
 
             if cfg.level:
                 probeAngle = None

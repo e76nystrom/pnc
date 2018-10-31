@@ -112,7 +112,7 @@ class Font():
             l.offset(yOffset, ySize)
 
     def setZOffset(self, zOffset):
-        self.setZOffset
+        self.zOffset = zOffset
 
     def width(self, str):
         width = 0
@@ -138,7 +138,7 @@ class Font():
                 y -= w
         for b in list(str):
             letter = self.letter[ord(b) - ord(' ')]
-            letter.mill(self, (x, y), xDir)
+            letter.mill(self, (x, y), xDir, b)
             if xDir:
                 x += letter.width() * self.scale
             else:
@@ -196,11 +196,11 @@ class Letter():
             y = s[1]
             s[1] = ySize - (y + yOffset)
 
-    def mill(self, font, pt, xDir=True):
+    def mill(self, font, pt, xDir=True, letter=""):
         scale = font.scale
         m = font.m
-        zOffset = font.zOffset
         (x, y) = pt
+        m.move(pt, comment=letter)
         for (xRel, yRel, move) in self.chArray:
             # dprt("%3d %3d %5s" % (xRel, yRel, move))
             if xDir:
@@ -213,14 +213,14 @@ class Letter():
             if move:
                 m.retract()
                 m.move(p)
-                m.zDepth(zOffset)
+                m.zDepth(font.zOffset)
             else:
                 m.cut(p)
+        m.retract()
 
     def millOnArc(self, font, pt, angle):
         scale = font.scale
         m = font.m
-        zOffset = font.zOffset
         (xC, yC) = pt
         for (x, y, move) in self.chArray:
             theta = atan2(y, x) + angle
@@ -231,7 +231,7 @@ class Letter():
             if move:
                 m.retract()
                 m.move(p0)
-                m.zDepth(zOffset)
+                m.zDepth(font.zOffset)
             else:
                 m.cut(p0)
 
@@ -239,7 +239,6 @@ class Letter():
         scale = font.scale
         m = font.m
         d = font.d
-        zOffset = font.zOffset
         (xP, yP) = pt
         for (x, y, move) in self.chArray:
             if xDir:
@@ -257,7 +256,7 @@ class Letter():
             if move:
                 m.retract()
                 m.move(p0)
-                m.zDepth(zOffset)
+                m.zDepth(font.zOffset)
                 if d is not None:
                     d.move(pA)
             else:
