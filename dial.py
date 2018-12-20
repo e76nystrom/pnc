@@ -27,22 +27,22 @@ class Engrave():
         cfg.addCommands(cmds)
 
     def setLetterHeight(self, args):
-        self.letterHeight = abs(float(args[1]))
+        self.letterHeight = abs(self.cfg.evalFloatArg(args[1]))
 
     def setAngle(self, args):
-        self.angle = float(args[1])
+        self.angle = self.cfg.evalFloatArg(args[1])
 
     def setTicks(self, args):
-        self.ticks = int(args[1])
+        self.ticks = self.cfg.evalIntArg(args[1])
 
     def setStartAngle(self, args):
-        self.startAngle = float(args[1])
+        self.startAngle = self.cfg.evalFloatArg(args[1])
 
     def setDiameter(self, args):
-        self.diameter = float(args[1])
+        self.diameter = self.cfg.evalFloatArg(args[1])
 
     def setXDir(self, args):
-        self.xDir = int(args[1]) != 0
+        self.xDir = self.cfg.evalBoolArg(args[1])
 
     def engrave(self):
         cfg = self.cfg

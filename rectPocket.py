@@ -6,23 +6,24 @@ from math import atan2, ceil, cos, degrees, radians, sin, sqrt
 class RectPocket():
     def __init__(self, cfg):
         self.cfg = cfg
-        print("test loaded")
+        print("Rect loaded")
         self.stepOver = 0.85
         self.spiral = True
         self.cmds = \
         ( \
-          ('rectpocket', self.pocket), \
+          ('rectpocket', self.rectPocket), \
           ('rectstepover', self.setStepOver), \
           ('rectspiral', self.setSpiral), \
+          ('roundedpocket', self.roundedPocket), \
           # ('', self.), \
         )
         dprtSet(True)
 
     def setStepOver(self, args):
-        self.stepOver = float(args[1]) / 100.0
+        self.stepOver = self.cfg.evalFloatArg(args[1]) / 100.0
 
     def setSpiral(self, args):
-        self.spiral = int(args[1]) != 0
+        self.spiral = self.cfg.evalBoolArg(args[1])
 
     def rectPocket(self, args):
         layer = args[1]
@@ -130,8 +131,8 @@ class RectPocket():
                             p1 = (x0, y0)
                         sign = - sign
                         if prev is not None:
-                            self.addSeg(prev, p0)
-                        self.addSeg(p0, p1)
+                            self.addLineSeg(prev, p0)
+                        self.addLineSeg(p0, p1)
                         self.drawMill(p0)
                         self.drawMill(p1)
                         prev = p1
@@ -146,24 +147,24 @@ class RectPocket():
         p2 = (x1, y1)
         p3 = (x0, y1)
         if prev is not None:
-            self.addSeg(prev, p0)
+            self.addLineSeg(prev, p0)
         if w > 0 and h > 0:
             if dir == CW:
-                self.addSeg(p0, p1)
-                self.addSeg(p1, p2)
-                self.addSeg(p2, p3)
-                self.addSeg(p3, p0)
+                self.addLineSeg(p0, p1)
+                self.addLineSeg(p1, p2)
+                self.addLineSeg(p2, p3)
+                self.addLineSeg(p3, p0)
             else:
-                self.addSeg(p0, p3)
-                self.addSeg(p3, p2)
-                self.addSeg(p2, p1)
-                self.addSeg(p1, p0)
+                self.addLineSeg(p0, p3)
+                self.addLineSeg(p3, p2)
+                self.addLineSeg(p2, p1)
+                self.addLineSeg(p1, p0)
             prev = p0
         elif h <= 0:
-            self.addSeg(p0, p1)
+            self.addLineSeg(p0, p1)
             prev = p1
         elif w <= 0:
-            self.addSeg(p0, p3)
+            self.addLineSeg(p0, p3)
             prev = p3
         self.drawMill(p0)
         self.drawMill(p1)
@@ -171,8 +172,12 @@ class RectPocket():
         self.drawMill(p3)
         return(prev)
 
-    def addSeg(self, p0, p1):
+    def addLineSeg(self, p0, p1):
         self.path.append(Line(p0, p1, self.index))
+        self.index += 1
+
+    def addArcSeg(self, c, r, a0, a1):
+        self.path.append(Arc(c, r, a0, a1, self.index))
         self.index += 1
 
     def millPath(self):
@@ -202,3 +207,67 @@ class RectPocket():
         draw = self.cfg.draw
         if draw is not None:
             draw.circle(p, self.cfg.endMillSize / 2.0)
+
+    def roundedPocket(self, args):
+        cfg = self.cfg
+        cfg.ncInit()
+        x = cfg.x
+        y = cfg.y
+        if len(args) >= 2:
+            w = float(cfg.evalFloatArg(args[1]))
+        if len(args) >= 3:
+            h = float(cfg.evalFloatArg(args[2]))
+        self.path = []
+        self.index = 0
+        if h < w:
+            r = h / 2.0
+            r -= cfg.endMillSize / 2.0 + cfg.finishAllowance
+            c0 = (x, y)
+            c1 = (x + w, y)
+            p0 = (x    , y - r)
+            p1 = (x + w, y - r)
+            p2 = (x + w, y + r)
+            p3 = (x    , y + r)
+            self.addArcSeg(c0, r, 90, 270)
+            self.addLineSeg(p0, p1)
+            self.addArcSeg(c1, r, 270, 90)
+            self.addLineSeg(p2, p3)
+            draw = cfg.draw
+            if draw is not None:
+                r = h / 2.0
+                p0 = (x    , y - r)
+                p1 = (x + w, y - r)
+                p2 = (x + w, y + r)
+                p3 = (x    , y + r)
+                draw.move(p3)
+                draw.arc(p0, c0)
+                draw.line(p1)
+                draw.arc(p2, c1)
+                draw.line(p3)
+        else:
+            r = w / 2.0
+            r -= cfg.endMillSize / 2.0 + cfg.finishAllowance
+            c0 = (x, y)
+            c1 = (x, y + h)
+            p0 = (x + r, y)
+            p1 = (x + r, y + h)
+            p2 = (x - r, y + h)
+            p3 = (x - r, y)
+            self.addArcSeg(c0, r, 180, 0)
+            self.addLineSeg(p0, p1)
+            self.addArcSeg(c1, r, 0, 180)
+            self.addLineSeg(p2, p3)
+            draw = cfg.draw
+            if draw is not None:
+                r = w / 2.0
+                p0 = (x + r, y)
+                p1 = (x + r, y + h)
+                p2 = (x - r, y + h)
+                p3 = (x - r, y)
+                draw.move(p3)
+                draw.arc(p0, c0)
+                draw.line(p1)
+                draw.arc(p2, c1)
+                draw.line(p3)
+        self.millPath()
+        

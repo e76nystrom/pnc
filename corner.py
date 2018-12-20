@@ -60,16 +60,16 @@ class corner():
                 break
 
     def setPassCut(self, args):
-        self.offset = float(args[1])
+        self.offset = self.cfg.evalFloatArg(args[1])
 
     def setLead(self, args):
-        self.leadRadius = float(args[1])
+        self.leadRadius = self.cfg.evalFloatArg(args[1])
 
     def setPasses(self, args):
-        self.maxPasses = int(args[1])
+        self.maxPasses = self.cfg.evalIntArg(args[1])
 
     def setAlternate(self, args):
-        self.alternate = int(args[1]) != 0
+        self.alternate = self.cfg.evalBoolAtg(args[1])
           
     def corner(self, args, dbg=True):
         cfg = self.cfg

@@ -17,12 +17,12 @@ class RectOutside():
         dprtSet(True)
 
     def rectOffset(self, args):
-        self.xOffset = float(args[1])
-        self.yOffset = float(args[2])
+        self.xOffset = self.cfg.evalFloatArg(args[1])
+        self.yOffset = self.cfg.evalFloatArg(args[2])
 
     def rectOutside(self, args):
-        w = float(args[1])
-        h = float(args[2])
+        w = self.cfg.evalFloatArg(args[1])
+        h = self.cfg.evalFloatArg(args[2])
         seg = []
         p0 = (self.xOffset, self.yOffset)
         p1 = (self.xOffset + w, self.yOffset)

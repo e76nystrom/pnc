@@ -52,13 +52,13 @@ class pocket():
         dprtSet(True)
 
     def setStepOver(self, args):
-        self.stepOver = float(args[1]) / 100.0
+        self.stepOver = self.cfg.evalFloatArg(args[1]) / 100.0
 
     def pocketArcs(self, args):
-        self.arcs = int(args[1]) != 0
+        self.arcs = self.cfg.evalBoolArg(args[1])
 
     def pocketDbg(self, args):
-        self.dbg = int(args[1]) != 0
+        self.dbg = self.cfg.evalBoolArg(args[1])
 
     def setSymmetry(self, args):
         val = args[1].lower()

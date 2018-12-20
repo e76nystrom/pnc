@@ -24,16 +24,16 @@ class Engrave():
         dprtSet(True)
 
     def setLineStart(self, args):
-        self.p0 = (float(args[1]), float(args[2]))
+        self.p0 = (self.cfg.evalFloatArg(args[1]), self.cfg.evalFloatArg(args[2]))
 
     def setLineEnd(self, args):
-        self.p1 = (float(args[1]), float(args[2]))
+        self.p1 = (self.cfg.evalFloatArg(args[1]), self.cfg.evalFloatArg(args[2]))
 
     def setOffset(self, args):
-        self.offset = float(args[1])
+        self.offset = self.cfg.evalFloatArg(args[1])
 
     def setProbeDist(self, args):
-        self.probDist = float(args[1])
+        self.probDist = self.cfg.evalFloatArg(args[1])
 
     def scribeLines(self, args):
         layer = args[1]

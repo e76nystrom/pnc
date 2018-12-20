@@ -29,19 +29,19 @@ class CircularPocket():
         dprtSet(True)
 
     def setStepOver(self, args):
-        self.stepOver = float(args[1]) / 100.0
+        self.stepOver = self.cfg.evalFloatArg(args[1]) / 100.0
 
     def setSpiral(self, args):
-        self.spiral = int(args[1]) != 0
+        self.spiral = self.cfg.evalBoolArg(args[1])
 
     def setStepDist(self, args):
-        self.distPass = float(args[1])
+        self.distPass = self.cfg.evalFloatArg(args[1])
 
     def setCircLeadRadius(self, args):
-        self.leadRadius = float(args[1])
+        self.leadRadius = self.cfg.evalFloatArg(args[1])
 
     def setFinishPasses(self, args):
-        self.finishPasses = int(args[1])
+        self.finishPasses = self.cfg.evalIntArg(args[1])
 
     def pocket(self, args):
         layer = args[1]
@@ -160,7 +160,7 @@ class CircularPocket():
     def enlargeHole(self, args):
         outerLayer = args[1]
         try:
-            innerD = float(args[2])
+            innerD = self.cfg.evalFloatArg(args[2])
             innerLayer = None
         except ValueError:
             innerLayer = args[2]

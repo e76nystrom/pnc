@@ -24,18 +24,18 @@ class Surface():
         dprtSet(True)
 
     def setSurfSize(self, args):
-        self.xSize = float(args[1])
-        self.ySize = float(args[2])
+        self.xSize = self.cfg.evalFloatArg(args[1])
+        self.ySize = self.cfg.evalFloatArg(args[2])
 
     def setSurfOffset(self, args):
-        self.xOffset = float(args[1])
-        self.yOffset = float(args[2])
+        self.xOffset = self.cfg.evalFloatArg(args[1])
+        self.yOffset = self.cfg.evalFloatArg(args[2])
 
     def setStepOver(self, args):
-        self.stepOver = float(args[1]) / 100.0
+        self.stepOver = self.cfg.evalFloatArg(args[1]) / 100.0
 
     def setEdge(self, args):
-        self.edge = float(args[1])
+        self.edge = self.cfg.evalFloatArg(args[1])
 
     def surface(self, args):
         cfg = self.cfg

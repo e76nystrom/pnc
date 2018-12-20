@@ -34,6 +34,7 @@ from hershey import Font
 from os import getcwd
 from imp import load_source
 
+
 import random
 
 O_UPPER_LEFT = 0
@@ -78,6 +79,7 @@ class Config():
         self.output = True      # produce output in millPath
         self.dxfFile = None     # dxf file from args
         self.fileName = None    # base output file name
+        self.outFileName = None # output file name
         self.d = None           # output debug dxf file
         self.svg = None         # output debug svg file
         self.path = None        # svg path
@@ -304,6 +306,8 @@ class Config():
             ('sety', self.setY), \
 
             ('load', self.load), \
+
+            ('var', self.var), \
         )
         self.addCommands(self.cmds)
 
@@ -560,47 +564,47 @@ class Config():
         
     def cmdIf(self, args):
         # self.ifStack.append(self.ifDisable)
-        self.ifDisable = int(args[1]) == 0
+        self.ifDisable = not self.evalBoolArg(args[1])
 
     def cmdEndIf(self, args):
         self.ifDisable = False
         # self.ifDisable = ifStack.pop()
 
     def setX(self, args):
-        coordinate = int(args[1])
-        xVal = float(args[2])
+        coordinate = self.evalIntArg(args[1])
+        xVal = self.evalFloatArg(args[2])
         mill = cfg.mill
         if mill is not None:
             mill.setX(coordinate, xVal)
 
     def setY(self, args):
-        coordinate = int(args[1])
-        yVal = float(args[2])
+        coordinate = self.evalIntArg(args[1])
+        yVal = self.evalFloatArg(args[2])
         mill = cfg.mill
         if mill is not None:
             mill.setY(coordinate, yVal)
         
     def xPark(self, args):
-        self.xPark = float(args[1])
+        self.xPark = self.evalFloatArg(args[1])
 
     def yPark(self, args):
-        self.yPark = float(args[1])
+        self.yPark = self.evalFloatArg(args[1])
 
     def zPark(self, args):
-        self.zPark = float(args[1])
+        self.zPark = self.evalFloatArg(args[1])
 
     def park(self, args):
         result = self.getLocation(args, [self.xPark, self.yPark, self.zPark])
         (self.xPark, self.yPark, self.zPark) = result
 
     def xInitial(self, args):
-        self.xInitial = float(args[1])
+        self.xInitial = self.evalFloatArg(args[1])
 
     def yInitial(self, args):
-        self.yInitial = float(args[1])
+        self.yInitial = self.evalFloatArg(args[1])
 
     def zInitial(self, args):
-        self.zInitial = float(args[1])
+        self.zInitial = self.evalFloatArg(args[1])
 
     def initial(self, args):
         result = self.getLocation(args, [self.xInitial, \
@@ -635,10 +639,10 @@ class Config():
                     
     def setSize(self, args):
         self.ncInit()
-        self.xSize = float(args[1])
-        self.ySize = float(args[2])
+        self.xSize = self.evalFloatArg(args[1])
+        self.ySize = self.evalFloatArg(args[2])
         if len(args) >= 4:
-            self.zSize = float(args[3])
+            self.zSize = self.evalFloatArg(args[3])
 
         out = self.mill.out
         out.write("(material size x %0.3f y %0.3f" % \
@@ -649,52 +653,52 @@ class Config():
         self.draw.material(self.xSize, self.ySize)
 
     def setDrillSize(self, args):
-        self.drillSize = float(args[1])
+        self.drillSize = self.evalFloatArg(args[1])
 
     def setDrillAngle(self, args):
-        self.drillAngle = radians(float(args[1])) / 2
+        self.drillAngle = radians(self.evalFloatArg(args[1])) / 2
 
     def setDrillExtra(self, args):
-        self.drillExtra = float(args[1])
+        self.drillExtra = self.evalFloatArg(args[1])
         
     def setPeckDepth(self, args):
-        self.peckDepth = float(args[1])
+        self.peckDepth = self.evalFloatArg(args[1])
 
     def setCoord(self, args):
-        self.coordinate = int(args[1])
+        self.coordinate = self.evalIntArg(args[1])
 
     def setVariables(self, args):
-        self.variables = int(args[1]) != 0
+        self.variables = self.evalBoolArg(args[1])
 
     def setSafeZ(self, args):
-        self.safeZ = float(args[1])
+        self.safeZ = self.evalFloatArg(args[1])
 
     def setRetract(self, args):
-        self.retract = float(args[1])
+        self.retract = self.evalFloatArg(args[1])
 
     def setTop(self, args):
-        self.top = float(args[1])
+        self.top = self.evalFloatArg(args[1])
 
     def setDepth(self, args):
-        self.depth = float(args[1])
+        self.depth = self.evalFloatArg(args[1])
 
     def setFeed(self, args):
-        self.feed = float(args[1])
+        self.feed = self.evalFloatArg(args[1])
 
     def setZFeed(self, args):
-        self.zFeed = float(args[1])
+        self.zFeed = self.evalFloatArg(args[1])
 
     def setSpeed(self, args):
-        self.speed = float(args[1])
+        self.speed = self.evalFloatArg(args[1])
         if self.mill is not None:
             self.mill.setSpeed(self.speed)
 
     def setDelay(self, args):
-        self.delay = float(args[1])
+        self.delay = self.evalFloatArg(args[1])
 
     def setTool(self, args):
         if len(args) >= 2:
-            self.tool = int(args[1])
+            self.tool = self.evalIntArg(args[1])
             match = re.match("^[a-zA-z]+ +[0-9]+ +(.*)$", args[0])
             if match is not None:
                 self.toolComment = match.group(1)
@@ -707,65 +711,65 @@ class Config():
             self.toolComment = ""
 
     def setLoc(self, args):
-        self.x = float(args[1])
-        self.y = float(args[2])
+        self.x = self.evalFloatArg(args[1])
+        self.y = self.evalFloatArg(args[2])
 
     def setLocX(self, args):
-        self.x = float(args[1])
+        self.x = self.evalFloatArg(args[1])
 
     def setLocY(self, args):
-        self.y = float(args[1])
+        self.y = self.evalFloatArg(args[1])
 
     def setXOffset(self, args):
-        self.xOffset = float(args[1])
+        self.xOffset = self.evalFloatArg(args[1])
 
     def setYOffset(self, args):
-        self.yOffset = float(args[1])
+        self.yOffset = self.evalFloatArg(args[1])
 
     def setRampAngle(self, args):
-        self.rampAngle = radians(float(args[1]))
+        self.rampAngle = radians(self.evalFloatArg(args[1]))
 
     def setEndMillSize(self, args):
-        self.endMillSize = float(args[1])
+        self.endMillSize = self.evalFloatArg(args[1])
 
     def setHoleMin(self, args):
         if len(args) >= 2:
-            self.holeMin = float(args[1])
+            self.holeMin = self.evalFloatArg(args[1])
         else:
             self.holeMin = 0.0
 
     def setHoleMax(self, args):
         if len(args) >= 2:
-            self.holeMax = float(args[1])
+            self.holeMax = self.evalFloatArg(args[1])
         else:
             self.holeMax = MAX_VALUE
             
     def setDepthPass(self, args):
-        self.depthPass = abs(float(args[1]))
+        self.depthPass = abs(self.evalFloatArg(args[1]))
 
     def setEvenDepth(self, args):
-        self.evenDepth = int(args[1]) != 0
+        self.evenDepth = self.evalBoolArg(args[1])
 
     def setWidth(self, args):
-        self.width = abs(float(args[1]))
+        self.width = abs(self.evalFloatArg(args[1]))
 
     def setVBit(self, args):
-        self.vBit = radians(abs(float(args[1])))
+        self.vBit = radians(abs(self.evalFloatArg(args[1])))
 
     def setWidthPasses(self, args):
-        self.widthPasses = int(args[1])
+        self.widthPasses = self.evalIntArg(args[1])
 
     def setWidthPerPass(self, args):
-        self.widthPerPass = float(args[1]) / 2
+        self.widthPerPass = self.evalFloatArg(args[1]) / 2
 
     def setPause(self, args):
-        self.pause = int(args[1]) != 0
+        self.pause = self.evalBoolArg(args[1])
 
     def setHomePause(self, args):
-        self.homePause = int(args[1]) != 0
+        self.homePause = self.evalBoolArg(args[1])
 
     def setTest(self, args):
-        self.test = int(args[1]) != 0
+        self.test = self.evalBoolArg(args[1])
 
     def setDirection(self, args):
         dir = args[1].lower()
@@ -785,53 +789,53 @@ class Config():
             ePrint("invalid direction %s" % dir)
 
     def setFinish(self, args):
-        self.finishAllowance = float(args[1])
+        self.finishAllowance = self.evalFloatArg(args[1])
 
     def setTabs(self, args):
-        self.tabs = int(args[1])
+        self.tabs = self.evalIntArg(args[1])
 
     def setTabWidth(self, args):
-        self.tabWidth = float(args[1])
+        self.tabWidth = self.evalFloatArg(args[1])
 
     def setTabDepth(self, args):
-        self.tabDepth = float(args[1])
+        self.tabDepth = self.evalFloatArg(args[1])
 
     def setOutput(self, args):
-        self.output = int(args[1]) != 0
+        self.output = self.evalBoolArg(args[1])
 
     def setAlternate(self, args):
-        self.alternate = int(args[1]) != 0
+        self.alternate = self.evalBoolArg(args[1])
 
     def setAddArcs(self, args):
-        self.addArcs = int(args[1]) != 0
+        self.addArcs = self.evalBoolArg(args[1])
 
     def setCloseOpen(self, args):
-        self.closeOpen = int(args[1]) != 0
+        self.closeOpen = self.evalBoolArg(args[1])
 
     def setShortRamp(self, args):
-        self.shortRamp = int(args[1]) != 0
+        self.shortRamp = self.evalBoolArg(args[1])
 
     def setPauseCenter(self, args):
-        self.pauseCenter = int(args[1]) != 0
+        self.pauseCenter = self.evalBoolArg(args[1])
 
     def setPauseHeight(self, args):
-        self.pauseHeight = float(args[1])
+        self.pauseHeight = self.evalFloatArg(args[1])
         
     def setDrawDxf(self, args):
-        self.drawDxf = int(args[1]) != 0
+        self.drawDxf = self.evalBoolArg(args[1])
 
     def setDrawSvg(self, args):
-        self.drawSvg = int(args[1]) != 0
+        self.drawSvg = self.evalBoolArg(args[1])
 
     def setOneDxf(self, args):
-        self.oneDxf = int(args[1]) != 0
+        self.oneDxf = self.evalBoolArg(args[1])
 
     def closeDxf(self, args):
         if self.draw is not None:
             self.draw.close()
 
     def setDbg(self, args):
-        self.dbg = int(args[1]) != 0
+        self.dbg = self.evalBoolArg(args[1])
         dprtSet(dbgFlag=self.dbg)
 
     def setDbgFile(self, args):
@@ -843,9 +847,9 @@ class Config():
         self.ncInit()
         if args is not None:
             if len(args) >= 2:
-                self.x = float(args[1])
+                self.x = self.evalFloatArg(args[1])
             if len(args) >= 3:
-                self.y = float(args[2])
+                self.y = self.evalFloatArg(args[2])
         if size is None:
             size = self.drillSize
         self.count += 1
@@ -957,8 +961,8 @@ class Config():
         mp.millPath(path, None)
 
     def xSlot(self, args):
-        width = float(args[1])
-        length = float(args[2])
+        width = self.evalFloatArg(args[1])
+        length = self.evalFloatArg(args[2])
         # self.slotNum += 1
         # self.out.write("(xSlot %2d width %0.3f length %0.3f "\
         #               "at x %0.3f y %0.3f)\n" % \
@@ -982,8 +986,8 @@ class Config():
         # slot.xSlot(width, length)
 
     def ySlot(self, args):
-        width = float(args[1])
-        length = float(args[2])
+        width = self.evalFloatArg(args[1])
+        length = self.evalFloatArg(args[2])
         # self.slotNum += 1
         # self.out.write("(ySlot %2d width %0.3f length %0.3f "\
         #               "at x %0.3f y %0.3f)\n" % \
@@ -1031,7 +1035,7 @@ class Config():
                 val = None
                 break
         if val is not None:
-            self.orientation = int(args[1])
+            self.orientation = self.evalIntArg(args[1])
             if self.orientation >= 0 or \
                self.orientation < O_MAX:
                 ePrint("invalid orientation %d", self.orientation)
@@ -1105,8 +1109,8 @@ class Config():
         self.segments = self.dxfInput.getPath(layer)
 
     def dxfPoint(self, args):
-        x = float(args[1])
-        y = float(args[2])
+        x = self.evalFloatArg(args[1])
+        y = self.evalFloatArg(args[2])
         inside((x, y), self.segments[0])
 
     def dxfTab(self, args):
@@ -1312,12 +1316,9 @@ class Config():
         if fileName.startswith('*'):
             fileName = self.baseName + fileName[1:]
         else:
-<<<<<<< HEAD
             if len(os.path.dirname(fileName)) == 0:
-                fileName = os.pth.join(self.dirPath, fileName)
-=======
+                fileName = os.path.join(self.dirPath, fileName)
             fileName = os.path.join(self.dirPath, fileName)
->>>>>>> 1580003c6fd91e54ddb54492978b482351808951
         self.outFileName = fileName
 
     def setFont(self, args):
@@ -1365,17 +1366,34 @@ class Config():
                     exec(cmd)
                     self.addCommands(c.cmds)
 
+    def var(self, args):
+        expr = "var\\s+(\\w+)\\s+(.+)"
+        m = re.match(expr, args[0])
+        if m:
+            var = m.group(1)
+            expression = m.group(2)
+            globals()[var] = eval(expression)
+
+    def evalFloatArg(self, arg):
+        return(float(eval(arg)))
+
+    def evalIntArg(self, arg):
+        return(int(eval(arg)))
+    
+    def evalBoolArg(self, arg):
+        return(eval(arg) != 0)
+
     def setProbe(self, args):
-        self.probe = int(args[1]) != 0
+        self.probe = self.evalBoolArg(args[1])
 
     def setProbeDepth(self, args):
-        self.probeDepth = float(args[1])
+        self.probeDepth = self.evalFloatArg(args[1])
 
     def setProbeFeed(self, args):
-        self.probeFeed = float(args[1])
+        self.probeFeed = self.evalFloatArg(args[1])
 
     def setProbeTool(self, args):
-        self.probeTool = int(args[1])
+        self.probeTool = self.evalIntArg(args[1])
 
     def setLevel(self, args):
         self.probeData = args[1]

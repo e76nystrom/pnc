@@ -1,20 +1,14 @@
-<<<<<<< HEAD
 import os
-=======
 from dbgprt import dprt, ePrint
->>>>>>> 1580003c6fd91e54ddb54492978b482351808951
 from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
 from geometry import MIN_DIST
 
 class DrillHolder():
     def __init__(self, cfg):
         self.cfg = cfg
-<<<<<<< HEAD
-=======
         self.m = cfg.mill
         self.d = cfg.draw
 
->>>>>>> 1580003c6fd91e54ddb54492978b482351808951
         self.letterHeight = 0.1
 
         self.mountRetract = None
@@ -103,7 +97,6 @@ class DrillHolder():
               (0.375, ""), \
             )
 
-<<<<<<< HEAD
         self.grid = (7, 6)
         self.offset = (0.5, 0.5)
         self.spacing = (0.5, 0.5)
@@ -116,8 +109,6 @@ class DrillHolder():
 
         self.clearance = 0.001
 
-=======
->>>>>>> 1580003c6fd91e54ddb54492978b482351808951
         self.setup()
 
     def setup(self):
@@ -170,40 +161,40 @@ class DrillHolder():
             y += yMountSpace
 
     def setLetterHeight(self, args):
-        self.letterHeight = abs(float(args[1]))
+        self.letterHeight = abs(self.cfg.evalFloatArg(args[1]))
 
     def setMountRetract(self, args):
-        self.mountRetract = float(args[1])
+        self.mountRetract = self.cfg.evalFloatArg(args[1])
 
     def setRetract(self, args):
-        self.retract = float(args[1])
+        self.retract = self.cfg.evalFloatArg(args[1])
 
     def setGrid(self, args):
         self.grid = (int(args[1]), int(args[2]))
 
     def setOffset(self, args):
-        self.offset = (float(args[1]), float(args[2]))
+        self.offset = (self.cfg.evalFloatArg(args[1]), self.cfg.evalFloatArg(args[2]))
 
     def setSpacing(self, args):
-        self.spacing = (float(args[1]), float(args[2]))
+        self.spacing = (self.cfg.evalFloatArg(args[1]), self.cfg.evalFloatArg(args[2]))
 
     def setTextOffset(self, args):
-        self.textOffset = float(args[1])
+        self.textOffset = self.cfg.evalFloatArg(args[1])
 
     def setTop(self, args):
-        self.top = int(args[1]) != 0
+        self.top = self.cfg.evalBoolArg(args[1])
 
     def setMountSize(self, args):
-        self.mountSize = float(args[1])
+        self.mountSize = self.cfg.evalFloatArg(args[1])
 
     def setXMount(self, args):
-        self.xMount = (float(args[1]), int(args[2]))
+        self.xMount = (self.cfg.evalFloatArg(args[1]), int(args[2]))
 
     def setYMount(self, args):
-        self.yMount = (float(args[1]), int(args[2]))
+        self.yMount = (self.cfg.evalFloatArg(args[1]), int(args[2]))
 
     def setClearance(self, args):
-        self.clearance = float(args[1])
+        self.clearance = self.cfg.evalFloatArg(args[1])
 
     def millHoles(self, args):
         holes = []
@@ -288,11 +279,8 @@ class DrillHolder():
             offset -= self.letterHeight / 2
         else:
             offset += self.letterHeight / 2
-<<<<<<< HEAD
         m = cfg.mill
-=======
         m = self.cfg.mill
->>>>>>> 1580003c6fd91e54ddb54492978b482351808951
         m.safeZ()
         zOffset = 0.0
 
