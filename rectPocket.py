@@ -6,7 +6,7 @@ from math import atan2, ceil, cos, degrees, radians, sin, sqrt
 class RectPocket():
     def __init__(self, cfg):
         self.cfg = cfg
-        print("Rect loaded")
+        dprt("Rect loaded")
         self.stepOver = 0.85
         self.spiral = True
         self.cmds = \
@@ -17,7 +17,6 @@ class RectPocket():
           ('roundedpocket', self.roundedPocket), \
           # ('', self.), \
         )
-        dprtSet(True)
 
     def setStepOver(self, args):
         self.stepOver = self.cfg.evalFloatArg(args[1]) / 100.0

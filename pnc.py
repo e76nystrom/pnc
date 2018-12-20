@@ -34,7 +34,6 @@ from hershey import Font
 from os import getcwd
 from imp import load_source
 
-
 import random
 
 O_UPPER_LEFT = 0
@@ -1372,16 +1371,56 @@ class Config():
         if m:
             var = m.group(1)
             expression = m.group(2)
-            globals()[var] = eval(expression)
+            try:
+                val = eval(expression)
+                globals()[var] = val
+                return
+            except NameError:
+                print("nameError in %s" % expression)
+            except SyntaxError:
+                print("syntaxError in %s" % expression)
+            except:
+                traceback.print_exc()
+            sys.exit()            
 
     def evalFloatArg(self, arg):
-        return(float(eval(arg)))
+        try:
+            val = float(eval(arg))
+            dprt("evalFloatArg %s %7.4f" % (arg, val))
+            return(val)
+        except NameError:
+            print("nameError in %s" % arg)
+        except SyntaxError:
+            print("syntaxError in %s" % arg)
+        except:
+            traceback.print_exc()
+        sys.exit()            
 
     def evalIntArg(self, arg):
-        return(int(eval(arg)))
+        try:
+            val = int(eval(arg))
+            dprt("evalIntArg %s %d" % (arg, val))
+            return(val)
+        except NameError:
+            print("nameError in %s" % arg)
+        except SyntaxError:
+            print("syntaxError in %s" % arg)
+        except:
+            traceback.print_exc()
+        sys.exit()            
     
     def evalBoolArg(self, arg):
-        return(eval(arg) != 0)
+        try:
+            val = eval(arg) != 0
+            dprt("evalBoolArg %s %s" % (arg, val))
+            return(val)
+        except NameError:
+            print("nameError in %s" % arg)
+        except SyntaxError:
+            print("syntaxError in %s" % arg)
+        except:
+            traceback.print_exc()
+        sys.exit()            
 
     def setProbe(self, args):
         self.probe = self.evalBoolArg(args[1])
