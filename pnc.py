@@ -245,6 +245,7 @@ class Config():
             ('test', self.setTest), \
 
             ('endmill', self.setEndMillSize), \
+            ('endmillsize', self.setEndMillSize), \
             ('finish', self.setFinish), \
             ('finishallowance', self.setFinish), \
 
@@ -1236,6 +1237,7 @@ class Config():
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
+        millSize = self.evalFloatArg(args[2]) if len(args) > 2 else None
         for d in drill:
             if d.size < self.holeMin or \
                d.size >= self.holeMax:
@@ -1257,7 +1259,13 @@ class Config():
                 self.mill.out.write("(hole %d at %7.4f, %7.4f)\n" % \
                                (n, loc[0], loc[1]))
                 last = loc
-                size = (d.size - self.endMillSize - self.finishAllowance) / 2.0
+                hSize = d.size if millSize is None else millSize
+                size = (hSize - self.endMillSize - self.finishAllowance) / 2.0
+                if size <= 0:
+                    ePrint("endmill %6.4f to big for hole %6.4f with "\
+                           "finishAllowace %6.4f" % \
+                           (self.endMillSize, hSize, self.finisAllowance))
+                    sys.exit()
                 a = Arc(loc, size, 0.0, 360.0)
                 if self.pauseCenter:
                     mill = self.mill
