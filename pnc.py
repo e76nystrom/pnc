@@ -12,8 +12,11 @@ import traceback
 import re
 import geometry
 import inspect
+import subprocess
+import platform
+import glob
 from dbgprt import dprt, dflush, dclose, dprtSet, ePrint
-from geometry import Arc, Line
+from geometry import Arc, Line, ARC, LINE
 from geometry import oStr, xyDist,  offset
 from geometry import inside, rotateMinDist, \
     pathLength, combineArcs, pathDir, \
@@ -119,10 +122,11 @@ class Config():
         self.yOffset = 0.0      # drill y approach offset
         self.x = 0.0            # drill x location
         self.y = 0.0            # dirll y location
-        self.drillSize = 0.1    # current drill size
+        self.drillSize = None   # current drill size
         self.drillAngle = 0.0   # drill point angle
         self.drillExtra = 0.0   # extra drill Depth
         self.peckDepth = 0.0    # peck depth
+        self.stepProfile = None # step profile
 
         self.pause = False       # enable pause
         self.pauseCenter = False # pause at center of hole
@@ -278,8 +282,10 @@ class Config():
             ('dxfdrill', self.dxfDrill), \
             ('dxfbore', self.dxfBore), \
             ('dxfmillhole', self.dxfMillHole), \
+            ('dxfsteppedhole', self.dxfSteppedHole), \
             ('dxftap', self.dxfTap), \
-
+            ('stepprofile', self.getStepProfile), \
+  
             ('close', self.closeFiles), \
             ('outputfile', self.outputFile), \
 
@@ -308,6 +314,7 @@ class Config():
             ('load', self.load), \
 
             ('var', self.var), \
+            ('rm', self.remove), \
         )
         self.addCommands(self.cmds)
 
@@ -425,10 +432,26 @@ class Config():
         )
         sys.exit()
         
+    def gpp(self, file):
+        if platform.system() == 'Windows':
+            runDir = os.path.dirname(os.path.abspath(__file__))
+            gpp = os.path.join(runDir, "gpp.exe")
+        else:
+            gpp = "gpp"
+        gppFile = file.replace(".pnc", ".gpp_pnc")
+        command = (gpp, file, "-o", gppFile)
+        try:
+            result = subprocess.check_output(command)
+            return(gppFile)
+        except subprocess.CalledProcessError as e:
+            print("return code %d\n%s\n%s" % (e.returncode, e.cmd, e.output))
+            return(file)
+
     def open(self):
         self.setupVars()
         for inFile in self.inFile:
-            inp = open(inFile, 'r')
+            gppFile = self.gpp(inFile)
+            inp = open(gppFile, 'r')
             self.dirPath = os.path.dirname(inFile)
             self.fileName = os.path.basename(inFile).replace(".pnc", "")
             if self.outFile is None:
@@ -442,16 +465,25 @@ class Config():
             dprtSet(self.dbg, os.path.join(self.dirPath, self.dbgFile) \
                     if len(self.dbgFile) != 0 else "")
 
+            multi = False
             for l in inp:
                 self.lineNum += 1
                 dprt("%2d %s" % (self.lineNum, l), end="")
                 dflush()
                 l = l.strip()
-                line = re.sub("\s*#.*$", "", l)
-                line = re.sub("\s+", " ", line)
-                if len(line) == 0:
+                line = re.sub("\s*#.*$", "", l) # remove comments from line
+                line = re.sub("\s+", " ", line) # multiple spaces with one space
+                if multi:                       # if continuation of prev line
+                    multi = False
+                    line = last + line
+                    last = None
+                if len(line) == 0: # if empty line
                     continue
                 if line.startswith('#'):
+                    continue
+                if line.endswith('\\'): # if line continued
+                    multi = True
+                    last = line[:-1]
                     continue
                 arg = line.split(' ')
                 if len(arg) >= 1:
@@ -481,6 +513,8 @@ class Config():
                             sys.exit()
 
             inp.close()         # close input file
+            if gppFile.endswith(".gpp_pnc"):
+                os.remove(gppFile)
         try:
             self.draw.close()   # close drawing files
         except:
@@ -662,7 +696,7 @@ class Config():
         self.drillExtra = self.evalFloatArg(args[1])
         
     def setPeckDepth(self, args):
-        self.peckDepth = self.evalFloatArg(args[1])
+        self.peckDepth = -abs(self.evalFloatArg(args[1]))
 
     def setCoord(self, args):
         self.coordinate = self.evalIntArg(args[1])
@@ -858,28 +892,28 @@ class Config():
         gMove = "0"
         if abs(self.lastY - self.y) < MIN_DIST:
             if self.xOffset != 0:
-                out.write("g0 x%7.4f\n" % (self.x - self.xOffset))
+                out.write("g0 x %7.4f\n" % (self.x - self.xOffset))
                 gMove = "1"
                 mill.setFeed(self.feed)
-            out.write("g%s x%7.4f\n" % (gMove, self.x))
+            out.write("g%s x %7.4f\n" % (gMove, self.x))
         elif abs(self.lastX - self.x) < MIN_DIST:
             if self.yOffset != 0:
-                out.write("g0 y%7.4f\n" % (self.y - self.yOffset))
+                out.write("g0 y %7.4f\n" % (self.y - self.yOffset))
                 gMove = "1"
                 mill.setFeed(self.feed)
-            out.write("g%s y%7.4f\n" % (gMove, self.y))
+            out.write("g%s y %7.4f\n" % (gMove, self.y))
         else:
             if self.lastX != self.x and self.lastY != self.y:
                 if self.xOffset != 0 or self.yOffset != 0:
-                    out.write("g0 x%7.4f y%7.4f\n" % \
+                    out.write("g0 x %7.4f y %7.4f\n" % \
                               (self.x - self.xOffset, self.y - self.yOffset))
                     gMove = "1"
                     mill.setFeed(self.feed)
-                out.write("g%s x%7.4f y%7.4f\n" % (gMove, self.x, self.y))
+                out.write("g%s x %7.4f y %7.4f\n" % (gMove, self.x, self.y))
         self.draw.hole((self.x, self.y), size)
         holeCount = "/%d" % (self.holeCount) if self.holeCount is not None \
                     else ""
-        comment = "hole %d%s x%7.4f y%7.4f" % \
+        comment = "hole %d%s x %7.4f y %7.4f" % \
                   (self.count, holeCount, self.x, self.y)
         if op == DRILL:
             offset = 0
@@ -893,7 +927,7 @@ class Config():
                 mill.moveZ(self.pauseHeight)
                 out.write("m0 (pause)\n")
             mill.zTop()
-            if self.peckDepth == 0:
+            if self.peckDepth == 0 or self.peckDepth <= self.depth :
                 mill.zDepth(offset, comment=comment)
             else:
                 self.depth += offset
@@ -913,7 +947,7 @@ class Config():
             if cfg.variables:
                 z = "[#%s + #%s]" % (self.topVar, self.depthVar)
             else:
-                z = "%0.4f" % (cfg.top + cfg.depth)
+                z = "%7.4f" % (cfg.top + cfg.depth)
             out.write("g0 z %s\t(%s)\n" % (z, comment))
             out.write("m0 (pause tap hole)\n")
             mill.retract()
@@ -1102,6 +1136,8 @@ class Config():
             else:
                 ePrint("layer not specified")
                 sys.exit()
+        elif layer.lower() == "none":
+            layer = None
         return(layer)
 
     def dxfPath(self, args):
@@ -1242,8 +1278,17 @@ class Config():
             if d.size < self.holeMin or \
                d.size >= self.holeMax:
                 continue
-            self.mill.out.write("(drill size %6.3f holes %d)\n" % \
-                                (d.size, len(d.loc)))
+            hSize = d.size if millSize is None else millSize
+            size = (hSize - self.endMillSize - self.finishAllowance) / 2.0
+            if size <= 0:
+                ePrint("endmill %6.4f to big for hole %6.4f with "\
+                       "finishAllowace %6.4f" % \
+                       (self.endMillSize, hSize, self.finisAllowance))
+                sys.exit()
+            self.mill.out.write("(drill size %6.3f hole size %6.3f "\
+                                "holes %d)\n" % \
+                                (hSize, size * 2 + self.endMillSize, \
+                                 len(d.loc)))
             dLoc = d.loc
             n = 1
             while len(dLoc) != 0:
@@ -1255,17 +1300,16 @@ class Config():
                         minDist = dist
                         index = i
                 loc = dLoc.pop(index)
-                self.draw.hole((loc[0], loc[1]), d.size)
+                self.draw.hole((loc[0], loc[1]), hSize)
                 self.mill.out.write("(hole %d at %7.4f, %7.4f)\n" % \
                                (n, loc[0], loc[1]))
                 last = loc
-                hSize = d.size if millSize is None else millSize
-                size = (hSize - self.endMillSize - self.finishAllowance) / 2.0
-                if size <= 0:
-                    ePrint("endmill %6.4f to big for hole %6.4f with "\
-                           "finishAllowace %6.4f" % \
-                           (self.endMillSize, hSize, self.finisAllowance))
-                    sys.exit()
+                # hSize = d.size if millSize is None else millSize
+                # if size <= 0:
+                #     ePrint("endmill %6.4f to big for hole %6.4f with "\
+                #            "finishAllowace %6.4f" % \
+                #            (self.endMillSize, hSize, self.finisAllowance))
+                #     sys.exit()
                 a = Arc(loc, size, 0.0, 360.0)
                 if self.pauseCenter:
                     mill = self.mill
@@ -1287,6 +1331,64 @@ class Config():
                 mp.millPath(path, self.tabPoints)
                 n += 1
         self.tabPoints = []
+
+    def getStepProfile(self, args):
+        expr = "^\\w+\\s+(.*)"
+        m = re.match(expr, args[0])
+        if m:
+            self.stepProfile = self.evalListArg(m.group(1))
+        else:
+            self.stepProfile = None
+
+    def dxfSteppedHole(self, args, drill=None):
+        if drill is None:
+            layer = self.getLayer(args)
+            drill = self.dxfInput.getHoles(layer)
+        self.ncInit()
+        last = self.mill.last
+        mp = self.getMillPath()
+        ncWrite = self.mill.out.write
+        for d in drill:
+            dLoc = d.loc
+            n = 1
+            numHoles = len(dLoc)
+            while len(dLoc) != 0:
+                minDist = MAX_VALUE
+                index = 0
+                for (i, loc) in enumerate(dLoc):
+                    dist = xyDist(last, loc)
+                    if dist < minDist:
+                        minDist = dist
+                        index = i
+                loc = dLoc.pop(index)
+                ncWrite("(hole %2d of %2d steps %d x %7.4f, y %7.4f)\n\n" % \
+                        (n, numHoles, len(self.stepProfile), loc[0], loc[1]))
+                last = loc
+                if self.pauseCenter:
+                    mill = self.mill
+                    mill.safeZ()
+                    mill.move(loc)
+                    mill.moveZ(self.pauseHeight)
+                    mill.pause()
+                for (j, (depth, hSize)) in enumerate(self.stepProfile):
+                    ncWrite("(step %d depth %6.4f size %6.4f)\n\n" % \
+                            (j+1, depth, hSize))
+                    size = (hSize - self.endMillSize - \
+                            self.finishAllowance) / 2.0
+                    self.draw.hole((loc[0], loc[1]), hSize)
+                    if size <= 0:
+                        ePrint("endmill %6.4f to big for hole %6.4f with "\
+                               "finishAllowace %6.4f" % \
+                               (self.endMillSize, hSize, self.finisAllowance))
+                        sys.exit()
+                    self.depth = depth
+                    a = Arc(loc, size, 0.0, 360.0, i=n)
+                    path = []
+                    path.append(a)
+                    mp.millPath(path, None)
+                    self.mill.move(loc)
+                    self.mill.zTop()
+                n += 1
 
     def dxfTap(self, args):
         self.dxfDrill(args, TAP)
@@ -1393,19 +1495,23 @@ class Config():
 
     def evalFloatArg(self, arg):
         try:
+            if arg.lower() == "none":
+                return(None)
             val = float(eval(arg))
             dprt("evalFloatArg %s %7.4f" % (arg, val))
             return(val)
         except NameError:
-            print("nameError in %s" % arg)
+            eprint("nameError in %s" % arg)
         except SyntaxError:
-            print("syntaxError in %s" % arg)
+            eprint("syntaxError in %s" % arg)
         except:
             traceback.print_exc()
         sys.exit()            
 
     def evalIntArg(self, arg):
         try:
+            if arg.lower() == "none":
+                return(None)
             val = int(eval(arg))
             dprt("evalIntArg %s %d" % (arg, val))
             return(val)
@@ -1419,8 +1525,25 @@ class Config():
     
     def evalBoolArg(self, arg):
         try:
+            if arg.lower() == "none":
+                return(None)
             val = eval(arg) != 0
             dprt("evalBoolArg %s %s" % (arg, val))
+            return(val)
+        except NameError:
+            print("nameError in %s" % arg)
+        except SyntaxError:
+            print("syntaxError in %s" % arg)
+        except:
+            traceback.print_exc()
+        sys.exit()            
+
+    def evalListArg(self, arg):
+        try:
+            if arg.lower() == "none":
+                return(None)
+            val = eval(arg)
+            dprt("evalListArg %s %s" % (arg, val))
             return(val)
         except NameError:
             print("nameError in %s" % arg)
@@ -1446,6 +1569,15 @@ class Config():
         self.probeData = args[1]
         self.level = True
         
+    def remove(self, args):
+        expr = "^\\w+\\s+(.*)"
+        m = re.match(expr, args[0])
+        if m:
+            files = glob.glob(os.path.join(self.dirPath, m.group(1)))
+            for f in files:
+                dprt("remove %s" % (f,))
+                os.remove(f)
+
 class Drill():
     def __init__(self, size):
         self.size = size
@@ -1618,7 +1750,7 @@ class MillPath():
                 self.currentDepth = self.depth
 
         self.mill.blankLine()
-        self.mill.out.write("(pass %d depth %7.4f" % \
+        self.mill.out.write("(pass %2d depth %7.4f" % \
                            (self.passNum, self.currentDepth))
 
         dprt("passNum %d lastDepth %6.4f currentDepth %6.4f" % \
@@ -1882,7 +2014,7 @@ class MillPath():
         out = self.mill.out
         for l in path0:
             out.write("(")
-            l.prt(out, ")\n")
+            l.prt(out, ")\n\n")
 
         self.calcTabPos(path0, tabPoints)
 
@@ -1909,12 +2041,19 @@ class MillPath():
             mill.move(path0[0].p0)
         else:
             #mill.safeZ()
-            p = path[0].p0
-            dist = xyDist(p, mill.last)
-            # dprt("millPath dist %7.4f last (%7.4f, %7.4f) p (%7.4f, %7.4f)" %\
-            #      (dist, mill.last[0], mill.last[1], p[0], p[1]))
-            if dist > cfg.endMillSize:
-                mill.retract()
+            l = path[0]
+            p = l.p0
+            if l.type == ARC:
+                dist = xyDist(l.c, mill.last)
+                if dist > (l.r + cfg.endMillSize / 2.0):
+                    mill.retract()
+            else:
+                dist = xyDist(p, mill.last)
+                # dprt("millPath dist %7.4f last (%7.4f, %7.4f) "\
+                #      "p (%7.4f, %7.4f)" %\
+                #      (dist, mill.last[0], mill.last[1], p[0], p[1]))
+                if dist > cfg.endMillSize:
+                    mill.retract()
             mill.move(p)
             if cfg.pause:
                 mill.moveZ(cfg.pauseHeight)
@@ -2559,7 +2698,7 @@ class Dxf():
                         if abs(drillSize - h.size) < MIN_DIST:
                             h.addLoc(p)
                             break
-                    else:
+                    else:       # if holeSize not found
                         d = Drill(drillSize)
                         holes.append(d)
                         d.addLoc(p)

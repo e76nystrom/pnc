@@ -141,7 +141,7 @@ class Mill():
         (xEnd, yEnd) = end
         if len(comment) != 0:
             comment = "\t(%s)" % (comment)
-        self.write("g0 x%7.4f y%7.4f%s\n" % (xEnd, yEnd, comment))
+        self.write("g0 x %7.4f y %7.4f%s\n" % (xEnd, yEnd, comment))
         self.last = end
 
     def moveZ(self, zEnd, comment=""):
@@ -167,7 +167,7 @@ class Mill():
             if cfg.variables:
                 z = "[#%s + #%s]" % (cfg.topVar, cfg.retractVar)
             else:
-                z = "%0.4f" % (cfg.top + cfg.retract)
+                z = "%7.4f" % (cfg.top + cfg.retract)
                 if fast:
                     self.write("g0 z %s (retract)\n" % (z))
                 else:
@@ -181,7 +181,7 @@ class Mill():
             if cfg.variables:
                 z = "[#%s + #%s]" % (cfg.topVar, cfg.safeZVar)
             else:
-                z = "%0.4f" % (cfg.top + cfg.safeZ)
+                z = "%7.4f" % (cfg.top + cfg.safeZ)
             self.write("g0 z %s (safe z)\n" % (z))
 
     def parkZ(self):
@@ -192,7 +192,7 @@ class Mill():
             if cfg.variables:
                 z = "[#%s + #%s]" % (cfg.topVar, cfg.parkZVar)
             else:
-                z = "%0.4f" % (parkZ)
+                z = "%7.4f" % (parkZ)
             self.write("g0 z %s (park z)\n" % (z))
         
     def zTop(self, comment=""):
@@ -202,7 +202,7 @@ class Mill():
             if cfg.variables:
                 z = "[#%s]" % (cfg.topVar)
             else:
-                z = "%0.4f" % (cfg.top)
+                z = "%7.4f" % (cfg.top)
             if len(comment) != 0:
                 comment = "\t(top %s)" % (comment)
             else:
@@ -219,7 +219,7 @@ class Mill():
                 z = "[#%s + #%s + %7.4f]" % \
                     (cfg.topVar, cfg.depthVar, zOffset)
             else:
-                z = "%0.4f" % (zDepth)
+                z = "%7.4f" % (zDepth)
             if len(comment) != 0:
                 comment = "\t(%s)" % (comment)
             self.write("g1 z %s%s\n" % (z, comment))
@@ -238,7 +238,7 @@ class Mill():
                 z = "[#%s + %7.4f]" % \
                     (cfg.topVar, zOffset)
             else:
-                z = "%0.4f" % (zDepth)
+                z = "%7.4f" % (zDepth)
             t = "g1 x %7.4f y %7.4f z%s" % (xEnd, yEnd, z)
             self.lastZ = zDepth
         if comment is not None:
