@@ -1,5 +1,4 @@
 from __future__ import print_function
-import os
 from dbgprt import dprt
 from time import strftime, localtime
 from geometry import MIN_DIST
@@ -72,8 +71,8 @@ class Mill():
         else:
             self.toolChange(cfg.tool, cfg.toolComment)
 
-    def write(self, str):
-        self.out.write(str)
+    def write(self, string):
+        self.out.write(string)
         self.blank = False
         if self.cfg.printGCode:
             dprt(str.rstrip('\n'))
@@ -273,10 +272,10 @@ class Mill():
     def probe(self, end, feed=1.0, comment=None):
         out = self.out
         cfg = self.cfg
-        str = " (%s)" % comment if comment is not None else ""
+        string = " (%s)" % comment if comment is not None else ""
             
         out.write("g0 x%7.4f y%7.4f\n" % end)
-        out.write("g38.2 z%6.4f f%0.1f%s\n" % (cfg.probeDepth, feed, str))
+        out.write("g38.2 z%6.4f f%0.1f%s\n" % (cfg.probeDepth, feed, string))
         out.write("g0 z%6.4f\n" % (cfg.retract))
         self.blankLine()
         self.last = end

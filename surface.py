@@ -1,7 +1,7 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt, dflush
-from geometry import Arc, Line, tangent, LINE, CCW, CW, MIN_DIST
-from math import atan2, ceil, cos, degrees, radians, sin, sqrt
+from dbgprt import dprtSet, dprt, ePrint
+from geometry import Line, LINE, MIN_DIST
+from math import ceil
 
 class Surface():
     def __init__(self, cfg):
@@ -73,7 +73,7 @@ class Surface():
                         continue
                 else:
                     ePrint("surface segment not a line")
-                    contiue
+                    continue
             if len(vert) != 2 or len(horiz) != 2:
                 ePrint("surface incorrect number of sides")
                 continue

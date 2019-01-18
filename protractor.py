@@ -68,7 +68,6 @@ class Engrave():
             levelIndex = 0
             
         m = self.m
-        d = self.d
         cfg.font.setHeight(self.letterHeight)
         m.safeZ()
         m.move((x0, y0))
@@ -126,10 +125,10 @@ class Engrave():
                     tmp = angle
                 else:
                     tmp = 180.0 - angle
-                str = "%d" % ((int(tmp)))
+                string = "%d" % ((int(tmp)))
                 r0 = self.radius + letterX
                 x0 = r0 * cos(theta)
                 y0 = r0 * sin(theta)
-                cfg.font.millOnArc((x0, y0), angle - 90, str, True)
+                cfg.font.millOnArc((x0, y0), angle - 90, string, True)
             
 

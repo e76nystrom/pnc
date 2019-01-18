@@ -1,7 +1,7 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt, dflush
-from geometry import Arc, Line, tangent, LINE, CCW, CW, MIN_DIST
-from math import atan2, ceil, cos, degrees, radians, sin, sqrt
+from dbgprt import dprtSet, dprt
+from geometry import MIN_DIST
+from math import ceil
 
 class Broach():
     def __init__(self, cfg):

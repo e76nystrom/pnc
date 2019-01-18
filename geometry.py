@@ -1,5 +1,4 @@
 from __future__ import print_function
-from sys import stdout, stderr
 from copy import copy
 from dbgprt import dprt, dflush, ePrint
 from math import acos, asin, atan2, ceil, cos, degrees, floor, hypot, \
@@ -241,11 +240,11 @@ def pathDir(seg, dbg=False):
     l = seg[index]
     l.prt()
     if l.type == ARC:
-        dir = (CCW, CW)[l.swapped]
+        direction = (CCW, CW)[l.swapped]
         if dbg and draw is not None:
             (x0, y0) = l.p0
-            str = "%3s %2d" % (oStr(dir), l.index)
-            draw.text(str, (x0 + dbg, y0 + dbg), .025)
+            string = "%3s %2d" % (oStr(direction), l.index)
+            draw.text(string, (x0 + dbg, y0 + dbg), .025)
     else:
         (x0, y0) = l.p0
         (x1, y1) = l.p1
@@ -253,23 +252,24 @@ def pathDir(seg, dbg=False):
         dy = y0 - y1
         if abs(dy) < MIN_DIST:
             if dx > 0:
-                dir = CW
+                direction = CW
             else:
-                dir = CCW
+                direction = CCW
         elif dy > 0.0:
-            dir = CCW
+            direction = CCW
         else:
-            dir = CW
+            direction = CW
         if dbg and draw is not None:
             # prev = seg[index - 1]
             # o = orientation(prev.p0, l.p0, l.p1)
-            str = "%s %s %d dy %3.1f dx %3.1f p0 %7.4f, %7.4f " \
-                  "p1 %7.4f %7.4f" % \
-                  (oStr(dir), oStr(dir), l.index, dy, dx, x0, y0, x1, y1)
-            draw.text(str, (x0 + dbg, y0 + dbg), .020)
-    dprt("minXDir %s" % (oStr(dir)))
+            string = "%s %s %d dy %3.1f dx %3.1f p0 %7.4f, %7.4f " \
+                "p1 %7.4f %7.4f" % \
+                (oStr(direction), oStr(direction), l.index, \
+                 dy, dx, x0, y0, x1, y1)
+            draw.text(string, (x0 + dbg, y0 + dbg), .020)
+    dprt("minXDir %s" % (oStr(direction)))
     dprt()
-    return(dir)
+    return(direction)
 
 class Line():
     def __init__(self, p0, p1, i=-1, e=None):
@@ -319,7 +319,7 @@ class Line():
             xt = -xt
             yt = -yt
         dir1 = orientation(self.p0, (xM, yM), (xM + xt, yM + yt))
-        dprt("parallel dir %s %s" % (oStr(dir0), oStr(dir1)))
+        dprt("parallel direction %s %s" % (oStr(dir0), oStr(dir1)))
         return(Line((x0 + xt, y0 + yt), (x1 + xt, y1 + yt), self.index))
 
     def midPoint(self, dist=0, dbg=False):
@@ -342,21 +342,21 @@ class Line():
             pa = (xM + xt, yM + yt)
             pb = (xM - xt, yM - yt)
             pM = pa
-            dir = orientation(self.p0, (xM, yM), pM)
+            direction = orientation(self.p0, (xM, yM), pM)
             if dist > 0:        # dist > 0 is clockwise
-                if dir != CCW:
+                if direction != CCW:
                     pM = pb
             else:               # dist < 0 is counter clockwise
-                if dir != CW:
+                if direction != CW:
                     pM = pb
             if dbg and draw is not None:
                 l = draw.lDebug
                 draw.drawCircle(self.p0, layer=l)
                 draw.drawCircle((xM, yM), 0.020, layer=l)
                 draw.drawCircle(pM, 0.030, layer=l, txt=('+', '-')[dist < 0.0])
-            dir = orientation(self.p0, (xM, yM), pM)
+            direction = orientation(self.p0, (xM, yM), pM)
             if dbg:
-                dprt("midPoint dir %s" % (oStr(dir)))
+                dprt("midPoint direction %s" % (oStr(direction)))
         else:
             pM = (xM, yM)
         return(pM)
@@ -428,11 +428,11 @@ class Line():
             yt = m * xt
         minus = False
         (xp, yp) = p
-        dir = orientation(self.p0, (xp, yp), (xp + xt, yp + yt))
+        direction = orientation(self.p0, (xp, yp), (xp + xt, yp + yt))
         if dist > 0:        # if clockwise
-            minus = dir != CCW
+            minus = direction != CCW
         else:               # if counter clockwise
-            minus = dir != CW
+            minus = direction != CW
         if minus:
             xt = -xt
             yt = -yt
@@ -743,23 +743,23 @@ class Line():
             draw.text(text, (x, y), h, layer)
 
     def prt(self, out=None, eol="\n", prefix=None):
-        str = prefix if prefix is not None else ""
-        str += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \
-               (self.index, self.p0[0], self.p0[1], \
-                self.p1[0], self.p1[1], self.length, \
-                xyDist(self.p0, self.p1))
+        string = prefix if prefix is not None else ""
+        string += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \
+            (self.index, self.p0[0], self.p0[1], \
+             self.p1[0], self.p1[1], self.length, \
+             xyDist(self.p0, self.p1))
         if self.text != None:
-            str += " " + self.text
+            string += " " + self.text
         if out is None:
-            dprt(str)
+            dprt(string)
         else:
-            out.write(str)
+            out.write(string)
             out.write(eol)
 
 # dxf arcs are always counter clockwise.
 
 class Arc():
-    def __init__(self, c, r, a0, a1, i=-1, e=None, dir=CCW):
+    def __init__(self, c, r, a0, a1, i=-1, e=None, direction=CCW):
         self.c = c
         (cX, cY) = c
         a0R = radians(a0)
@@ -768,7 +768,7 @@ class Arc():
                    cY + r * sin(a0R))
         self.p1 = (cX + r * cos(a1R), \
                    cY + r * sin(a1R))
-        if dir == CW:
+        if direction == CW:
             (self.p0, self.p1) = (self.p1, self.p0)
             self.swapped = True
         else:
@@ -871,7 +871,7 @@ class Arc():
                      self.c[1] + (self.r + d) * sin(a))
                 d0 = orientation(self.p0, pM, self.p1)
                 d1 = orientation(self.p0, pM, p)
-                dprt("%2d arc dir %s midPoint dir %s swapped %s" % \
+                dprt("%2d arc direction %s midPoint direction %s swapped %s" % \
                       (self.index, oStr(d0), oStr(d1), self.swapped))
                 if draw is not None:
                     l = draw.lDebug
@@ -1125,17 +1125,17 @@ class Arc():
             draw.arc(self.p0, self.c)
 
     def prt(self, out=None, eol="\n", prefix=None):
-        str = prefix if prefix is not None else ""
-        str += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f arc%s" \
-               " c%6.3f%6.3f r %5.3f %4.0f %4.0f" % \
-               (self.index, self.p0[0], self.p0[1], \
-                self.p1[0], self.p1[1], self.length, \
-                (' ', 's')[self.swapped], self.c[0], self.c[1], \
-                self.r, self.a0, self.a1)
+        string = prefix if prefix is not None else ""
+        string += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f arc%s" \
+            " c%6.3f%6.3f r %5.3f %4.0f %4.0f" % \
+            (self.index, self.p0[0], self.p0[1], \
+             self.p1[0], self.p1[1], self.length, \
+             (' ', 's')[self.swapped], self.c[0], self.c[1], \
+             self.r, self.a0, self.a1)
         if out is None:
-            dprt(str)
+            dprt(string)
         else:
-            out.write(str)
+            out.write(string)
             out.write(eol)
 
 def lineLine(l0, l1):
@@ -1148,41 +1148,41 @@ def lineLine(l0, l1):
     (x3, y3) = l1.p1
     x = None
     y = None
-    if abs(x2 - x3) < MIN_DIST: # l1 vertical
+    if abs(x2 - x3) < MIN_DIST:    # l1 vertical
         x = x2
-    elif abs(y2 - y3) < MIN_DIST: # l1 horizontal
+    elif abs(y2 - y3) < MIN_DIST:  # l1 horizontal
         y = y2
     else:                          # l1 oblique
         m1 = (y3 - y2) / (x3 - x2) # slope of line of l1
         b1 = y2 - m1 * x2          # intercept of l1
 
-    if abs(x0 - x1) < MIN_DIST: # l0 vertical
-        if x is not None:           # l1 vertical
+    if abs(x0 - x1) < MIN_DIST:    # l0 vertical
+        if x is not None:          # l1 vertical
             y = y2
         else:
             x = x0
-            if y is not None:       # l1 horizontal
+            if y is not None:     # l1 horizontal
                 pass
-            else:               # l1 oblique
+            else:                 # l1 oblique
                 y = m1 * x + b1
     elif abs(y0 - y1) < MIN_DIST: # l0 horizontal
-        if y is not None:             # l1 horizontal
+        if y is not None:         # l1 horizontal
             x = x2
         else:
             y = y0
-            if x is not None:       # l1 vertical
+            if x is not None:     # l1 vertical
                 pass
-            else:               # l1 oblique
+            else:                 # l1 oblique
                 x = (y - b1) / m1
     else:                         # l0 oblique
         m = (y1 - y0) / (x1 - x0) # slope of line l0
         b = y0 - m * x0           # intercept of l0
-        if x is not None:             # l1 vertical
+        if x is not None:         # l1 vertical
             y = m * x + b
-        elif y is not None:         # l1 horizontalal
+        elif y is not None:       # l1 horizontalal
             x = (y - b) / m
-        else:                   # l1 oblique
-            if abs(m - m1) < MIN_DIST: # 
+        else:                     # l1 oblique
+            if abs(m - m1) < MIN_DIST:
                 x = x1
                 y = y1
             else:
@@ -1413,12 +1413,13 @@ def arcArc(l0, l1):
             p = pb
     return(p)
 
-def lineLineArc(seg, l0, l1, dist, dir):
+def lineLineArc(seg, l0, l1, dist, direction):
     lDir = orientation(l0.p0, l1.p0, l1.p1)
     if lDir == 0:
         return None
-    flag = lDir != dir
-    dprt("lineLineArc %2d %s %s %s" % (lCount, oStr(dir), oStr(lDir), flag))
+    flag = lDir != direction
+    dprt("lineLineArc %2d %s %s %s" % \
+         (lCount, oStr(direction), oStr(lDir), flag))
     l0.prt()
     l1.prt()
     # common point is l0.p1 and l1.p0
@@ -1445,7 +1446,7 @@ def lineLineArc(seg, l0, l1, dist, dir):
             break                   # inner loop break, done, break outer loop
     else:       
         d = dist
-        if dir == CW:
+        if direction == CW:
             d = -d
         pl0 = l0.parallel(d)
         pl1 = l1.parallel(d)
@@ -1485,7 +1486,7 @@ def lineLineArc(seg, l0, l1, dist, dir):
 # x = (r1*2 - r^2 - d^2) / -2*d
 # x = (r^2 + d^2 - r1^2) / 2*d
 
-def tangent(p, arc, dir):
+def tangent(p, arc, direction):
     (pX, pY) = p
     (cX, cY) = arc.c
     r = arc.r
@@ -1517,7 +1518,7 @@ def tangent(p, arc, dir):
     oM = orientation(p, (xM, yM), arc.c)
     dprt("tP (%7.4f, %7.4f) oP %s tM (%7.4f, %7.4f) oM %s" % \
          (xP, yP, oStr(oP), xM, yM, oStr(oM)))
-    return((xP, yP) if oP == dir else (xM, yM))
+    return((xP, yP) if oP == direction else (xM, yM))
 
 def inside(p, seg, dbg=False):
     (x, y) = p
@@ -1529,8 +1530,8 @@ def inside(p, seg, dbg=False):
         (x1, y1) = l.p1
         cType = 0
         test = False
-        type = l.type
-        if type == LINE:
+        lType = l.type
+        if lType == LINE:
             if x0 == x1:        # if line vertical
                 pass
             elif x0 < x1:       # if start x < end x
@@ -1551,7 +1552,7 @@ def inside(p, seg, dbg=False):
                     if y < yTest:     # if point below intersection
                         cType = 2
                         cross += 1   # line intersects
-        elif type == ARC:
+        elif lType == ARC:
             (cX, cY) = l.c
             r = l.r
             d = x - cX               # distance from x to center x
@@ -1617,7 +1618,7 @@ def reverseSeg(seg, makeCopy=True):
 def splitArcs(seg):
     dprt("splitArcs in")
     newSeg = []
-    # i = 0
+    i = 0
     for l in seg:
         # l.prt()
         if l.type == ARC:
@@ -1646,7 +1647,7 @@ def splitArcs(seg):
                     # dprt("(%5.1f, %5.1f)" % (fix(prev), fix(a)), end=" ")
                     l1 = Arc(l.c, l.r, fix(prev), fix(a), l.index)
                     newSeg.append(l1)
-                    # i += 1
+                    i += 1
                     prev = a
                 # dprt("(%5.1f, %5.1f)" % (fix(prev), fix(a1)))
                 l1 = Arc(l.c, l.r, fix(prev), fix(a1), l.index)
@@ -1667,19 +1668,19 @@ def splitArcs(seg):
                     l1 = Arc(l.c, l.r, fix(a), fix(prev), l.index)
                     l1.swap()
                     newSeg.append(l1)
-                    # i += 1
+                    i += 1
                     prev = a
                 # dprt("(%5.1f, %5.1f)" % (fix(prev), fix(a1)))
                 l1 = Arc(l.c, l.r, fix(a1), fix(prev), l.index)
                 l1.swap()
             newSeg.append(l1)
-            # i += 1
+            i += 1
         elif l.type == LINE:
             # dprt("%3d              s %9.6f, %9.6f e %9.6f, %9.6f" % \
             #       (i, l.p0[0], l.p0[1], l.p1[0], l.p1[1]))
             l1 = copy(l)
             newSeg.append(l1)
-            # i += 1
+            i += 1
     dprt("\nsplitArcs out")
     for l in newSeg:
         l.prt()
@@ -1765,32 +1766,33 @@ def createPath(seg, dist, outside, tabPoints=None, \
             dprt("curdir %s" % (oStr(curDir)))
 
         if cfg.climb:               #      \  outside path
-            dir = CW                # ccw ^ |  / normal
+            direction = CW          # ccw ^ |  / normal
         else:                       #       | ^ cutter turns cw
-            dir = CCW               #  cw v |  \ climb
-        			    #      /
+            direction = CCW         #  cw v |  \ climb
+        #			                       /
         if not outside:             #
-            if dir == CCW:          #        / inside path
-                dir = CW            #  cw ^ |  / normal
+            if direction == CCW:    #        / inside path
+                direction = CW      #  cw ^ |  / normal
             else:                   #       | ^ cutter turns cw
-                dir = CCW           # ccw v |  \ climb
-        cfg.dir = dir
+                direction = CCW     # ccw v |  \ climb
+        cfg.dir = direction
 
-        if curDir != dir:
+        if curDir != direction:
             if dbg:
                 dprt("reverse direction")
             newSeg = reverseSeg(newSeg)
 
         curDir = pathDir(newSeg, dbg)
         if dbg:
-            dprt("%s %s dir %s" % (('normal', 'climb')[cfg.climb], \
-                                   ('inside', 'outside')[outside], oStr(curDir)))
+            dprt("%s %s direction %s" % \
+                 (('normal', 'climb')[cfg.climb], \
+                  ('inside', 'outside')[outside], oStr(curDir)))
 
         if outside:                 # outside ^    cw <-|
-            if dir == CCW:          #  dir cw | dir ccw |
+            if direction == CCW:          #  dir cw | dir ccw |
                 d = -d              #  ccw <- |         v
         else:
-            if dir == CW:
+            if direction == CW:
                 d = -d
     else:                       # open path
         pFirst = newSeg[0].p0
@@ -1800,8 +1802,8 @@ def createPath(seg, dist, outside, tabPoints=None, \
                 dprt("reverse direction")
             newSeg = reverseSeg(newSeg)
         l = newSeg[0]
-        dir = orientation(l.p0, l.p1, ref)
-        if dir == CW:
+        direction = orientation(l.p0, l.p1, ref)
+        if direction == CW:
             d = -d
 
     if dbg:
@@ -1888,7 +1890,8 @@ def createPath(seg, dist, outside, tabPoints=None, \
         for l in segPath:
             l.prt()
             if prev is not None and prev.type == LINE and l.type == LINE:
-                arc = lineLineArc(segPath, prev, l, cfg.endMillSize / 2.0, dir)
+                arc = lineLineArc(segPath, prev, l, \
+                                  cfg.endMillSize / 2.0, direction)
                 if arc is not None:
                     newPath.append(arc)
             newPath.append(l)

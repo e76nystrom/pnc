@@ -135,10 +135,10 @@ class Engrave():
                 d.line((x0 + length, y))
 
             if rem == 0:
-                str = "%d" % (int(abs(angle)))
+                string = "%d" % (int(abs(angle)))
                 if xDir:
                     pt = (x0, y0 + letterX)
                 else:
                     pt = (x0 + letterX, y0)
                 font.millOnCylinder(pt, angle, radius, \
-                                    str, xDir, True)
+                                    string, xDir, True)

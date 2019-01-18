@@ -2,7 +2,8 @@
 
 from dxfwrite import DXFEngine as dxf
 from dbgprt import dprt
-from math import atan2, ceil, cos, degrees, hypot, pi, radians, sin, sqrt, tan
+from math import ceil, hypot, sqrt, tan
+from draw import Draw
 
 MIN_DIST = .0001
 
@@ -98,7 +99,7 @@ class MillLine():
             self.mill.setFeed(cfg.feed)
             self.passes = int(ceil(abs(cfg.depth / cfg.depthPass)))
 
-            dist = xyDist(start, end)
+            # dist = xyDist(start, end)
             if cfg.rampAngle != 0.0:
                 self.rampDist = cfg.depthPass / tan(cfg.rampAngle)
                 # print "rampDist %0.4f" % (self.rampDist)
@@ -152,7 +153,7 @@ class MillLine():
                        widthPasses, widthPerPass))
 
             if self.debug and self.draw1 is None:
-                self.draw1 = draw = Draw()
+                self.draw1 = draw = Draw(cfg)
                 draw.open("slot", dxfFile=True, svg=False)
                 d = draw.d
                 if d is not None:
@@ -222,7 +223,7 @@ class MillLine():
                     cfg.out.write("(width pass %d width %6.4f)\n" % \
                                   (widthPass, w))
                     (x0, y0) = p1
-                    (x1, y1) = p0
+                    y1 = p0[1]
                     self.mill.cut((x0 + w, y0))
                     self.mill.cut((x0 + w, y1))
                     self.mill.cut((x0 - w, y1))
@@ -294,7 +295,7 @@ class MillLine():
                     cfg.out.write("(width pass %d width %6.4f)\n" % \
                                   (widthPass, w))
                     (x0, y0) = p1
-                    (x1, y1) = p0
+                    y1 = p0[1]
                     self.mill.cut((x0, y0 + w))
                     self.mill.cut((x0, y1 + w))
                     self.mill.cut((x0, y1 - w))

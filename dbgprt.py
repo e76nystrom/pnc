@@ -5,20 +5,20 @@ DBG = False
 dbgFile = ""
 dbg = None
 
-def ePrint(str):
-    dprt(str)
+def ePrint(string):
+    dprt(string)
     dflush()
     if not DBG or dbg is not None:
-        print(str, file=stderr)
+        print(string, file=stderr)
     
-def dprt(str="", end='\n'):
+def dprt(string="", end='\n'):
     global DBG, dbg
     if DBG:
         if dbg is None:
-            print(str, end=end)
+            print(string, end=end)
         else:
             try:
-                dbg.write(str)
+                dbg.write(string)
                 dbg.write('\n')
             except IOError:
                 dbg = None

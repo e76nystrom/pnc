@@ -1,12 +1,10 @@
 from __future__ import print_function
-import sys
-from dbgprt import dprtSet, dprt, dflush
+from dbgprt import dprtSet, dprt
 from geometry import Arc, Line
-from geometry import calcAngle, createPath, degAtan2, fix, inside, \
-    orientation, oStr, pathDir, quadrant, reverseSeg, splitArcs, xyDist
+from geometry import createPath, inside, \
+    oStr, reverseSeg, splitArcs, xyDist
 from geometry import ARC, INDEX_MARKER, LINE, CCW, CW, MIN_DIST, \
     MIN_VALUE, MAX_VALUE
-from math import acos, atan2, ceil, cos, degrees, pi, radians, sin, sqrt
 
 XPLUS_YPLUS   = 0
 XMINUS_YPLUS  = 1
@@ -73,9 +71,9 @@ class corner():
           
     def corner(self, args, dbg=True):
         cfg = self.cfg
-        dir = CCW
-        if cfg.dir is not None and cfg.dir == 'CW':
-            dir = CW
+        # direction = CCW
+        # if cfg.dir is not None and cfg.dir == 'CW':
+        #     direction = CW
         cfg.ncInit()
 
         dxf = cfg.dxfInput
@@ -175,7 +173,7 @@ class corner():
             offset = cfg.endMillSize / 2.0 + cfg.finishAllowance
 
             passes = self.maxPasses
-            passOffset = self.passOffset
+            # passOffset = self.passOffset
             if passes == 0:
                 dprt("\nfind max dist")
                 maxD = MIN_VALUE
@@ -190,7 +188,7 @@ class corner():
 
                 total = maxD - offset
                 passes = int(round(total / self.passOffset))
-                passOffset = total / passes
+                # passOffset = total / passes
                 dprt("maxD %7.4f total %7.4f passes %d passOffset %7.4f" % \
                      (maxD, total, passes, self.passOffset))
 
@@ -274,30 +272,30 @@ class corner():
             if self.xPlus:
                 x += r
                 if dy > 0:
-                    a0 = 90;  a1 = 180; dir = CCW; en = 0
+                    a0 = 90;  a1 = 180; direction = CCW; en = 0
                 else:
-                    a0 = 180; a1 = 270; dir = CW;  en = 1
+                    a0 = 180; a1 = 270; direction = CW;  en = 1
             else:
                 x -= r
                 if dy < 0:
-                    a0 = 270; a1 = 360; dir = CCW; en = 2
+                    a0 = 270; a1 = 360; direction = CCW; en = 2
                 else:
-                    a0 = 0;   a1 = 90;  dir = CW;  en = 3
+                    a0 = 0;   a1 = 90;  direction = CW;  en = 3
         elif abs(y - self.trimY) < MIN_DIST:
             if self.yPlus:
                 y += r
                 if dx < 0:
-                    a0 = 180; a1 = 270; dir = CCW; en = 4
+                    a0 = 180; a1 = 270; direction = CCW; en = 4
                 else:
-                    a0 = 270; a1 = 360; dir = CW;  en = 5
+                    a0 = 270; a1 = 360; direction = CW;  en = 5
             else:
                 y -= r
                 if dx > 0:
-                    a0 = 0;   a1 = 90;  dir = CCW; en = 6
+                    a0 = 0;   a1 = 90;  direction = CCW; en = 6
                 else:
-                    a0 = 90;  a1 = 180; dir = CW;  en = 7
-        dprt("entry %d dir %s" % (en, oStr(self.cfg.dir)))
-        l = Arc((x, y), r, a0, a1, dir=dir)
+                    a0 = 90;  a1 = 180; direction = CW;  en = 7
+        dprt("entry %d direction %s" % (en, oStr(self.cfg.dir)))
+        l = Arc((x, y), r, a0, a1, direction=direction)
         path.insert(0, l)
 
     def addEntry1(self, path):
@@ -308,33 +306,33 @@ class corner():
         if q == XPLUS:
             if y > yEnd:
                 y += r
-                a0 = 180; a1 = 270; dir = CCW; en = 0
+                a0 = 180; a1 = 270; direction = CCW; en = 0
             else:
                 y -= r
-                a0 = 90;  a1 = 180; dir = CW;  en = 1
+                a0 = 90;  a1 = 180; direction = CW;  en = 1
         elif q == YPLUS:
             if x > xEnd:
                 x += r
-                a0 = 180; a1 = 270; dir = CW;  en = 4
+                a0 = 180; a1 = 270; direction = CW;  en = 4
             else:
                 x -= r
-                a0 = 270; a1 = 360; dir = CCW; en = 5
+                a0 = 270; a1 = 360; direction = CCW; en = 5
         elif q == XMINUS:
             if y > yEnd:
                 y += r
-                a0 = 270; a1 = 360; dir = CW;  en = 2
+                a0 = 270; a1 = 360; direction = CW;  en = 2
             else:
                 y -= r
-                a0 = 0;   a1 = 90;  dir = CCW; en = 3
+                a0 = 0;   a1 = 90;  direction = CCW; en = 3
         elif q == YMINUS:
             if x > xEnd:
                 x += r
-                a0 = 90;  a1 = 180; dir = CCW; en = 6
+                a0 = 90;  a1 = 180; direction = CCW; en = 6
             else:
                 x -= r
-                a0 = 0;   a1 = 90;  dir = CW;  en = 7
-        dprt("entry %d dir %s" % (en, oStr(self.cfg.dir)))
-        l = Arc((x, y), r, a0, a1, dir=dir)
+                a0 = 0;   a1 = 90;  direction = CW;  en = 7
+        dprt("entry %d direction %s" % (en, oStr(self.cfg.dir)))
+        l = Arc((x, y), r, a0, a1, direction=direction)
         path.insert(0, l)
 
     def addExit(self, path):
@@ -347,30 +345,30 @@ class corner():
             if self.xPlus:
                 x += r
                 if dy > 0:
-                    a0 = 90;  a1 = 180; dir = CW;  ex = 0
+                    a0 = 90;  a1 = 180; direction = CW;  ex = 0
                 else:
-                    a0 = 180; a1 = 270; dir = CCW; ex = 1
+                    a0 = 180; a1 = 270; direction = CCW; ex = 1
             else:
                 x -= r
                 if dy < 0:
-                    a0 = 270; a1 = 360; dir = CW;  ex = 2
+                    a0 = 270; a1 = 360; direction = CW;  ex = 2
                 else:
-                    a0 = 0;   a1 = 90;  dir = CCW; ex = 3
+                    a0 = 0;   a1 = 90;  direction = CCW; ex = 3
         elif abs(y - self.trimY) < MIN_DIST:
             if self.yPlus:
                 y += r
                 if dx < 0:
-                    a0 = 180; a1 = 270; dir = CW;  ex = 4
+                    a0 = 180; a1 = 270; direction = CW;  ex = 4
                 else:
-                    a0 = 270; a1 = 360; dir = CCW; ex = 5
+                    a0 = 270; a1 = 360; direction = CCW; ex = 5
             else:
                 y -= r
                 if dx > 0:
-                    a0 = 0;   a1 = 90;  dir = CW;  ex = 6
+                    a0 = 0;   a1 = 90;  direction = CW;  ex = 6
                 else:
-                    a0 = 90;  a1 = 180; dir = CCW; ex = 7
-        dprt("exit %d dir %s" % (ex, oStr(self.cfg.dir)))
-        l = Arc((x, y), r, a0, a1, dir=dir)
+                    a0 = 90;  a1 = 180; direction = CCW; ex = 7
+        dprt("exit %d direction %s" % (ex, oStr(self.cfg.dir)))
+        l = Arc((x, y), r, a0, a1, direction=direction)
         path.append(l)
 
     def addExit1(self, path):
@@ -381,33 +379,33 @@ class corner():
         if q == XPLUS:
             if y > yStr:
                 y += r
-                a0 = 180; a1 = 270; dir = CW;  ex = 0
+                a0 = 180; a1 = 270; direction = CW;  ex = 0
             else:
                 y -= r
-                a0 = 90;  a1 = 180; dir = CCW; ex = 1
+                a0 = 90;  a1 = 180; direction = CCW; ex = 1
         elif q == YPLUS:
             if x > xStr:
                 x += r
-                a0 = 180; a1 = 270; dir = CCW; ex = 4
+                a0 = 180; a1 = 270; direction = CCW; ex = 4
             else:
                 x -= r
-                a0 = 270; a1 = 360; dir = CW;  ex = 5
+                a0 = 270; a1 = 360; direction = CW;  ex = 5
         elif q == XMINUS:
             if y > yStr:
                 y += r
-                a0 = 270; a1 = 360; dir = CCW; ex = 2
+                a0 = 270; a1 = 360; direction = CCW; ex = 2
             else:
                 y -= r
-                a0 = 0;   a1 = 90;  dir = CW;  ex = 3
+                a0 = 0;   a1 = 90;  direction = CW;  ex = 3
         elif q == YMINUS:
             if x > xStr:
                 x += r
-                a0 = 90;  a1 = 180; dir = CW;  ex = 6
+                a0 = 90;  a1 = 180; direction = CW;  ex = 6
             else:
                 x -= r
-                a0 = 0;   a1 = 90;  dir = CCW; ex = 7
-        dprt("exit %d dir %s" % (ex, oStr(self.cfg.dir)))
-        l = Arc((x, y), r, a0, a1, dir=dir)
+                a0 = 0;   a1 = 90;  direction = CCW; ex = 7
+        dprt("exit %d direction %s" % (ex, oStr(self.cfg.dir)))
+        l = Arc((x, y), r, a0, a1, direction=direction)
         path.append(l)
 
     def trim(self, path):

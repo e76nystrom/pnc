@@ -1,5 +1,5 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt, dflush
+from dbgprt import dprtSet
 from geometry import Line, createPath
 
 class RectOutside():

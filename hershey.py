@@ -31,7 +31,7 @@ from math import atan2, cos, degrees, hypot, pi, radians, sin
 # Drawing this out on a piece of paper will reveal it represents an 'H'.
 
 class Font():
-    def __init__(self, m, d, file):
+    def __init__(self, m, d, fontFile):
         self.letter = []
         self.min = 99
         self.max = -99
@@ -40,17 +40,17 @@ class Font():
         self.dbg = False
         if self.dbg:
             dprtSet(True)
-        self.readFont(file)
+        self.readFont(fontFile)
         self.m = m
         self.d = d
         self.zOffset = 0.0
 
-    def readFont(self, file):
-        inp = open(file, 'rb')
+    def readFont(self, fontFile):
+        inp = open(fontFile, 'rb')
         c = ord(' ')
         while True:
-            min = 99
-            max = -99
+            minVal = 99
+            maxVal = -99
             val = inp.read(5)
             if len(val) == 0:
                 break
@@ -72,10 +72,10 @@ class Font():
                 else:
                     x = ord(x) - ord('R')
                     y = ord(y) - ord('R')
-                    if y > max:
-                        max = y
-                    if y < min:
-                        min = y
+                    if y > maxVal:
+                        maxVal = y
+                    if y < minVal:
+                        minVal = y
                     chArray.append([x + abs(l), y, move])
                     move = False
             self.letter.append(Letter(r, l, chArray))
@@ -85,7 +85,7 @@ class Font():
             if self.dbg:
                 dprt("%3d '%1c' length %2d index %4d len %2d l %3d r %3d "\
                      "max %3d min %3d" % \
-                     (c, c, length, index, len(chArray), l, r, max, min))
+                     (c, c, length, index, len(chArray), l, r, maxVal, minVal))
                 j = 0
                 for i, (x, y, move) in enumerate(chArray):
                     dprt("(%2d %3d %3d %5s)" % (i, x, y, move), end=" ")
@@ -95,10 +95,10 @@ class Font():
                 if j & 3 != 0:
                     dprt()
                 c += 1
-            if max > self.max:
-                self.max = max
-            if min < self.min:
-                self.min = min
+            if maxVal > self.max:
+                self.max = maxVal
+            if minVal < self.min:
+                self.min = minVal
 
     def setHeight(self, h):
         self.height = h
@@ -114,29 +114,29 @@ class Font():
     def setZOffset(self, zOffset):
         self.zOffset = zOffset
 
-    def width(self, str):
+    def width(self, string):
         width = 0
-        for b in list(str):
+        for b in list(string):
             letter = self.letter[ord(b) - ord(' ')]
             width += letter.width()
         return(self.scale * width)
 
-    def left(self, str):
+    def left(self, string):
         left = 0
-        for b in list(str):
+        for b in list(string):
             letter = self.letter[ord(b) - ord(' ')]
             left += letter.l
         return(self.scale * left)
     
-    def mill(self, pt, str, xDir=True, center=False):
+    def mill(self, pt, string, xDir=True, center=False):
         (x, y) = pt
         if center:
-            w = self.width(str) / 2.0
+            w = self.width(string) / 2.0
             if xDir:
                 x -= w
             else:
                 y -= w
-        for b in list(str):
+        for b in list(string):
             letter = self.letter[ord(b) - ord(' ')]
             letter.mill(self, (x, y), xDir, b)
             if xDir:
@@ -144,35 +144,35 @@ class Font():
             else:
                 y += letter.width() * self.scale
 
-    def millOnArc(self, pt, angle, str, center=False):
+    def millOnArc(self, pt, angle, string, center=False):
         # dprt("angle %7.3f" % (angle))
         a = radians(angle)
         (x0, y0) = pt
         if center:
-            w = self.width(str) / 2.0
+            w = self.width(string) / 2.0
             x0 -= w * cos(pi + a)
             y0 -= w * sin(pi + a)
         cosA = cos(a)
         sinA = sin(a)
         scale = self.scale
-        for b in list(str):
+        for b in list(string):
             letter = self.letter[ord(b) - ord(' ')]
             letter.millOnArc(self, (x0, y0), a)
             w = letter.width() * scale
             x0 -= w * cosA
             y0 -= w * sinA
             
-    def millOnCylinder(self, pt, angle, radius, str, xDir, center=False):
+    def millOnCylinder(self, pt, angle, radius, string, xDir, center=False):
         a0 = angle
         if center:
-            w = self.width(str) / 2.0
+            w = self.width(string) / 2.0
             if xDir:
                 a0 += degrees(atan2(w, radius))
             else:
                 a0 -= degrees(atan2(w, radius))
         self.m.retract()
         self.m.out.write("g0 a%7.4f\n" % (a0))
-        for b in list(str):
+        for b in list(string):
             letter = self.letter[ord(b) - ord(' ')]
             letter.millOnCylinder(self, pt, a0, radius, xDir)
             if xDir:
@@ -225,8 +225,8 @@ class Letter():
         for (x, y, move) in self.chArray:
             theta = atan2(y, x) + angle
             r = hypot(x, y)
-            x0 = xC + scale * r * cos(theta);
-            y0 = yC + scale * r * sin(theta);
+            x0 = xC + scale * r * cos(theta)
+            y0 = yC + scale * r * sin(theta)
             p0 = (x0, y0)
             if move:
                 m.retract()

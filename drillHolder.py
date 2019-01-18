@@ -1,7 +1,8 @@
 import os
 from dbgprt import dprt, ePrint
-from pnc import Draw, Drill, O_UPPER_LEFT, O_LOWER_LEFT
+from pnc import Drill, O_UPPER_LEFT, O_LOWER_LEFT
 from geometry import MIN_DIST
+from draw import Draw
 
 class DrillHolder():
     def __init__(self, cfg):
@@ -125,7 +126,7 @@ class DrillHolder():
                 y = -yOffset
                 ySpace = -ySpace
             else:
-                y = -ySize + yOffset
+                y = -self.ySize + yOffset
         elif orientation == O_LOWER_LEFT:
             if self.top:
                 y = self.ySize - yOffset
@@ -279,7 +280,6 @@ class DrillHolder():
             offset -= self.letterHeight / 2
         else:
             offset += self.letterHeight / 2
-        m = cfg.mill
         m = self.cfg.mill
         m.safeZ()
         zOffset = 0.0
@@ -332,11 +332,11 @@ class DrillHolder():
                 font.mill((x, y), text, center=True)
 
     def dxfHolder(self, args):
-        file = args[1]
-        if len(os.path.dirname(file)) == 0:
-            file = os.path.join(self.cfg.dirPath, file)
-        d = Draw()
-        d.open(file, True, False)
+        dFile = args[1]
+        if len(os.path.dirname(dFile)) == 0:
+            dFile = os.path.join(self.cfg.dirPath, dFile)
+        d = Draw(self.cfg)
+        d.open(dFile, True, False)
         d.material(self.xSize, self.ySize)
         r = self.mountSize / 2.0
         for p in self.mountInfo:
@@ -346,11 +346,11 @@ class DrillHolder():
         d.close()
 
     def scadHolderBase(self, args):
-        file = args[1]
-        if len(os.path.dirname(file)) == 0:
-            file = os.path.join(self.cfg.dirPath, file)
-        print(file)
-        f = open(file, "w")
+        sFile = args[1]
+        if len(os.path.dirname(sFile)) == 0:
+            sFile = os.path.join(self.cfg.dirPath, sFile)
+        print(sFile)
+        f = open(sFile, "w")
         m = 25.4
         self.baseThickness = 0.0625
         self.mountHole = 0.125

@@ -1,12 +1,12 @@
 from __future__ import print_function
 import pyclipper
 import sys
-from dbgprt import dprtSet, dprt, dflush
+from dbgprt import dprtSet, dprt
 from geometry import Arc, Line
 from geometry import calcAngle, degAtan2, fix, orientation, oStr, \
     pathDir, xyDist
-from geometry import ARC, LINE, CCW, CW, MIN_DIST, MAX_VALUE
-from math import acos, atan2, ceil, cos, degrees, pi, radians, sin, sqrt
+from geometry import ARC, LINE, MAX_VALUE
+from math import acos, ceil, cos, degrees, pi, radians, sin
 
 SCALE = 1000000.0
 
@@ -72,9 +72,9 @@ class pocket():
             dbg = self.dbg
         layer = args[1]
         cfg = self.cfg
-        dir = CCW
-        if cfg.dir is not None and cfg.dir == 'CW':
-            dir = CW
+        # dir = CCW
+        # if cfg.dir is not None and cfg.dir == 'CW':
+        #     dir = CW
         stepOver = cfg.endMillSize * self.stepOver
         cfg.ncInit()
         segments = cfg.dxfInput.getPath(layer)
@@ -236,10 +236,10 @@ class pocket():
     def outside(self, args, dbg=True):
         layer = args[1]
         cfg = self.cfg
-        dir = CCW
-        if cfg.dir is not None and cfg.dir == 'CW':
-            dir = CW
-        stepOver = cfg.endMillSize * self.stepOver
+        # dir = CCW
+        # if cfg.dir is not None and cfg.dir == 'CW':
+        #     dir = CW
+        # stepOver = cfg.endMillSize * self.stepOver
         cfg.ncInit()
         segments = cfg.dxfInput.getPath(layer)
         dxf = cfg.dxfInput
@@ -267,7 +267,7 @@ class pocket():
         pco = pyclipper.PyclipperOffset()
         pc = pyclipper.Pyclipper()
         clip = (p0, p1, p2, p3)
-        mp = cfg.getMillPath()
+        # mp = cfg.getMillPath()
         self.last = cfg.mill.last
         for seg in segments:
             self.pDir = pathDir(seg)
@@ -348,7 +348,7 @@ class pocket():
             arcAngle = a1 - a0
             segments = int(ceil((arcAngle) / angle))
             aInc = arcAngle / segments
-            aRad = radians(aInc)
+            # aRad = radians(aInc)
         else:               # counter clockwise
             if a0 < a1:
                 a0 += 360.0

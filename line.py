@@ -49,7 +49,7 @@ class Engrave():
     def scribe(self):
         l = Line(self.p0, self.p1)
         if l.length != 0:
-            self.scribeLine()
+            self.scribeLine(l)
 
     def scribeLine(self, line):
         cfg = self.cfg

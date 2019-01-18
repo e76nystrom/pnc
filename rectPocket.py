@@ -1,7 +1,7 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt, dflush
-from geometry import Arc, Line, tangent, LINE, CCW, CW, MIN_DIST
-from math import atan2, ceil, cos, degrees, radians, sin, sqrt
+from dbgprt import dprt, ePrint
+from geometry import Arc, Line, LINE, CW, MIN_DIST
+from math import ceil, sqrt
 
 class RectPocket():
     def __init__(self, cfg):
@@ -27,9 +27,6 @@ class RectPocket():
     def rectPocket(self, args):
         layer = args[1]
         cfg = self.cfg
-        dir = CCW
-        if cfg.dir is not None and cfg.dir == 'CW':
-            dir = CW
         cfg.ncInit()
         segments = cfg.dxfInput.getPath(layer)
         for seg in segments:
@@ -49,7 +46,7 @@ class RectPocket():
                         continue
                 else:
                     ePrint("rectPocket segment not a line")
-                    contiue
+                    continue
             if len(vert) != 2 or len(horiz) != 2:
                 ePrint("rectPocket incorrect number of sides")
                 continue
@@ -138,7 +135,7 @@ class RectPocket():
                         y0 += stepOver
                 self.millPath()
 
-    def millRect(self, prev, x0, y0, w, h, dir=CCW):
+    def millRect(self, prev, x0, y0, w, h, direction=CW) :
         x1 = x0 + w
         y1 = y0 + h
         p0 = (x0, y0)
@@ -148,7 +145,7 @@ class RectPocket():
         if prev is not None:
             self.addLineSeg(prev, p0)
         if w > 0 and h > 0:
-            if dir == CW:
+            if direction == CW:
                 self.addLineSeg(p0, p1)
                 self.addLineSeg(p1, p2)
                 self.addLineSeg(p2, p3)

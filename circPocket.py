@@ -1,5 +1,5 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt, dflush
+from dbgprt import dprtSet, dprt
 from geometry import Arc, Line, tangent, xyDist, CCW, CW, MIN_DIST
 from math import atan2, ceil, cos, degrees, radians, sin, sqrt
 
@@ -46,12 +46,12 @@ class CircularPocket():
     def pocket(self, args):
         layer = args[1]
         cfg = self.cfg
-        dir = CCW
+        direction = CCW
         if cfg.dir is not None and cfg.dir == 'CW':
-            dir = CW
+            direction = CW
         cfg.ncInit()
         endAngle = self.endAngle
-        swapped = False
+        # swapped = False
         holes = cfg.dxfInput.getHoles(layer)
         for hole in holes:
             diameter = hole.size
@@ -75,18 +75,18 @@ class CircularPocket():
                     self.index = 0
                     r = radius
                     self.addSeg(Arc((x, y), r, strAngle, endAngle, \
-                                    self.index, dir=dir))
+                                    self.index, direction=direction))
                     for i in range(passes):
                         rPrev = r
                         a = radians(endAngle)
                         p0 = (rPrev * cos(a) + x, rPrev * sin(a) + y)
                         r -= stepOver
                         arc = Arc((x, y), r, 0.0, 360)
-                        p1 = tangent(p0, arc, dir)
+                        p1 = tangent(p0, arc, direction)
                         strAngle = degrees(atan2(p0[0] - x, p0[1] - y))
                         self.addSeg(Line(p0, p1, self.index))
                         self.addSeg(Arc((x, y), r, strAngle, endAngle, \
-                                        self.index, dir=dir))
+                                        self.index, direction=direction))
                         self.drawMill(p0)
                         self.drawMill(p1)
                         dprt("pass %d rPrev %7.4f (%7.4f, %7.4f) " \
@@ -110,7 +110,7 @@ class CircularPocket():
                     self.path = []
                     self.index = 0
                     self.addSeg(Arc((x, y), radius, strAngle, endAngle, \
-                                    self.index, dir=dir))
+                                    self.index, direction=direction))
                     r1 = radius - cfg.endMillSize / 2.0
                     a = radians(endAngle)
                     p0 = (-radius * cos(a) + x, radius * sin(a) + y)
@@ -165,12 +165,12 @@ class CircularPocket():
         except ValueError:
             innerLayer = args[2]
         cfg = self.cfg
-        dir = CCW
+        direction = CCW
         if cfg.dir is not None and cfg.dir == 'CW':
-            dir = CW
+            direction = CW
         cfg.ncInit()
-        endAngle = self.endAngle
-        swapped = False
+        # endAngle = self.endAngle
+        # swapped = False
         outer = cfg.dxfInput.getCircles(outerLayer)
         if innerLayer is not None:
             inner = cfg.dxfInput.getCircles(innerLayer)
@@ -199,19 +199,19 @@ class CircularPocket():
             r0 = innerD / 2.0 - endMillRadius
             if self.leadRadius != 0:
                 leadCenter = (r0 - self.leadRadius + xC, yC)
-                if dir == CCW:
+                if direction == CCW:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    270, 0, dir=CCW))
+                                    270, 0, direction=CCW))
                 else:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    0, 90, dir=CW))
+                                    0, 90, direction=CW))
 
             for passCount in range(passes):
                 r1 = r0 + distPass
                 y1 = sqrt(r1*r1 - r0*r0)
                 p0 = (xC + r0, yC)
 
-                if dir == CCW:
+                if direction == CCW:
                     p1 = (xC + r0, yC + y1)
                 else:
                     p1 = (xC + r0, yC - y1)
@@ -219,34 +219,34 @@ class CircularPocket():
                 self.addSeg(Line(p0, p1))
 
                 a0 = degrees(atan2(y1, r0))
-                if dir == CCW:
-                    self.addSeg(Arc(c, r1, a0, 0, dir=CCW))
+                if direction == CCW:
+                    self.addSeg(Arc(c, r1, a0, 0, direction=CCW))
                 else:
-                    self.addSeg(Arc(c, r1, 0, a0, dir=CW))
+                    self.addSeg(Arc(c, r1, 0, a0, direction=CW))
                 r0 = r1
-            self.addSeg(Arc(c, r1, 0, a0, dir=dir))
+            self.addSeg(Arc(c, r1, 0, a0, direction=direction))
 
             if self.leadRadius != 0:
                 r2 = r1 - self.leadRadius
                 a0R = radians(a0)
                 leadCenter = (r2 * cos(a0R) + xC, r2 * sin(a0R) + yC)
-                if dir == CCW:
+                if direction == CCW:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    a0, a0+90, dir=CCW))
+                                    a0, a0+90, direction=CCW))
                 else:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    a0-90, a0, dir=CW))
+                                    a0-90, a0, direction=CW))
             self.millPath()
 
     def finishHole(self, args):
         layer = args[1]
         cfg = self.cfg
-        dir = CCW
+        direction = CCW
         if cfg.dir is not None and cfg.dir == 'CW':
-            dir = CW
+            direction = CW
         cfg.ncInit()
-        endAngle = self.endAngle
-        swapped = False
+        # endAngle = self.endAngle
+        # swapped = False
         holes = cfg.dxfInput.getCircles(layer)
         for (c, diam) in holes:
             draw = self.cfg.draw
@@ -261,28 +261,28 @@ class CircularPocket():
             r0 = diam / 2.0 - endMillRadius
             if self.leadRadius != 0:
                 leadCenter = (r0 - self.leadRadius + xC, yC)
-                if dir == CCW:
+                if direction == CCW:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    270, 0, dir=CCW))
+                                    270, 0, direction=CCW))
                 else:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    0, 90, dir=CW))
+                                    0, 90, direction=CW))
 
             finishPasses = self.finishPasses
             if finishPasses == 0:
                 finishPasses = 1
             for i in range(finishPasses):
-                self.addSeg(Arc(c, r0, 0, 360, dir=dir))
-            self.addSeg(Arc(c, r0, 0,  15, dir=dir))
+                self.addSeg(Arc(c, r0, 0, 360, direction=direction))
+            self.addSeg(Arc(c, r0, 0,  15, direction=direction))
 
             if self.leadRadius != 0:
                 tmp = r0 - self.leadRadius
                 a0 = radians(15)
                 leadCenter = (tmp * cos(a0) + xC, tmp * sin(a0) + yC)
-                if dir == CCW:
+                if direction == CCW:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    15, 90 + 15, dir=CCW))
+                                    15, 90 + 15, direction=CCW))
                 else:
                     self.addSeg(Arc(leadCenter, self.leadRadius,
-                                    270, 0, dir=CW))
+                                    270, 0, direction=CW))
             self.millPath()
