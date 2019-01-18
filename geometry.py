@@ -150,7 +150,7 @@ def orientation(p1, p2, p3):
     # dprt("val %9.6f p0 %6.3f, %6.3f p1 %6.3f, %6.3f p2 %6.3f, %6.3f" % \
     #       (val, p1[0], p2[1], p2[0], p2[1], p3[0], p3[1]))
     if abs(val) < MIN_DIST:
-        return 0;
+        return 0
     elif val > 0:
         return CW
     else:
@@ -445,7 +445,7 @@ class Line():
                       
         dx = x1 - x0
         dy = y1 - y0
-        magSqr = dx * dx + dy * dy;
+        magSqr = dx * dx + dy * dy
 
         u = ((x - x0) * dx + (y - y0) * dy) / float(magSqr)
         if u < 0.0 or u > 1.0:
@@ -1924,7 +1924,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
 def labelPoints(seg):
     if draw is None:
         return
-    for (i, l) in enumerate(seg):
+    for l in seg:
         (x, y) = l.p0
         t = 'l'
         if l.type == ARC:

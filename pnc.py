@@ -1075,7 +1075,7 @@ class Config():
             self.orientation = self.evalIntArg(args[1])
             if self.orientation >= 0 or \
                self.orientation < O_MAX:
-                ePrint("invalid orientation %d", self.orientation)
+                ePrint("invalid orientation %d" % (self.orientation))
                 self.orientation = None
         layer = None
         if self.orientation == O_POINT:
@@ -1286,7 +1286,7 @@ class Config():
             if size <= 0:
                 ePrint("endmill %6.4f to big for hole %6.4f with "\
                        "finishAllowace %6.4f" % \
-                       (self.endMillSize, hSize, self.finisAllowance))
+                       (self.endMillSize, hSize, self.finishAllowance))
                 sys.exit()
             self.mill.out.write("(drill size %6.3f hole size %6.3f "\
                                 "holes %d)\n" % \
@@ -1382,7 +1382,7 @@ class Config():
                     if size <= 0:
                         ePrint("endmill %6.4f to big for hole %6.4f with "\
                                "finishAllowace %6.4f" % \
-                               (self.endMillSize, hSize, self.finisAllowance))
+                               (self.endMillSize, hSize, self.finishAllowance))
                         sys.exit()
                     self.depth = depth
                     a = Arc(loc, size, 0.0, 360.0, i=n)
@@ -1453,12 +1453,12 @@ class Config():
             # print(dir(module))
             # for m in inspect.getmembers(module, inspect.isclass):
             #     print(m)
-            self.engrave = module.Engrave(cfg)
-            self.engrave.setup()
+            self.engraveModule = module.Engrave(cfg)
+            self.engraveModule.setup()
         else:
-            if self.engrave is not None:
+            if self.engraveModule is not None:
                 self.ncInit()
-                self.engrave.engrave()
+                self.engraveModule.engrave()
 
     def load(self, args):
         if len(args) >= 2:
