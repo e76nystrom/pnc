@@ -314,7 +314,9 @@ class Config():
             ('load', self.load), \
 
             ('var', self.var), \
-            ('rm', self.remove), \
+            ('rm',  self.remove), \
+            ('run', self.runCmd), \
+            ('runscript', self.runScript), \
         )
         self.addCommands(self.cmds)
 
@@ -1577,6 +1579,46 @@ class Config():
             for f in files:
                 dprt("remove %s" % (f,))
                 os.remove(f)
+
+    def runCmd(self, args):
+        currentDir = os.getcwd()
+        dprt("currentDir %s" % (currentDir,))
+        if len(self.dirPath) != 0:
+            dprt("dirPath %s" % (self.dirPath,))
+            dflush()
+            os.chdir(self.dirPath)
+        cmd = ["bash", "-c",]
+        script = ""
+        for i in range(1, len(args)):
+            script += args[i] + " "
+        cmd.append(script)
+        try:
+            result = subprocess.check_output(cmd)
+            dprt("%s" % (result,), end="")
+        except subprocess.CalledProcessError as e:
+            eprint("return code %d\n%s\n%s" % (e.returncode, e.cmd, e.output))
+        os.chdir(currentDir)
+
+    def runScript(self, args):
+        currentDir = os.getcwd()
+        if len(self.dirPath) != 0:
+            dprt("dirPath %s" % (self.dirPath,))
+            dflush()
+            os.chdir(self.dirPath)
+        if os.path.isfile(args[1]):
+            cmd = ["bash", "-c",]
+            script = ""
+            for i in range(1, len(args)):
+                script += args[i] + " "
+            cmd.append(script)
+            try:
+                result = subprocess.check_output(cmd)
+                dflush()
+                dprt("%s" % (result,), end="")
+            except subprocess.CalledProcessError as e:
+                ePrint("return code %d\n%s\n%s" % \
+                       (e.returncode, e.cmd, e.output))
+        os.chdir(currentDir)
 
 class Drill():
     def __init__(self, size):
