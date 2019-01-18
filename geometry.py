@@ -455,7 +455,7 @@ class Line():
         yt = y0 + u * dy
 
         d = hypot(xt - x, yt - y)
-        return(d);
+        return(d)
 
     def startDist(self, p):
         return(xyDist(self.p0, p))
@@ -1617,7 +1617,7 @@ def reverseSeg(seg, makeCopy=True):
 def splitArcs(seg):
     dprt("splitArcs in")
     newSeg = []
-    i = 0
+    # i = 0
     for l in seg:
         # l.prt()
         if l.type == ARC:
@@ -1646,7 +1646,7 @@ def splitArcs(seg):
                     # dprt("(%5.1f, %5.1f)" % (fix(prev), fix(a)), end=" ")
                     l1 = Arc(l.c, l.r, fix(prev), fix(a), l.index)
                     newSeg.append(l1)
-                    i += 1
+                    # i += 1
                     prev = a
                 # dprt("(%5.1f, %5.1f)" % (fix(prev), fix(a1)))
                 l1 = Arc(l.c, l.r, fix(prev), fix(a1), l.index)
@@ -1667,19 +1667,19 @@ def splitArcs(seg):
                     l1 = Arc(l.c, l.r, fix(a), fix(prev), l.index)
                     l1.swap()
                     newSeg.append(l1)
-                    i += 1
+                    # i += 1
                     prev = a
                 # dprt("(%5.1f, %5.1f)" % (fix(prev), fix(a1)))
                 l1 = Arc(l.c, l.r, fix(a1), fix(prev), l.index)
                 l1.swap()
             newSeg.append(l1)
-            i += 1
+            # i += 1
         elif l.type == LINE:
             # dprt("%3d              s %9.6f, %9.6f e %9.6f, %9.6f" % \
             #       (i, l.p0[0], l.p0[1], l.p1[0], l.p1[1]))
             l1 = copy(l)
             newSeg.append(l1)
-            i += 1
+            # i += 1
     dprt("\nsplitArcs out")
     for l in newSeg:
         l.prt()
@@ -1753,8 +1753,8 @@ def createPath(seg, dist, outside, tabPoints=None, \
     if closed and closeOpen:    # if close open path
         pStr = newSeg[0].p0
         pEnd = newSeg[-1].p1
-        if xyDist(pStart, pEnd) > MIN_DIST:
-            newSeg.append(Line(pEnd,pStart))
+        if xyDist(pStr, pEnd) > MIN_DIST:
+            newSeg.append(Line(pEnd,pStr))
 
     labelPoints(newSeg)
 

@@ -189,14 +189,14 @@ class Config():
         self.cmdAction = {}
         self.cmds = \
         ( \
-            ('xpark', self.xPark), \
-            ('ypark', self.yPark), \
-            ('zpark', self.zPark), \
+            ('xpark', self.parkX), \
+            ('ypark', self.parkY), \
+            ('zpark', self.ParkZ), \
             ('park', self.park), \
 
-            ('xinitial', self.xInitial), \
-            ('yinitial', self.yInitial), \
-            ('zinitial', self.zInitial), \
+            ('xinitial', self.initialX), \
+            ('yinitial', self.initialY), \
+            ('zinitial', self.initialZ), \
             ('initial', self.initial), \
 
             ('size', self.setSize), \
@@ -402,13 +402,13 @@ class Config():
                     elif tmp == 'h':
                         self.help()
             elif val.startswith('?'):
-                self.help();
+                self.help()
             else:
                 inFile = val
                 if ".dxf" in inFile:
                     self.dxfFile = val
                 else:
-                    if not re.search('\.[a-zA-Z0-9]*$', inFile):
+                    if not re.search(r'\.[a-zA-Z0-9]*$', inFile):
                         inFile += ".pnc"
                     dprt(inFile)
                     dflush()
@@ -468,13 +468,14 @@ class Config():
                     if len(self.dbgFile) != 0 else "")
 
             multi = False
+            last = ""
             for l in inp:
                 self.lineNum += 1
                 dprt("%2d %s" % (self.lineNum, l), end="")
                 dflush()
                 l = l.strip()
-                line = re.sub("\s*#.*$", "", l) # remove comments from line
-                line = re.sub("\s+", " ", line) # multiple spaces with one space
+                line = re.sub(r"\s*#.*$", "", l) # remove comments from line
+                line = re.sub(r"\s+", " ", line) # multiple spaces with one space
                 if multi:                       # if continuation of prev line
                     multi = False
                     line = last + line
@@ -620,26 +621,26 @@ class Config():
         if mill is not None:
             mill.setY(coordinate, yVal)
         
-    def xPark(self, args):
+    def parkX(self, args):
         self.xPark = self.evalFloatArg(args[1])
 
-    def yPark(self, args):
+    def parkY(self, args):
         self.yPark = self.evalFloatArg(args[1])
 
-    def zPark(self, args):
+    def ParkZ(self, args):
         self.zPark = self.evalFloatArg(args[1])
 
     def park(self, args):
         result = self.getLocation(args, [self.xPark, self.yPark, self.zPark])
         (self.xPark, self.yPark, self.zPark) = result
 
-    def xInitial(self, args):
+    def initialX(self, args):
         self.xInitial = self.evalFloatArg(args[1])
 
-    def yInitial(self, args):
+    def initialY(self, args):
         self.yInitial = self.evalFloatArg(args[1])
 
-    def zInitial(self, args):
+    def initialZ(self, args):
         self.zInitial = self.evalFloatArg(args[1])
 
     def initial(self, args):
@@ -650,7 +651,7 @@ class Config():
     def getLocation(self, args, result=None):
         if result is None:
             result = [0.0, 0.0, 0.0]
-        self.reLoc = "^.*? +([xyz]) *([0-9\.\-]+) *([xyz]*) *([0-9\.\-]*)" \
+        self.reLoc = r"^.*? +([xyz]) *([0-9\.\-]+) *([xyz]*) *([0-9\.\-]*)" \
                      " *([xyz]*) *([0-9\.\-]*)"
         match = re.match(self.reLoc, args[0].lower())
         if match is not None:
@@ -735,7 +736,7 @@ class Config():
     def setTool(self, args):
         if len(args) >= 2:
             self.tool = self.evalIntArg(args[1])
-            match = re.match("^[a-zA-z]+ +[0-9]+ +(.*)$", args[0])
+            match = re.match(r"^[a-zA-z]+ +[0-9]+ +(.*)$", args[0])
             if match is not None:
                 self.toolComment = match.group(1)
             else:
@@ -945,7 +946,7 @@ class Config():
                         d = self.depth
             mill.retract()
         elif op == TAP:
-            out.write("m0 (pause insert tap)\n");
+            out.write("m0 (pause insert tap)\n")
             if cfg.variables:
                 z = "[#%s + #%s]" % (self.topVar, self.depthVar)
             else:
@@ -1091,7 +1092,7 @@ class Config():
         fileName = l.split(' ', 1)[-1]
         if fileName == "*":
             if self.dxfFile is not None:
-                if re.search("\.dxf$", self.dxfFile):
+                if re.search(r"\.dxf$", self.dxfFile):
                     fileName = self.dxfFile
                 else:
                     fileName = self.dxfFile + ".dxf"
@@ -1335,7 +1336,7 @@ class Config():
         self.tabPoints = []
 
     def getStepProfile(self, args):
-        expr = "^\\w+\\s+(.*)"
+        expr = r"^\\w+\\s+(.*)"
         m = re.match(expr, args[0])
         if m:
             self.stepProfile = self.evalListArg(m.group(1))
@@ -1478,7 +1479,7 @@ class Config():
                     self.addCommands(c.cmds)
 
     def var(self, args):
-        expr = "var\\s+(\\w+)\\s+(.+)"
+        expr = r"var\\s+(\\w+)\\s+(.+)"
         m = re.match(expr, args[0])
         if m:
             var = m.group(1)
@@ -1503,9 +1504,9 @@ class Config():
             dprt("evalFloatArg %s %7.4f" % (arg, val))
             return(val)
         except NameError:
-            eprint("nameError in %s" % arg)
+            ePrint("nameError in %s" % arg)
         except SyntaxError:
-            eprint("syntaxError in %s" % arg)
+            ePrint("syntaxError in %s" % arg)
         except:
             traceback.print_exc()
         sys.exit()            
@@ -1572,7 +1573,7 @@ class Config():
         self.level = True
         
     def remove(self, args):
-        expr = "^\\w+\\s+(.*)"
+        expr = r"^\\w+\\s+(.*)"
         m = re.match(expr, args[0])
         if m:
             files = glob.glob(os.path.join(self.dirPath, m.group(1)))
@@ -1596,7 +1597,7 @@ class Config():
             result = subprocess.check_output(cmd)
             dprt("%s" % (result,), end="")
         except subprocess.CalledProcessError as e:
-            eprint("return code %d\n%s\n%s" % (e.returncode, e.cmd, e.output))
+            ePrint("return code %d\n%s\n%s" % (e.returncode, e.cmd, e.output))
         os.chdir(currentDir)
 
     def runScript(self, args):
@@ -1802,6 +1803,7 @@ class MillPath():
         if self.tab:            # if tab pass
             return
         # if self.closed and self.rampAngle != 0.0: # if ramp configured
+        self.lastRamp = 0.0
         if self.rampAngle != 0.0: # if ramp configured
             self.ramp = True
             passDepth = self.currentDepth - self.lastDepth
@@ -2227,7 +2229,7 @@ class Draw():
 
     def close(self):
         if self.d is not None:
-            dprt("save drawing file");
+            dprt("save drawing file")
             self.d.save()
             self.d = None
 

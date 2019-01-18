@@ -48,7 +48,7 @@ class Mill():
                           (cfg.retractVar, cfg.retract))
                 out.write("#%s = %s	(safe z)\n" % \
                           (cfg.safeZVar, cfg.safeZ))
-                out.write("#%s = %s	(top)\n" % (cfgtopVar, cfg.top))
+                out.write("#%s = %s	(top)\n" % (cfg.topVar, cfg.top))
             else:
                 out.write("(%7.4f	depth)\n" % (cfg.depth))
                 out.write("(%7.4f	retract between holes)\n" % \
@@ -85,7 +85,7 @@ class Mill():
 
     def pause(self):
         self.out.write("m0 (pause)\n")
-        self.blankLine();
+        self.blankLine()
 
     def toolChange(self, tool, toolComment=""):
         if tool != self.tool:
@@ -171,7 +171,7 @@ class Mill():
                 if fast:
                     self.write("g0 z %s (retract)\n" % (z))
                 else:
-                    self.write("g1 z %s f %1.1f(retract)\n" % (z, self.zFeed))
+                    self.write("g1 z %s f %1.1f(retract)\n" % (z, cfg.zFeed))
 
     def safeZ(self):
         cfg = self.cfg
@@ -278,7 +278,7 @@ class Mill():
         out.write("g0 x%7.4f y%7.4f\n" % end)
         out.write("g38.2 z%6.4f f%0.1f%s\n" % (cfg.probeDepth, feed, str))
         out.write("g0 z%6.4f\n" % (cfg.retract))
-        self.blankLIne()
+        self.blankLine()
         self.last = end
 
     def probeSetZ(self, feed=1.0, z=0.00):
