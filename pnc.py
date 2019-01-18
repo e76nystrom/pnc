@@ -6,8 +6,8 @@
 from __future__ import print_function
 import sys
 import os
-import wx
-import wx.lib.colourdb
+# import wx
+# import wx.lib.colourdb
 import traceback
 import re
 import geometry
@@ -16,7 +16,7 @@ import subprocess
 import platform
 import glob
 from dbgprt import dprt, dflush, dclose, dprtSet, ePrint
-from geometry import Arc, Line, ARC, LINE
+from geometry import Arc, Line, ARC
 from geometry import oStr, xyDist,  offset
 from geometry import inside, rotateMinDist, \
     pathLength, combineArcs, pathDir, \
@@ -25,7 +25,7 @@ from geometry import inside, rotateMinDist, \
 from geometry import CW, CCW, MAX_VALUE, MIN_DIST, MIN_VALUE
 from mill import Mill
 from millLines import MillLine
-from sys import stdout
+# from sys import stdout
 from dxfwrite import DXFEngine as dxf
 from dxfwrite import CENTER, MIDDLE
 from svgwrite import Drawing
@@ -434,20 +434,20 @@ class Config():
         )
         sys.exit()
         
-    def gpp(self, file):
+    def gpp(self, pncFile):
         if platform.system() == 'Windows':
             runDir = os.path.dirname(os.path.abspath(__file__))
             gpp = os.path.join(runDir, "gpp.exe")
         else:
             gpp = "gpp"
-        gppFile = file.replace(".pnc", ".gpp_pnc")
-        command = (gpp, file, "-o", gppFile)
+        gppFile = pncFile.replace(".pnc", ".gpp_pnc")
+        command = (gpp, pncFile, "-o", gppFile)
         try:
             result = subprocess.check_output(command)
             return(gppFile)
         except subprocess.CalledProcessError as e:
             print("return code %d\n%s\n%s" % (e.returncode, e.cmd, e.output))
-            return(file)
+            return(pncFile)
 
     def open(self):
         self.setupVars()
@@ -475,7 +475,7 @@ class Config():
                 dflush()
                 l = l.strip()
                 line = re.sub(r"\s*#.*$", "", l) # remove comments from line
-                line = re.sub(r"\s+", " ", line) # multiple spaces with one space
+                line = re.sub(r"\s+", " ", line) # white space with one space
                 if multi:                       # if continuation of prev line
                     multi = False
                     line = last + line
@@ -652,7 +652,7 @@ class Config():
         if result is None:
             result = [0.0, 0.0, 0.0]
         self.reLoc = r"^.*? +([xyz]) *([0-9\.\-]+) *([xyz]*) *([0-9\.\-]*)" \
-                     " *([xyz]*) *([0-9\.\-]*)"
+                     r" *([xyz]*) *([0-9\.\-]*)"
         match = re.match(self.reLoc, args[0].lower())
         if match is not None:
             groups = len(match.groups())
@@ -809,21 +809,21 @@ class Config():
         self.test = self.evalBoolArg(args[1])
 
     def setDirection(self, args):
-        dir = args[1].lower()
-        if dir == 'climb':
+        direction = args[1].lower()
+        if direction == 'climb':
             self.climb = True
             self.dir = None
-        elif dir == 'normal':
+        elif direction == 'normal':
             self.climb = False
             self.dir = None
-        elif dir == 'cw':
+        elif direction == 'cw':
             self.dir = CW
             self.climb = None
-        elif dir == 'ccw':
+        elif direction == 'ccw':
             self.dir = CCW
             self.climb = None
         else:
-            ePrint("invalid direction %s" % dir)
+            ePrint("invalid direction %s" % direction)
 
     def setFinish(self, args):
         self.finishAllowance = self.evalFloatArg(args[1])
@@ -975,11 +975,12 @@ class Config():
         self.mp.config(self)
         return(self.mp)
 
-    def millSlot(self, p, width, length, str):
+    def millSlot(self, p, width, length, comment):
         self.slotNum + 1
         self.mill.out.write("(%s %2d width %0.3f length %0.3f "\
                             "at x %0.3f y %0.3f)\n" % \
-                            (str, self.slotNum, width, length, self.x, self.y))
+                            (comment, self.slotNum, width, length, \
+                             self.x, self.y))
         self.mill.out.write("(endMill %0.3f depth %0.3f depthPass %0.3f)\n" % \
                             (self.endMillSize, self.depth, self.depthPass))
         seg = []
@@ -1336,7 +1337,7 @@ class Config():
         self.tabPoints = []
 
     def getStepProfile(self, args):
-        expr = r"^\\w+\\s+(.*)"
+        expr = r"^\w+\s+(.*)"
         m = re.match(expr, args[0])
         if m:
             self.stepProfile = self.evalListArg(m.group(1))
@@ -1446,10 +1447,10 @@ class Config():
     def engrave(self, args):
         if len(args) >= 2:
             name = args[1] + ".py"
-            file = os.path.join(getcwd(),  name)
-            if not os.path.isfile(file):
-                file = os.path.join(self.runPath, name)
-            module = load_source("module", file)
+            moduleFile = os.path.join(getcwd(),  name)
+            if not os.path.isfile(moduleFile):
+                moduleFile = os.path.join(self.runPath, name)
+            module = load_source("module", moduleFile)
             # print(dir(module))
             # for m in inspect.getmembers(module, inspect.isclass):
             #     print(m)
@@ -1479,7 +1480,7 @@ class Config():
                     self.addCommands(c.cmds)
 
     def var(self, args):
-        expr = r"var\\s+(\\w+)\\s+(.+)"
+        expr = r"var\s+(\w+)\s+(.+)"
         m = re.match(expr, args[0])
         if m:
             var = m.group(1)
@@ -1573,7 +1574,7 @@ class Config():
         self.level = True
         
     def remove(self, args):
-        expr = r"^\\w+\\s+(.*)"
+        expr = r"^\w+\s+(.*)"
         m = re.match(expr, args[0])
         if m:
             files = glob.glob(os.path.join(self.dirPath, m.group(1)))
@@ -2003,7 +2004,8 @@ class MillPath():
             # prev = path[-1]
             dprt("match points to path")
             for l in path:
-                for (j, p) in enumerate(tabPoints):
+                # for (j, p) in enumerate(tabPoints)
+                for p in tabPoints:
                     dp = l.pointDistance(p)
                     # if dp is not None:
                     #     dprt("%d %d dp %7.4f p %7.4f, %7.4f" % \
@@ -2072,8 +2074,9 @@ class MillPath():
             l = draw.lDebug
             draw.line((x, y), layer=l)
             draw.line((x + d, y - d), layer=l)
-            dir = pathDir(path0)
-            draw.add(dxf.text("start %s" % (oStr(dir)), (x, y - d), 0.010, \
+            direction = pathDir(path0)
+            draw.add(dxf.text("start %s" % (oStr(direction)), \
+                              (x, y - d), 0.010, \
                               alignpoint=(x, y - d), halign=CENTER, \
                               layer = draw.lText))
             draw.move(last)
@@ -2190,10 +2193,11 @@ class Draw():
         self.lHole = HOLE
         self.lText = TEXT
         self.lDebug = DEBUG
+        self.lCount = 0
 
-    def open(self, file, drawDxf=True, drawSvg=True):
+    def open(self, inFile, drawDxf=True, drawSvg=True):
         if drawSvg and self.svg is None:
-            svgFile = file + ".svg"
+            svgFile = inFile + ".svg"
             try:
                 self.svg = Drawing(svgFile, profile='full', fill='black')
                 self.path = Path(stroke_width=.5, stroke='black', fill='none')
@@ -2203,7 +2207,7 @@ class Draw():
                 ePrint("svg file open error %s" % (svgFile))
 
         if drawDxf and self.d is None:
-            dxfFile = file + "_ngc.dxf"
+            dxfFile = inFile + "_ngc.dxf"
             try:
                 self.d = dxf.drawing(dxfFile)
                 self.layerIndex = 0
@@ -2300,10 +2304,11 @@ class Draw():
                 p2 = (xSize/2, ySize/2)
                 p3 = (-xSize/2, ySize/2)
             elif orientation == O_POINT:
-                p0 = (self.xMin, self.yMin)
-                p1 = (self.xMin, self.yMax)
-                p2 = (self.xMax, self.yMax)
-                p3 = (self.xMax, self.yMin)
+                dxfInput = cfg.dxfInput
+                p0 = (dxfInput.xMin, dxfInput.yMin)
+                p1 = (dxfInput.xMin, dxfInput.yMax)
+                p2 = (dxfInput.xMax, dxfInput.yMax)
+                p3 = (dxfInput.xMax, dxfInput.yMin)
             else:
                 ePrint("invalid orientation")
             self.d.add(dxf.line(p0, p1, layer=self.lBorder))
@@ -2416,18 +2421,17 @@ class Draw():
                 self.d.add(entity)
 
     def drawCross(self, p, layer=None):
-        global lCount
         if layer is None:
             layer = self.lDebug
         (x, y) = p
-        dprt("cross %2d %7.4f, %7.4f" % (lCount, x, y))
-        labelP(p, "%d" % (lCount))
+        dprt("cross %2d %7.4f, %7.4f" % (self.lCount, x, y))
+        labelP(p, "%d" % (self.lCount))
         last = self.last
         self.move((x - 0.02, y))
         self.line((x + 0.02, y), layer)
         self.move((x, y - 0.02))
         self.line((x, y + 0.02), layer)
-        lCount += 1
+        self.lCount += 1
         self.move(last)
 
     def drawX(self, p, txt, swap=False, layer=None):
@@ -2555,14 +2559,14 @@ class Dxf():
         self.material = []
         checkLayers = len(layers) != 0
         for e in modelspace:
-            type = e.dxftype()
+            dxfType = e.dxftype()
             layer = e.get_dxf_attrib("layer")
             if layer == materialLayer:
                 pass
             elif checkLayers:
                 if not layer in layers:
                     continue
-            if type == 'LINE':
+            if dxfType == 'LINE':
                 (x0, y0) = e.get_dxf_attrib("start")[:2]
                 (x1, y1) = e.get_dxf_attrib("end")[:2]
                 xMax = max(xMax, x0, x1)
@@ -2571,14 +2575,14 @@ class Dxf():
                 yMin = min(yMin, y0, y1)
                 if layer == materialLayer:
                     self.material.append(((x0, y0), (x1, y1)))
-            elif type == 'CIRCLE':
+            elif dxfType == 'CIRCLE':
                 (xCen, yCen) = e.get_dxf_attrib("center")[:2]
                 radius = e.get_dxf_attrib("radius")
                 xMax = max(xMax, xCen + radius)
                 xMin = min(xMin, xCen - radius)
                 yMax = max(yMax, yCen + radius)
                 yMin = min(yMin, yCen - radius)
-            elif type == 'ARC':
+            elif dxfType == 'ARC':
                 (xCen, yCen) = e.get_dxf_attrib("center")[:2]
                 radius = e.get_dxf_attrib("radius")
                 a0 = e.get_dxf_attrib("start_angle")
@@ -2621,7 +2625,7 @@ class Dxf():
                 xMin = min(xMin, x)
                 yMax = max(yMax, y)
                 yMin = min(yMin, y)
-            elif type == 'LWPOLYLINE':
+            elif dxfType == 'LWPOLYLINE':
                 for (x0, y0) in e.get_rstrip_points():
                     xMax = max(x0, xMax)
                     xMin = min(x0, xMin)
@@ -2705,8 +2709,8 @@ class Dxf():
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             if layer != e.get_dxf_attrib("layer"):
                 continue
-            type = e.dxftype()
-            if type == 'CIRCLE':
+            dxfType = e.dxftype()
+            if dxfType == 'CIRCLE':
                 (xCen, yCen) = self.fix(e.get_dxf_attrib("center")[:2])
                 points.append((xCen, yCen))
         return(points)
@@ -2717,10 +2721,10 @@ class Dxf():
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             # if layer != e.get_dxf_attrib("layer"):
             #     continue
-            type = e.dxftype()
-            if type == 'MTEXT':
-                with e.edit_data() as str:
-                    if layer in str.text:
+            dxfType = e.dxftype()
+            if dxfType == 'MTEXT':
+                with e.edit_data() as string:
+                    if layer in string.text:
                         (xCen, yCen) = self.fix(e.get_dxf_attrib("insert")[:2])
                         points.append((xCen, yCen))
         return(points)
@@ -2730,8 +2734,8 @@ class Dxf():
         for e in self.modelspace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
-                type = e.dxftype()
-                if type == 'CIRCLE' or type == 'ARC':
+                dxfType = e.dxftype()
+                if dxfType == 'CIRCLE' or dxfType == 'ARC':
                     p = self.fix(e.get_dxf_attrib("center")[:2])
                     radius = e.get_dxf_attrib("radius")
                     drillSize = radius * 2.0
@@ -2753,8 +2757,8 @@ class Dxf():
         for e in self.modelspace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
-                type = e.dxftype()
-                if type == 'CIRCLE' or type == 'ARC':
+                dxfType = e.dxftype()
+                if dxfType == 'CIRCLE' or dxfType == 'ARC':
                     p = self.fix(e.get_dxf_attrib("center")[:2])
                     radius = e.get_dxf_attrib("radius")
                     circles.append((p, 2*radius))
@@ -2768,30 +2772,31 @@ class Dxf():
         linNum = 0
         entities = []
         for e in self.modelspace:
-            type = e.dxftype()
+            dxfType = e.dxftype()
             if dbg:
-                dprt("type %-10s layer %s" % (type, e.get_dxf_attrib("layer")))
+                dprt("dxfType %-10s layer %s" % \
+                     (dxfType, e.get_dxf_attrib("layer")))
             if layer != e.get_dxf_attrib("layer"):
                 continue
-            if type == 'LINE':
+            if dxfType == 'LINE':
                 l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
                           self.fix(e.get_dxf_attrib("end")[:2]), \
                           linNum, e)
-            elif type == 'ARC':
+            elif dxfType == 'ARC':
                 center = self.fix(e.get_dxf_attrib("center")[:2])
                 radius = e.get_dxf_attrib("radius")
                 startAngle = e.get_dxf_attrib("start_angle")
                 endAngle = e.get_dxf_attrib("end_angle")
                 l0 = Arc(center, radius, startAngle, endAngle, \
                          linNum, e)
-            elif type == 'CIRCLE':
+            elif dxfType == 'CIRCLE':
                 if circle:
                     p = self.fix(e.get_dxf_attrib("center")[:2])
                     radius = e.get_dxf_attrib("radius")
                     l0 = Arc(p, radius, 0.0, 360.0, linNum, e)
                 else:
                     continue
-            elif type == 'LWPOLYLINE':
+            elif dxfType == 'LWPOLYLINE':
                 prev = None
                 if e.closed:
                     prev = e[-1][:2]
@@ -3235,50 +3240,50 @@ class Dxf():
     #     #            (start[0], start[1], end[0], end[1]))
     #     return line
 
-class MainFrame(wx.Frame): 
-    def __init__(self, parent, title): 
-        super(MainFrame, self).__init__(parent, title = title)
-        self.Maximize(True)
-        self.InitUI() 
-        # colors = wx.lib.colourdb.getColourList()
-        # for line in colors:
-        #     print line
-        # dflush()
+# class MainFrame(wx.Frame): 
+#     def __init__(self, parent, title): 
+#         super(MainFrame, self).__init__(parent, title = title)
+#         self.Maximize(True)
+#         self.InitUI() 
+#         # colors = wx.lib.colourdb.getColourList()
+#         # for line in colors:
+#         #     print line
+#         # dflush()
          
-    def InitUI(self): 
-        global cfg, inFile
-        self.zoom = False
-        self.left = None
-        self.Bind(wx.EVT_PAINT, self.OnPaint) 
-        self.Centre() 
-        cfg.open(inFile)
-        self.Bind(wx.EVT_LEFT_UP, self.OnMouseEvent)
-        self.Show(True)
+#     def InitUI(self): 
+#         global cfg, inFile
+#         self.zoom = False
+#         self.left = None
+#         self.Bind(wx.EVT_PAINT, self.OnPaint) 
+#         self.Centre() 
+#         cfg.open(inFile)
+#         self.Bind(wx.EVT_LEFT_UP, self.OnMouseEvent)
+#         self.Show(True)
 
-    def OnMouseEvent(self, e):
-        x = e.GetX()
-        # if not self.zoom:
-        #     self.zoom = True
-        #     self.offset = x > self.tc.xBase
-        # else:
-        #     self.zoom = False
-        #     self.offset = False
-        # self.tc.setZoomOffset(self.zoom, self.offset)
-        self.Refresh()
+#     def OnMouseEvent(self, e):
+#         x = e.GetX()
+#         # if not self.zoom:
+#         #     self.zoom = True
+#         #     self.offset = x > self.tc.xBase
+#         # else:
+#         #     self.zoom = False
+#         #     self.offset = False
+#         # self.tc.setZoomOffset(self.zoom, self.offset)
+#         self.Refresh()
 
-    def OnPaint(self, e): 
-        dc = wx.PaintDC(self) 
-        dc.SetMapMode(wx.MM_TEXT)
-        brush = wx.Brush("white")
-        dc.SetBackground(brush)  
-        dc.Clear() 
-        # self.tc.calcScale()
-        # self.tc.draw(dc)
+#     def OnPaint(self, e): 
+#         dc = wx.PaintDC(self) 
+#         dc.SetMapMode(wx.MM_TEXT)
+#         brush = wx.Brush("white")
+#         dc.SetBackground(brush)  
+#         dc.Clear() 
+#         # self.tc.calcScale()
+#         # self.tc.draw(dc)
         
-        # color = wx.Colour(255,0,0)
-        # dc.SetTextForeground(color) 
-        # dc.DrawText("Hello wxPython",10,10)
-        # dc.DrawLine(10,10, 100,10)
+#         # color = wx.Colour(255,0,0)
+#         # dc.SetTextForeground(color) 
+#         # dc.DrawText("Hello wxPython",10,10)
+#         # dc.DrawLine(10,10, 100,10)
 
 if len(sys.argv) <= 1:
     exit()
@@ -3287,8 +3292,9 @@ cfg = Config()
 cfg.parseCmdLine()
 
 if cfg.gui:
-    ex = wx.App() 
-    MainFrame(None,'Drawing demo') 
-    ex.MainLoop()
+    pass
+    # ex = wx.App() 
+    # MainFrame(None,'Drawing demo') 
+    # ex.MainLoop()
 else:
     cfg.open()
