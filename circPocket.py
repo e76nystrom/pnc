@@ -6,7 +6,7 @@ from math import atan2, ceil, cos, degrees, radians, sin, sqrt
 class CircularPocket():
     def __init__(self, cfg):
         self.cfg = cfg
-        print("test loaded")
+        print("CircularPocket loaded")
         self.stepOver = 0.85
         self.strAngle = 0.0
         self.endAngle = self.strAngle + 360.0
@@ -206,7 +206,7 @@ class CircularPocket():
                     self.addSeg(Arc(leadCenter, self.leadRadius,
                                     0, 90, direction=CW))
 
-            for passCount in range(passes):
+            for _ in range(passes):
                 r1 = r0 + distPass
                 y1 = sqrt(r1*r1 - r0*r0)
                 p0 = (xC + r0, yC)
@@ -271,7 +271,7 @@ class CircularPocket():
             finishPasses = self.finishPasses
             if finishPasses == 0:
                 finishPasses = 1
-            for i in range(finishPasses):
+            for _ in range(finishPasses):
                 self.addSeg(Arc(c, r0, 0, 360, direction=direction))
             self.addSeg(Arc(c, r0, 0,  15, direction=direction))
 

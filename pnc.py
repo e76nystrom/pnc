@@ -316,7 +316,7 @@ class Config():
             self.cmdAction[cmd.lower()] = action
 
     def removeCommands(self, cmds):
-        for (cmd, action) in cmds:
+        for (cmd, _) in cmds:
             del self.cmdAction[cmd.lower()]
 
     def tabInit(self):
@@ -435,6 +435,8 @@ class Config():
         command = (gpp, pncFile, "-o", gppFile)
         try:
             result = subprocess.check_output(command)
+            if len(result) != 0:
+                dprt(result)
             return(gppFile)
         except subprocess.CalledProcessError as e:
             print("return code %d\n%s\n%s" % (e.returncode, e.cmd, e.output))
@@ -594,7 +596,7 @@ class Config():
         # self.ifStack.append(self.ifDisable)
         self.ifDisable = not self.evalBoolArg(args[1])
 
-    def cmdEndIf(self, args):
+    def cmdEndIf(self, _):
         self.ifDisable = False
         # self.ifDisable = ifStack.pop()
 
@@ -858,7 +860,7 @@ class Config():
     def setOneDxf(self, args):
         self.oneDxf = self.evalBoolArg(args[1])
 
-    def closeDxf(self, args):
+    def closeDxf(self, _):
         if self.draw is not None:
             self.draw.close()
 
@@ -1043,7 +1045,7 @@ class Config():
         for l in args[1:]:
             self.layers.append(l)
 
-    def clrLayers(self, args):
+    def clrLayers(self, _):
         self.layers = []
 
     def setMaterialLayer(self, args):
@@ -1111,7 +1113,7 @@ class Config():
         dprt("fileName %s" % fileName)
         dprt("baseName %s" % self.baseName)
 
-        self.dxfInput = Dxf(self.mill, self.draw)
+        self.dxfInput = Dxf()
         self.dxfInput.open(fileName, self.layers, self.materialLayer)
         self.dxfInput.setOrientation(self.orientation, self.orientationLayer)
 
@@ -1158,16 +1160,26 @@ class Config():
         
     def dxfOutside(self, args):
         layer = self.getLayer(args)
-        dist = self.endMillSize / 2 + self.finishAllowance
+        offset = self.endMillSize / 2 + self.finishAllowance
         self.segments = self.dxfInput.getPath(layer, True)
         self.ncInit()
         mp = self.getMillPath()
-        for (i, seg) in enumerate(self.segments):
-            dprt("seg %d" % (i))
+        while len(self.segments) != 0:
+            last = self.mill.last
+            minDist = MAX_VALUE
+            index = 0
+            for (i, seg) in enumerate(self.segments):
+                d = xyDist(last, seg[0].p0)
+                if d < minDist:
+                    minDist = d
+                    index = i
+                    # print("index %d minDist %7.4f" % (i, minDist))
+            seg = self.segments.pop(index)
+            dprt("seg %d" % (index))
             if xyDist(seg[0].p0, seg[-1].p1) > MIN_DIST:
                 ePrint("dxfOutside - segment not closed skipping")
                 continue
-            (path, tabPoints) = createPath(seg, dist, True, self.tabPoints, \
+            (path, tabPoints) = createPath(seg, offset, True, self.tabPoints, \
                                            addArcs=self.addArcs, \
                                            closeOpen = self.closeOpen)
             mp.millPath(path, tabPoints)
@@ -1175,16 +1187,26 @@ class Config():
 
     def dxfInside(self, args):
         layer = self.getLayer(args)
-        dist = self.endMillSize / 2 + self.finishAllowance
+        offset = self.endMillSize / 2 + self.finishAllowance
         self.segments = self.dxfInput.getPath(layer, True)
         self.ncInit()
         mp = self.getMillPath()
-        for (i, seg) in enumerate(self.segments):
-            dprt("seg %d" % (i))
+        while len(self.segments) != 0:
+            last = self.mill.last
+            minDist = MAX_VALUE
+            index = 0
+            for (i, seg) in enumerate(self.segments):
+                d = xyDist(last, seg[0].p0)
+                if d < minDist:
+                    minDist = d
+                    index = i
+                    # print("index %d minDist %7.4f*++*" % (i, minDist))
+            seg = self.segments.pop(index)
+            dprt("seg %d" % (index))
             if xyDist(seg[0].p0, seg[-1].p1) > MIN_DIST:
                 ePrint("dxfInside - segment not closed skipping")
                 continue
-            (path, tabPoints) = createPath(seg, dist, False, self.tabPoints, \
+            (path, tabPoints) = createPath(seg, offset, False, self.tabPoints, \
                                            addArcs=self.addArcs, \
                                            closeOpen = self.closeOpen)
             mp.millPath(path, tabPoints)
@@ -1391,7 +1413,7 @@ class Config():
     def dxfBore(self, args):
         self.dxfDrill(args, BORE)
 
-    def closeFiles(self, args):
+    def closeFiles(self, _):
         self.dxfInput = None
         self.holeCount = None
         self.count = 0
@@ -1631,7 +1653,8 @@ class MillPath():
         self.mill = cfg.mill
 
     def config(self, cfg=None):
-        cfg = self.cfg
+        if cfg is None:
+            cfg = self.cfg
         self.cfgDepth = cfg.depth
         self.depth = cfg.depth
         self.depthPass = cfg.depthPass
@@ -2051,7 +2074,8 @@ class MillPath():
         out = self.mill.out
         for l in path0:
             out.write("(")
-            l.prt(out, ")\n\n")
+            l.prt(out, ")\n")
+        out.write("\n")
 
         self.calcTabPos(path0, tabPoints)
 
@@ -2223,7 +2247,7 @@ class LinePoints():
              (self.index, self.pIndex[0], self.pIndex[1]))
 
 class Dxf():
-    def __init__(self, d=None, svg=None):
+    def __init__(self):
         self.dwg = None
         self.modelspace = None
         self.xOffset = 0.0
@@ -2440,7 +2464,7 @@ class Dxf():
                         d.addLoc(p)
         return(holes)
 
-    def getCircles(self, layer=None, size=None):
+    def getCircles(self, layer=None):
         circles = []
         for e in self.modelspace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
@@ -2452,8 +2476,7 @@ class Dxf():
                     circles.append((p, 2*radius))
         return(circles)
     
-    def getPath(self, layer, circle=False, dbg=False, rand=False):
-        dbg = True
+    def getPath(self, layer, circle=False, dbg=True, rand=False):
         if dbg:
             dprt("getPath %s" % (layer))
         # find everything that matches layer
@@ -2785,6 +2808,19 @@ class Dxf():
 
         return(segments)
             
+    def getLines(self, layer):
+        line = []
+        lineNum = 0
+        for e in self.modelspace:
+            type = e.dxftype()
+            if type == 'LINE' and e.get_dxf_attrib("layer") == layer:
+                l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
+                          self.fix(e.get_dxf_attrib("end")[:2]), \
+                          lineNum, e)
+                lineNum += 1
+                line.append(l0)
+        return line
+
     # def printSeg(self, l):
     #     dprt("%2d p0 %7.4f, %7.4f - p1 %7.4f, %7.4f %s" % \
     #            (l.index, l.p0[0], l.p0[1], l.p1[0], l.p1[1], l.str))

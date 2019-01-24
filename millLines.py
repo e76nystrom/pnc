@@ -154,7 +154,7 @@ class MillLine():
 
             if self.debug and self.draw1 is None:
                 self.draw1 = draw = Draw(cfg)
-                draw.open("slot", dxfFile=True, svg=False)
+                draw.open("slot", drawDxf=True, drawSvg=False)
                 d = draw.d
                 if d is not None:
                     x0 = 0

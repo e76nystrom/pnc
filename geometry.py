@@ -22,6 +22,17 @@ lCount = 0
 
 # lineIndex = 0
 
+class Point:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+def newPoint(p, scale=None):
+    if scale is None:
+        return Point(p[0], p[1])
+    else:
+        return Point(int(p[0] * scale), int(p[1] * scale))
+
 def quadrant(p):
     (x, y) = p
     if x >= 0:
@@ -65,6 +76,54 @@ def translate(p0, p1):
 
 def offset(p0, p1):
     return((p0[0] + p1[0], p0[1] + p1[1]))
+
+def eqnLine(p0, p1):
+    (x0, y0) = p0               # start and end
+    (x1, y1) = p1
+    dx = x1 - x0
+    dy = y1 - y0
+    if abs(dx) > abs(dy):       # if x change greater
+        m = dy / dx
+        b = y0 - m * x0
+        return (m, b, True)
+    else:                       # if y change greater
+        m = dx / dy
+        b = x0 - m * y0
+        return (m, b, False)
+
+def lineArcTest(l, a):
+    (x0, y0) = l.p0             # start and end
+    (x1, y1) = l.p1
+    (i, j) = a.c                # center of arc
+    x0 -= i                     # subtract center of arc
+    y0 -= j
+    x1 -= i
+    y1 -= j
+    (m, b, xGreater) = eqnLine((x0, y0), (x1, y1)) # equation of line
+    qA = 1 + m*m
+    qB = 2 * m * b
+    qC = b*b - a.r*a.r
+    sqrTerm = qB*qB - 4 * qA * qC
+    if sqrTerm > 0:             # no intersection
+        return None
+    if abs(sqrTerm) < MIN_DIST: # if tangent
+        return
+
+    sqrTerm = sqrt(sqrTerm)     # if two intersections
+    qA *= 2
+    plus = (-qB + sqrTerm) / qA
+    minus = (-qB - sqrTerm) / qA
+    if xGreater:                # if using y = mx + b
+        xPlus = plus
+        yPlus = m * xPlus + b
+        xMinus = minus
+        yMinus = m * xMinus + b
+    else:                       # if using x = my + b
+        yPlus = plus
+        xPlus = m * yPlus + b
+        yMinus = minus
+        xMinus = m * yMinus + b
+
 
 # orientation of three points
 
@@ -1257,21 +1316,22 @@ def lineCircle(l, c, r):
 # qb = 2*(m*t0 - i)
 # qc = i^2 + t0^2 - r^2
 
-def lineArc(l0, l1, end):
-    # dprt("intersect line arc %d" % (end))
-    # if end == 0:
-    #     l1.prt()
-    #     l0.prt()
-    # else:
-    #     l1.prt()
-    #     l0.prt()
-    # dflush()
+def lineArc(l0, l1, end, dbg=False):
+    if dbg:
+        dprt("intersect line arc end %d" % (end))
+        if end == 0:
+            l1.prt()
+            l0.prt()
+        else:
+            l1.prt()
+            l0.prt()
+        dflush()
     (x0, y0) = l0.p0
     (x1, y1) = l0.p1
     (i, j) = l1.c
     r = l1.r
     p = None
-    if abs(x0 - x1) < MIN_DIST: # vertical
+    if abs(x0 - x1) < MIN_DIST:	  # vertical
         x = x0
         t0 = x - i
         if abs(abs(t0) - r) > MIN_DIST:
@@ -1292,7 +1352,7 @@ def lineArc(l0, l1, end):
             t0 = 0
         pa = (i + t0, y)
         pb = (i - t0, y)
-    else:               # oblique
+    else:               	  # oblique
         m = (y1 - y0) / (x1 - x0) # slope of line
         b = y0 - m * x0           # intercept
         t0 = b - j                # temp value
@@ -1300,17 +1360,17 @@ def lineArc(l0, l1, end):
         qb = 2 * (m * t0 - i)     # quadratic b term
         qc = i * i + t0 * t0 - r * r # quadratic c term
         t0 = qb * qb - 4 * qa * qc
-        if abs(t0) < MIN_DIST:  # tangent
+        if abs(t0) < MIN_DIST:    # tangent
             x = -qb / (2 * qa)
             pa = pb = p = (x, m * x + b)
-        elif t0 > 0:            # two intersections
+        elif t0 > 0:              # two intersections
             t0 = sqrt(t0)
             xa = (-qb + t0) / (2 * qa) # plus solution
             pa = (xa, m * xa + b)
 
             xb = (-qb - t0) / (2 * qa) # minus solution
             pb = (xb, m * xb + b)
-        else:
+        else:                     # no intersection
             d0 = xyDist(l0.p1, l1.p0)
             d1 = xyDist(l1.p1, l0.p0)
             dprt("no intersection d0 %7.4f d1 %7.4f" % (d0, d1))
@@ -1330,7 +1390,8 @@ def lineArc(l0, l1, end):
     else:
         da = xyDist(l0.p0, pa)
         db = xyDist(l0.p0, pb)
-    # dprt("da %7.4f db %7.4f " % (da, db))
+    if dbg:
+        dprt("da %7.4f db %7.4f " % (da, db))
     if da < db:
         p = pa
     else:
@@ -1352,7 +1413,7 @@ def lineArc(l0, l1, end):
     #
     #   x = a + k(e/p) + (f/p)sqrt(r^2 - k^2)
     #   y = b + k(f/p) - (e/p)sqrt(r^2 - k^2)
-    # OR
+    # or
     #   x = a + k(e/p) - (f/p)sqrt(r^2 - k^2)
     #   y = b + k(f/p) + (e/p)sqrt(r^2 - k^2)
 
@@ -1532,26 +1593,26 @@ def inside(p, seg, dbg=False):
         test = False
         lType = l.type
         if lType == LINE:
-            if x0 == x1:        # if line vertical
+            if x0 == x1:               # if line vertical
                 pass
-            elif x0 < x1:       # if start x < end x
+            elif x0 < x1:              # if start x < end x
                 if x0 < x and x <= x1: # if point lies between ends
-                    test = True         # test y
-            elif x1 < x and x <= x0:  # if point lies between ends
-                test = True           # test y
-            if test:                  # if y test needed
-                if y < y0 and y < y1: # if point below both ends
+                    test = True        # test y
+            elif x1 < x and x <= x0:   # if point lies between ends
+                test = True            # test y
+            if test:                   # if y test needed
+                if y < y0 and y < y1:  # if point below both ends
                     cType = 1
-                    cross += 1        # line crosses
+                    cross += 1         # line crosses
                 elif y > y0 and y > y1: # if point above both ends
                     pass                # line does not cross
                 else:                   # solve for intersection
                     m = (y1 - y0) / (x1 - x0) # calculate line slope
-                    b = y0 - m * x0   # calculate intercept
-                    yTest = m * x + b # calculate intersection
-                    if y < yTest:     # if point below intersection
+                    b = y0 - m * x0    # calculate intercept
+                    yTest = m * x + b  # calculate intersection
+                    if y < yTest:      # if point below intersection
                         cType = 2
-                        cross += 1   # line intersects
+                        cross += 1     # line intersects
         elif lType == ARC:
             (cX, cY) = l.c
             r = l.r
@@ -1751,7 +1812,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
     else:
         newSeg = seg
 
-    if closed and closeOpen:    # if close open path
+    if closed and closeOpen:        # if close open path
         pStr = newSeg[0].p0
         pEnd = newSeg[-1].p1
         if xyDist(pStr, pEnd) > MIN_DIST:
@@ -1760,7 +1821,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
     labelPoints(newSeg)
 
     d = abs(dist)
-    if closed:                  # closed path
+    if closed:                      # closed path
         curDir = pathDir(newSeg, dbg)
         if dbg:
             dprt("curdir %s" % (oStr(curDir)))
@@ -1789,12 +1850,12 @@ def createPath(seg, dist, outside, tabPoints=None, \
                   ('inside', 'outside')[outside], oStr(curDir)))
 
         if outside:                 # outside ^    cw <-|
-            if direction == CCW:          #  dir cw | dir ccw |
+            if direction == CCW:    #  dir cw | dir ccw |
                 d = -d              #  ccw <- |         v
         else:
             if direction == CW:
                 d = -d
-    else:                       # open path
+    else:                           # open path
         pFirst = newSeg[0].p0
         pLast = newSeg[-1].p1
         if xyDist(ref, pLast) < xyDist(ref, pFirst):
@@ -1829,7 +1890,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
             # if draw is not None
             #     draw.drawX(pMid, "i%d-%d" % (cross, l.index))
             if ((cross & 1) == 0) != outside:
-                ePrint("creatPath - parallel line not on correct side")
+                ePrint("createPath - parallel line not on correct side")
                 dprt("choose distance negative %d" % (cross))
                 d = -d
         if l.index != INDEX_MARKER:

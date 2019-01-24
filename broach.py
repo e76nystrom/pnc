@@ -46,7 +46,7 @@ class Broach():
     def setStep(self, args):
         self.step = float(args[1])
 
-    def broach(self, args):
+    def broach(self, _):
         cfg = self.cfg
         cfg.ncInit()
         mill = cfg.mill

@@ -117,7 +117,7 @@ class Mill():
                 out.write("m3		(start spindle)\n")
                 if cfg.delay != 0:
                     out.write("g4 p %0.1f	" \
-                              "(wait for spindle to start)\n" % \
+                              "(wait for spindle to start)\n\n" % \
                               (cfg.delay))
         else:
             if self.spindleActive:

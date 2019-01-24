@@ -112,7 +112,7 @@ class Engrave():
                    abs(probeAngle - angle) < MIN_DIST:
                     levelIndex += 1
                 else:
-                    for levelIndex, (probAngle, zOffset) \
+                    for levelIndex, (_, zOffset) \
                         in enumerate(levelData):
                         if abs(probeAngle - angle) < MIN_DIST:
                             levelIndex += 1

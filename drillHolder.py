@@ -138,9 +138,9 @@ class DrillHolder():
 
         index = 0
         self.holeInfo = []
-        for i in range(yGrid):
+        for _ in range(yGrid):
             x = xOffset
-            for j in range(xGrid):
+            for _ in range(xGrid):
                 (size, label) = self.holes[index]
                 self.holeInfo.append((x, y, size, label))
                 x += xSpace
@@ -154,9 +154,9 @@ class DrillHolder():
 
         self.mountInfo = []
         y = yMountOffset
-        for i in range(yMountGrid):
+        for _ in range(yMountGrid):
             x = xMountOffset
-            for j in range(xMountGrid):
+            for _ in range(xMountGrid):
                 self.mountInfo.append((x, y))
                 x += xMountSpace
             y += yMountSpace
@@ -197,7 +197,7 @@ class DrillHolder():
     def setClearance(self, args):
         self.clearance = self.cfg.evalFloatArg(args[1])
 
-    def millHoles(self, args):
+    def millHoles(self, _):
         holes = []
         d = Drill(self.mountSize)
         for p in self.mountInfo:
@@ -238,7 +238,7 @@ class DrillHolder():
         cfg.dxfMillHole(None, holes)
         cfg.draw.material(self.xSize, self.ySize)
 
-    def labelHoles(self, args):
+    def labelHoles(self, _):
         cfg = self.cfg
 
         if cfg.probe:
@@ -297,7 +297,7 @@ class DrillHolder():
             out.write("m3	(start spindle)\n")
             out.write("g4 p3\n")
             
-        for (x, y, size, text) in self.holeInfo:
+        for (x, y, _, text) in self.holeInfo:
             if len(text) != 0:
                 y += offset
                 if cfg.probe:
@@ -341,7 +341,7 @@ class DrillHolder():
         r = self.mountSize / 2.0
         for p in self.mountInfo:
             d.circle(p, r)
-        for (x, y, size, text) in self.holeInfo:
+        for (x, y, size, _) in self.holeInfo:
             d.circle((x, y), size / 2.0)
         d.close()
 

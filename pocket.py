@@ -497,7 +497,7 @@ class pocket():
                     (pLast, pa) = (pa, pLast)
                 a0 = degAtan2(pLast[1] - c[1], pLast[0] - c[0])
                 a1 = degAtan2(pa[1] - c[1], pa[0] - c[0])
-                l = Arc(c, r, a0, a1, dir=o)
+                l = Arc(c, r, a0, a1, direction=o)
                 if dbg:
                     dprt("arc %s %2d i %d (%7.4f %7.4f) %8.3f "\
                          " %d (%7.4f %7.4f) %8.3f" % \
