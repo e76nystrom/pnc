@@ -1482,10 +1482,11 @@ class Config():
             if not os.path.isfile(fileName):
                 fileName = os.path.join(self.runPath, name)
             module = load_source(moduleName, fileName)
-            # print(dir(module))
+            # dprt(dir(module))
             for (name, val) in inspect.getmembers(module, inspect.isclass):
-                if val.__module__ == moduleName:
-                    # print("class %s" % (name))
+                if val.__module__ == moduleName and \
+                   name.lower() == moduleName:
+                    # dprt("class %s" % (name))
                     cmd = "module.%s(cfg)" % (name)
                     c = eval(cmd)
                     cmd = "self.%s = c" % (moduleName)

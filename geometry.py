@@ -3,6 +3,7 @@ from copy import copy
 from dbgprt import dprt, dflush, ePrint
 from math import acos, asin, atan2, ceil, cos, degrees, floor, hypot, \
     pi, radians, sin, sqrt
+from collections import namedtuple
 
 # dxf arcs are always counter clockwise.
 
@@ -22,10 +23,14 @@ lCount = 0
 
 # lineIndex = 0
 
-class Point:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+Point = namedtuple('Point', ['x', 'y'])
+
+# class Point:
+#     def __init__(self, x, y):
+#         self.x = x
+#         self.y = y
+
+Point = namedtuple('Point', ['x', 'y'])
 
 def newPoint(p, scale=None):
     if scale is None:

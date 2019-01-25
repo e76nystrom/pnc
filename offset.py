@@ -1,15 +1,24 @@
 from __future__ import print_function
 
 from math import atan2, degrees
-from geometry import ARC, CCW, CW, LINE
+from geometry import ARC, CCW, CW, LINE, MIN_DIST
 from geometry import Arc, Line
 from geometry import calcAngle, orientation, newPoint, oStr, pathDir, \
-    reverseSeg, splitArcs
+    reverseSeg, splitArcs, xyDist
 from dbgprt import dprt, dprtSet, ePrint
 # from sortedcontainers import SortedDict, SortedList
 from sortedlist import SortedList
 # from operator import attrgetter
-from sweepLine import line_intersections
+# from sweepLine import line_intersections
+from collections import namedtuple
+
+LEFT      = 0
+RIGHT     = 1
+INTERSECT = 2
+
+evtStr = ('L', 'R', 'I')
+
+EventPair = namedtuple('EventPair', ['start', 'end'])
 
 class Offset():
     def __init__(self, cfg):
@@ -67,7 +76,7 @@ class Offset():
             prevL1 = prevL.parallel(distance)
             oSeg = []
             for (n, l) in enumerate(newSeg):
-                l.draw()
+                # l.draw()
                 if prevL.type == LINE and l.type == LINE:
                     (x0, y0) = prevL.p0
                     (x1, y1) = l.p0
@@ -137,201 +146,186 @@ class Offset():
         layer = cfg.getLayer(args)
         seg = cfg.dxfInput.getLines(layer)
         lineSegment = []
+        dprt()
         for l in seg:
             l.draw()
             cfg.draw.drawX(l.p0, str(l.index))
             l.prt()
             lineSegment.append((l.p0, l.p1))
         self.findIntersections(seg)
-        line_intersections(lineSegment)
+        # line_intersections(lineSegment)
 
     def findIntersections(self, seg):
-        segList = []
+        self.evtList = evtList = SortedList()
+        self.evtArray = [None] * len(seg)
         for l in seg:
             scale = self.scale
-            p0 = l.p0
-            p1 = l.p1
-            x0 = int(p0[0] * scale)
-            x1 = int(p1[0] * scale)
+            p0 = newPoint(l.p0, scale)
+            p1 = newPoint(l.p1, scale)
+            x0 = p0.x
+            x1 = p1.x
             if x0 < x1:
-                key = int(p0[1] * scale) * 100 + l.index
-                segList.append(self.Segment(p0, l, key, True, scale))
-                segList.append(self.Segment(p1, l, key, False, scale))
+                self.addEvent(p0, p1, l)
             elif x1 < x0:
-                key = int(p1[1] * scale) * 100 + l.index
-                segList.append(self.Segment(p1, l, key, True, scale))
-                segList.append(self.Segment(p0, l, key, False, scale))
+                self.addEvent(p1, p0, l)
             else:
-                y0 = int(p0[1] * scale)
-                y1 = int(p1[1] * scale)
-                if y0 < y1:
-                    key = int(p0[1] * scale) * 100 + l.index
-                    segList.append(self.Segment(p0, l, key, True, scale))
-                    segList.append(self.Segment(p1, l, key, False, scale))
+                if p0.y < p1.y:
+                    self.addEvent(p0, p1, l)
                 else:
-                    key = int(p1[1] * scale) * 100 + l.index
-                    segList.append(self.Segment(p1, l, key, True, scale))
-                    segList.append(self.Segment(p0, l, key, False, scale))
+                    self.addEvent(p1, p0, l)
         
-        segList = sorted(segList, key=lambda l: (l.p.x, l.p.y))
-        for l in segList:
+        # evtList = sorted(evtList, key=lambda l: (l.p.x, l.p.y))
+        dprt()
+        for l in evtList:
             l.prt()
 
-        # sweepList = SortedDict()
-        # dprt()
-        # for l in segList:
-        #     l.prt()
-        #     # dprt("x %8d y %8d %d %s" % (l.p.x, l.p.y, l.index, l.left))
-        #     # l.l.prt()
-        #     if l.left:
-        #         sweepList[l.key] = l
-        #         listLen = len(sweepList)
-        #         index = sweepList.index(l.key)
-        #         idxLeft = sweepList.bisect_left(l.key)
-        #         idxRight = sweepList.bisect_right(l.key)
-                
-        #         dprt("insert %2d x %6d len %d (%d %d %d)" % \
-        #              (l.index, l.p.x, listLen, idxLeft, index, idxRight))
-                
-        #         if idxLeft != index:
-        #             itemLeft = sweepList.peekitem(idxLeft)[1]
-        #             dprt("intersect (%2d %2d) (%2d %2d)" % \
-        #                  (index, idxLeft, l.index, itemLeft.index))
-                    
-        #         if idxRight < listLen:
-        #             itemRight = sweepList.peekitem(idxRight)[1]
-        #             dprt("intersect (%2d %2d) (%2d %2d)" % \
-        #                  (index, idxRight, l.index, itemRight.index))
-        #     else:
-        #         listLen = len(sweepList)
-        #         index = sweepList.index(l.key)
-        #         idxLeft = sweepList.bisect_left(l.key)
-        #         idxRight = sweepList.bisect_right(l.key)
-        #         dprt("delete %2d x %6d len %d (%d %d %d)" % \
-        #              (l.index, l.p.x, listLen, idxLeft, index, idxRight))
-        #         if index != idxLeft and \
-        #            idxRight < listLen and \
-        #            idxLeft != idxRight:
-        #             itemLeft = sweepList.peekitem(idxLeft)[1]
-        #             itemRight = sweepList.peekitem(idxRight)[1]
-        #             dprt("intersect (%2d %2d) (%2d %2d)" % \
-        #                  (idxLeft, idxRight, itemLeft, itemRight))
-        #         sweepList.pop(l.key)
-        #     dprt()
-        # print("length %d" % (len(sweepList)))
-        
         self.sweepList = sweepList = SortedList()
         dprt()
-        for l in segList:
-            l.prt(end=' ')
-            if l.left:
-                sweepList.add(l)
-                index = sweepList.bisect_left(l)
-                listLen = len(sweepList)
-                self.sweepPrt("i", l, listLen, index)
+        while len(evtList) > 0:
+            evt = evtList.pop(0)
+            self.curX = evt.p.x
+            evt.event = False
+            evt.prt(end=' ')
+            self.intCount = 0
+            if evt.evtType == LEFT:
+                sweepList.add(evt)
+                index = sweepList.bisect_left(evt)
+                sweepLen = len(sweepList)
+                self.sweepPrt("l", evt, sweepLen, index)
+                l = evt.l
                 if index > 0:
                     idxLeft = index - 1
-                    itemLeft = sweepList[idxLeft]
-                    # dprt("intersect l (%2d %2d) (%2d %2d)" % \
-                    #      (index, idxLeft, l.index, itemLeft.index))
-                    loc0 = self.intersect(l.l, itemLeft.l)
-                    self.intersectionPrt(index, idxLeft, loc0)
-                else:
-                    self.noIntersection()
+                    evtLeft = sweepList[idxLeft]
+                    loc0 = self.intersect(l, evtLeft.l)
+                    self.iEvt(loc0, evt, evtLeft)
 
-                idxRight = index + 1
-                if idxRight < listLen:
-                    itemRight = sweepList[idxRight]
-                    # dprt("intersect r (%2d %2d) (%2d %2d)" % \
-                    #      (index, idxRight, l.index, itemRight.index))
-                    loc1 = self.intersect(l.l, itemRight.l)
-                    self.intersectionPrt(index, idxRight, loc1)
-                else:
-                    self.noIntersection()
+                vertical = abs(l.p0[0] - l.p1[0]) < MIN_DIST
+                idxRight = index
+                while True:
+                    idxRight += 1
+                    if idxRight >= sweepLen:
+                        break
+                    evtRight = sweepList[idxRight]
+                    loc1 = self.intersect(l, evtRight.l)
+                    self.iEvt(loc1, evt, evtRight)
+                    if not vertical:
+                        break
+
                 self.listPrt(sweepList)
-            else:
-                index = sweepList.bisect_left(l)
-                listLen = len(sweepList)
-                self.sweepPrt("d", l, listLen, index)
-                item = sweepList[index]
-                if item.key != l.key:
+            elif evt.evtType == RIGHT:
+                index = sweepList.bisect_left(evt)
+                sweepLen = len(sweepList)
+                self.sweepPrt("r", evt, sweepLen, index)
+                curEvt = sweepList[index]
+                if curEvt.key != evt.key:
                     ePrint("key error")
+                    
                 if index > 0:
                     idxLeft = index - 1
                     idxRight = index + 1
-                    if idxRight < listLen:
-                        itemLeft = sweepList[idxLeft]
-                        itemRight = sweepList[idxRight]
-                        # dprt("intersect d (%2d %2d) (%2d %2d)" % \
-                        #      (idxLeft, idxRight, \
-                        #       itemLeft.index, itemRight.index))
-                        loc = self.intersect(itemLeft.l, itemRight.l)
-                        self.intersectionPrt(idxLeft, idxRight, loc)
-                    else:
-                        self.noIntersection()
-                else:
-                        self.noIntersection()
-                self.noIntersection()
+                    if idxRight < sweepLen:
+                        evtLeft = sweepList[idxLeft]
+                        evtRight = sweepList[idxRight]
+                        loc = self.intersect(evtLeft.l, evtRight.l)
+                        self.iEvt(loc, evtLeft, evtRight)
                 self.listPrt(sweepList)
                 sweepList.pop(index)
+            elif evt.evtType == INTERSECT:
+                sweepLen = len(sweepList)
+                self.sweepPrt("i", evt, sweepLen)
+
+                evt0 = evt.evt0
+                evt1 = evt.evt1
+                sweepList.remove(evt.evt0)
+                sweepList.remove(evt.evt1)
+                # if evt0.key > evt1.key:
+                (evt0, evt1) = (evt1, evt0)
+                key = evt.p.y * 100
+                evt0.key = key
+                evt1.key = key + 1
+                self.evtArray[evt0.index].end.key = evt0.key
+                self.evtArray[evt1.index].end.key = evt1.key
+                sweepList.add(evt0)
+                sweepList.add(evt1)
+                
+                index = sweepList.bisect_left(evt0)
+                if index > 0:
+                    idxLeft = index - 1
+                    evtLeft = sweepList[idxLeft]
+                    loc = self.intersect(evt0.l, evtLeft.l)
+                    self.iEvt(loc, evt, evtLeft)
+                
+                index += 1
+                idxRight = index + 1
+                if idxRight < sweepLen:
+                    evtRight = sweepList[idxRight]
+                    loc = self.intersect(evt1.l, evtRight.l)
+                    self.iEvt(loc, evt, evtRight)
+                self.listPrt(sweepList)
             # dprt()
         print("length %d" % (len(sweepList)))
 
-    def sweepPrt(self, string, l, listLen, sweepIndex):
-        dprt("%s %2d x %6d l %2d i %2d" % \
-             (string, l.index, l.p.x, listLen, sweepIndex), end='')
+    def addEvent(self, p0, p1, l):
+        evtStr = Event(p0, l, LEFT)
+        evtEnd = Event(p1, l, RIGHT, evtStr.key)
+        evtStr.evtEnd = evtEnd
+        self.evtList.add(evtStr)
+        self.evtList.add(evtEnd)
+        self.evtArray[l.index] = EventPair(evtStr, evtEnd)
+
+    def iEvt(self, loc, evt0, evt1):
+        if loc is not None:
+            p = newPoint(loc, self.scale)
+            evt = Intersect(p, loc, evt0, evt1)
+            if p.x > self.curX:
+                self.intCount += 1
+                self.intersectionPrt(evt0.index, evt1.index, loc)
+                self.evtList.add(evt)
+            a = 1
+
+    def eventPrt(self):
+        for evt in self.evtList:
+            evt.prt()
+        
+    def sweepPrt(self, string, evt, sweepLen, sweepIndex=None):
+        if evt.evtType != INTERSECT:
+            dprt("%s %2d x %6d l %2d i %2d" % \
+                 (string, evt.index, evt.p.x, sweepLen, sweepIndex), end='')
+        else:
+            dprt("%s    x %6d l %2d     " % \
+                 (string, evt.p.x, sweepLen), end='')
 
     def listPrt(self, sweepList):
+        while self.intCount < 2:
+            self.intCount += 1
+            self.noIntersection()
         dprt(" (", end='')
         for (i, s) in enumerate(sweepList):
             if i != 0:
                 dprt(", ", end='')
-            dprt("%2d" % (s.l.index), end='')
+            if s.evtType != INTERSECT:
+                dprt("%2d" % (s.l.index), end='')
+            else:
+                dprt("  ", end='')
             dprt(" %5d" % (s.p.y), end='')
         dprt(")")
 
-    def intersectionPrt(self, idx0, idx1, loc):
-        item0 = self.sweepList[idx0].index
-        item1 = self.sweepList[idx1].index
-        dprt(" (%2d %2d) (%2d %2d)" % (idx0, idx1, item0, item1), end='')
+    def intersectionPrt(self, index0, index1, loc):
+        dprt(" (%2d %2d)" % (index0, index1), end='')
         if loc is not None:
             dprt(" (%5.2f %5.2f)" % (loc[0], loc[1]), end='')
         else:
             dprt("              ", end='')
 
     def noIntersection(self):
-        dprt("                ", end='')
+        dprt("        ", end='')
         dprt("              ", end='')
-
-    class Segment:
-        def __init__(self, p, l, key, left, scale=None):
-            self.p = newPoint(p, scale)
-            self.l = l
-            self.index = l.index
-            self.left = left
-            self.key = key
-
-        def __gt__(self, other):
-            # if not isinstance(other, self.Segment):
-            #     raise Exception("")
-            # else:
-            return self.key > other.key
-
-        def __lt__(self, other):
-            # if not isinstance(other, self.Segment):
-            #     raise Exception("")
-            # else:
-            return self.key < other.key
-
-        def prt(self, end='\n'):
-            dprt("p (%6d %6d) %2d %s" % \
-                 (self.p.x, self.p.y, self.index, str(self.left)[0]), end)
-
-    # class SegmentList:
 
     def intersect(self, l0, l1):
         if l0.type == LINE:
             if l1.type == LINE:
+                # if abs(l0.index - l1.index) == 1:
+                #     return None
                 return self.lineIntersection(l0, l1)
             else:
                 return self.lineArcIntersection(l0, l1)
@@ -382,6 +376,9 @@ class Offset():
         iPt = (p0[0] + (t * s10_x), p0[1] + (t * s10_y))
         # dprt("intersection %2d %2d (%7.4f %7.4f)" %
         #      (l0.index, l1.index, iPt[0], iPt[1]))
+        if xyDist(iPt, p0) < MIN_DIST or \
+           xyDist(iPt, p1) < MIN_DIST:
+            return None
         self.cfg.draw.drawX(iPt, "%d-%d" % (l0.index, l1.index))
         return iPt
 
@@ -390,6 +387,91 @@ class Offset():
 
     def arcArcIntersection(self, l0, l1):
         pass
+
+class Event:
+    def __init__(self, p, l, evtType, key=None):
+        self.evtType = evtType
+        self.p = p
+        self.l = l
+        self.index = l.index
+        self.event = True
+        if key is None:
+            self.key = self.p.y * 100 + l.index
+        else:
+            self.key = key
+
+    def prt(self, end='\n'):
+        dprt("p (%6d %6d) %2d %9d %s" % \
+                (self.p.x, self.p.y, self.index, self.key, \
+                evtStr[self.evtType]), end)
+
+    def __str__(self):
+        return("p (%6d %6d) %2d %9d %s" % \
+               (self.p.x, self.p.y, self.index, self.key, \
+                evtStr[self.evtType]))
+
+    def __gt__(self, other):
+        # if not isinstance(other, Event):
+        #     raise Exception("")
+        # else:
+        if self.event:
+            if self.p.x == other.p.x:
+                return self.p.y > other.p.y
+            else:
+                return self.p.x > other.p.x
+        else:
+            return self.key > other.key
+
+    def __lt__(self, other):
+        # if not isinstance(other, Event):
+        #     raise Exception("")
+        # else:
+        if self.event:
+            if self.p.x == other.p.x:
+                return self.p.y < other.p.y
+            else:
+                return self.p.x < other.p.x
+        else:
+            return self.key < other.key
+
+class Intersect:
+    def __init__(self, p, loc, evt0, evt1):
+        self.evtType = INTERSECT
+        self.p = p
+        self.loc = loc
+        self.evt0 = evt0
+        self.evt1 = evt1
+        self.event = True
+    
+    def prt(self, end='\n', l=False):
+        dprt("p (%6d %6d)        %2d %2d I" % \
+             (self.p.x, self.p.y, self.evt0.index, self.evt1.index), end='')
+        if l:
+            dprt(" %2d %2d" % (self.evt0.index, self.evt1.index), '')
+        dprt(end=end)
+
+    def __str__(self):
+        return("p (%6d %6d)    %9d %s" % \
+               (self.p.x, self.p.y, self.key, \
+                evtStr[self.evtType]))
+
+    def __gt__(self, other):
+        if self.event:
+            if self.p.x == other.p.x:
+                return self.p.y > other.p.y
+            else:
+                return self.p.x > other.p.x
+        else:
+            return self.key > other.key
+
+    def __lt__(self, other):
+        if self.event:
+            if self.p.x == other.p.x:
+                return self.p.y < other.p.y
+            else:
+                return self.p.x < other.p.x
+        else:
+            return self.key < other.key
 
 # TWO_PI = 2 * pi
 
@@ -444,3 +526,47 @@ class Offset():
 #         return abs(round(angle_sum / TWO_PI)) == 1
 #     except (ArithmeticError, TypeError, ValueError):
 #         return False  # any exception means not a proper convex polygon
+
+        # sweepList = SortedDict()
+        # dprt()
+        # for l in segList:
+        #     l.prt()
+        #     # dprt("x %8d y %8d %d %s" % (l.p.x, l.p.y, l.index, l.left))
+        #     # l.l.prt()
+        #     if l.left:
+        #         sweepList[l.key] = l
+        #         sweepLen = len(sweepList)
+        #         index = sweepList.index(l.key)
+        #         idxLeft = sweepList.bisect_left(l.key)
+        #         idxRight = sweepList.bisect_right(l.key)
+                
+        #         dprt("insert %2d x %6d len %d (%d %d %d)" % \
+        #              (l.index, l.p.x, sweepLen, idxLeft, index, idxRight))
+                
+        #         if idxLeft != index:
+        #             itemLeft = sweepList.peekitem(idxLeft)[1]
+        #             dprt("intersect (%2d %2d) (%2d %2d)" % \
+        #                  (index, idxLeft, l.index, itemLeft.index))
+                    
+        #         if idxRight < sweepLen:
+        #             itemRight = sweepList.peekitem(idxRight)[1]
+        #             dprt("intersect (%2d %2d) (%2d %2d)" % \
+        #                  (index, idxRight, l.index, itemRight.index))
+        #     else:
+        #         sweepLen = len(sweepList)
+        #         index = sweepList.index(l.key)
+        #         idxLeft = sweepList.bisect_left(l.key)
+        #         idxRight = sweepList.bisect_right(l.key)
+        #         dprt("delete %2d x %6d len %d (%d %d %d)" % \
+        #              (l.index, l.p.x, sweepLen, idxLeft, index, idxRight))
+        #         if index != idxLeft and \
+        #            idxRight < sweepLen and \
+        #            idxLeft != idxRight:
+        #             itemLeft = sweepList.peekitem(idxLeft)[1]
+        #             itemRight = sweepList.peekitem(idxRight)[1]
+        #             dprt("intersect (%2d %2d) (%2d %2d)" % \
+        #                  (idxLeft, idxRight, itemLeft, itemRight))
+        #         sweepList.pop(l.key)
+        #     dprt()
+        # print("length %d" % (len(sweepList)))
+        
