@@ -2477,6 +2477,47 @@ class Dxf():
                     circles.append((p, 2*radius))
         return(circles)
     
+    def getObjects(self, layer=None):
+        objects = []
+        linNum = 0
+        for e in self.modelspace:
+            # dprt("layer %s" % (e.get_dxf_attrib("layer")))
+            if layer != e.get_dxf_attrib("layer"):
+                continue
+            dxfType = e.dxftype()
+            if dxfType == 'LINE':
+                l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
+                          self.fix(e.get_dxf_attrib("end")[:2]), \
+                          linNum, e)
+            elif dxfType == 'ARC':
+                center = self.fix(e.get_dxf_attrib("center")[:2])
+                radius = e.get_dxf_attrib("radius")
+                startAngle = e.get_dxf_attrib("start_angle")
+                endAngle = e.get_dxf_attrib("end_angle")
+                l0 = Arc(center, radius, startAngle, endAngle, \
+                         linNum, e)
+            elif dxfType == 'CIRCLE':
+                p = self.fix(e.get_dxf_attrib("center")[:2])
+                radius = e.get_dxf_attrib("radius")
+                l0 = Arc(p, radius, 0.0, 360.0, linNum, e)
+                linNum += 1
+            elif dxfType == 'LWPOLYLINE':
+                prev = None
+                if e.closed:
+                    prev = e[-1][:2]
+                for p in e.get_rstrip_points():
+                    if prev is not None:
+                        l0 = Line(self.fix(prev), self.fix(p), linNum, e)
+                        objects.append(l0)
+                        linNum += 1
+                    prev = p
+                continue
+            else:
+                continue
+            objects.append(l0)
+            linNum += 1
+        return(objects)
+    
     def getPath(self, layer, circle=False, dbg=True, rand=False):
         if dbg:
             dprt("getPath %s" % (layer))

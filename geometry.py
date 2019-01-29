@@ -36,7 +36,7 @@ def newPoint(p, scale=None):
     if scale is None:
         return Point(p[0], p[1])
     else:
-        return Point(int(p[0] * scale), int(p[1] * scale))
+        return Point(int(round(p[0] * scale)), int(round(p[1] * scale)))
 
 def quadrant(p):
     (x, y) = p
@@ -95,40 +95,6 @@ def eqnLine(p0, p1):
         m = dx / dy
         b = x0 - m * y0
         return (m, b, False)
-
-def lineArcTest(l, a):
-    (x0, y0) = l.p0             # start and end
-    (x1, y1) = l.p1
-    (i, j) = a.c                # center of arc
-    x0 -= i                     # subtract center of arc
-    y0 -= j
-    x1 -= i
-    y1 -= j
-    (m, b, xGreater) = eqnLine((x0, y0), (x1, y1)) # equation of line
-    qA = 1 + m*m
-    qB = 2 * m * b
-    qC = b*b - a.r*a.r
-    sqrTerm = qB*qB - 4 * qA * qC
-    if sqrTerm > 0:             # no intersection
-        return None
-    if abs(sqrTerm) < MIN_DIST: # if tangent
-        return
-
-    sqrTerm = sqrt(sqrTerm)     # if two intersections
-    qA *= 2
-    plus = (-qB + sqrTerm) / qA
-    minus = (-qB - sqrTerm) / qA
-    if xGreater:                # if using y = mx + b
-        xPlus = plus
-        yPlus = m * xPlus + b
-        xMinus = minus
-        yMinus = m * xMinus + b
-    else:                       # if using x = my + b
-        yPlus = plus
-        xPlus = m * yPlus + b
-        yMinus = minus
-        xMinus = m * yMinus + b
-
 
 # orientation of three points
 
@@ -252,14 +218,16 @@ def segOrientation(seg, index):
     o = orientation(l0.p0, l0.p1, l1.p1)
     return(o)
 
-def findMinX(seg):
-    dprt("findMinX")
-    minX = 1000
-    minY = 1000
+def findMinX(seg, dbg=False):
+    if dbg:
+        dprt("findMinX")
+    minX = MAX_VALUE
+    minY = MAX_VALUE
     index = None
     for (i, l) in enumerate(seg):
         (x, y) = l.p0
-        dprt("%2d %2d x %7.4f y %7.4f" % (i, l.index, x, y))
+        if dbg:
+            dprt("%2d %2d x %7.4f y %7.4f" % (i, l.index, x, y))
         if x < minX:
             minX = x
             minY = y
@@ -267,42 +235,17 @@ def findMinX(seg):
         elif x == minX and y < minY:
             minY = y
             index = i
-    dprt("index %d minX %7.4f minY %7.4f" % (index, minX, minY))
+    if dbg:
+        dprt("index %d minX %7.4f minY %7.4f" % (index, minX, minY))
     return((index, minX))
 
 def pathDir(seg, dbg=False):
-    # dprt("pathDir")
-    # index = findMaxY(seg)[0]
-    # l = seg[index]
-    # l.prt()
-    # if l.type == ARC:
-    #     dir = (CW, CCW)[l.swapped]
-    # else:
-    #     (x0, y0) = l.p0
-    #     (x1, y1) = l.p1
-    #     dx = x0 - x1
-    #     dy = y0 - y1
-    #     if abs(dx) < MIN_DIST:
-    #         if dy > 0:
-    #             dir = CW
-    #         else:
-    #             dir = CCW
-    #     elif dx > 0:
-    #         dir = CW
-    #     else:
-    #         dir = CCW
-    #     if dbg and draw is not None:
-    #         (x0, y0) = l.p0
-    #         (x1, y1) = l.p1
-    #         str = "%s %d p0 dy %4.1f dx %4.1f %7.4f, %7.4f p1 %7.4f %7.4f" % \
-    #               (oStr(dir), l.index, dy, dx, x0, y0, x1, y1)
-    #         draw.text(str, (x0 + dbg, y0 + dbg), .025)
-    # dprt("maxYDir %s" % (oStr(dir)))
-    # dprt()
-
-    index = findMinX(seg)[0]
+    if dbg:
+        dprt("pathDir")
+    index = findMinX(seg, dbg=False)[0]
     l = seg[index]
-    l.prt()
+    if dbg:
+        l.prt()
     if l.type == ARC:
         direction = (CCW, CW)[l.swapped]
         if dbg and draw is not None:
@@ -331,8 +274,9 @@ def pathDir(seg, dbg=False):
                 (oStr(direction), oStr(direction), l.index, \
                  dy, dx, x0, y0, x1, y1)
             draw.text(string, (x0 + dbg, y0 + dbg), .020)
-    dprt("minXDir %s" % (oStr(direction)))
-    dprt()
+    if dbg:
+        dprt("minXDir %s" % (oStr(direction)))
+        dprt()
     return(direction)
 
 class Line():
@@ -456,6 +400,11 @@ class Line():
         l0 = Line(self.p0, p, self.index)
         l1 = Line(p, self.p1, self.index)
         return((l0, l1))
+
+    def splitPoint(self, p):
+        l0 = Line(self.p0, p, self.index)
+        self.updateP0(p)
+        return(l0)
 
     def intersect(self, l):
         if l.type == LINE:
@@ -787,6 +736,31 @@ class Line():
                 self.p1 = p
         return(self)
 
+    def colinear(self, l):
+        if l.type == ARC:       # if other is an arc
+            return False
+
+        dx = self.p1[0] - self.p0[0]
+        dy = self.p1[1] - self.p0[1]
+        # if abs(dx) < MIN_DIST or abs(dy) < MIN_DIST:
+        #     dprt("zero")
+        dX0Greater = abs(dx) > abs(dy)
+        m0 = dy / dx if dX0Greater else dx / dy
+
+        dx = l.p1[0] - l.p0[0]
+        dy = l.p1[1] - l.p0[1]
+        # if abs(dx) < MIN_DIST or abs(dy) < MIN_DIST:
+        #     dprt("zero")
+        dX1Greater = abs(dx) > abs(dy)
+        m1 = dy / dx if dX1Greater else dx / dy
+
+        return dX0Greater == dX1Greater and abs(m0 - m1) < MIN_DIST
+
+    def onSegment(self, p):
+        d0 = xyDist(p, self.p0)
+        d1 = xyDist(p, self.p1)
+        return abs(self.length - (d0 + d1)) < MIN_DIST
+
     def mill(self, mill, zEnd=None, comment=None):
         mill.cut(self.p1, zEnd, comment)
 
@@ -797,10 +771,10 @@ class Line():
         draw.line(self.p1)
 
     def label(self, text, layer=None):
-        self.text = text
+        # self.text = text
         if draw is None:
             return
-        if self.length > 0.5:
+        if self.length > 0.075:
             h = 0.010
             x = (self.p1[0] + self.p0[0]) / 2.0
             y = ((self.p0[1] + self.p1[1]) / 2.0) - h
@@ -950,7 +924,7 @@ class Arc():
     def linePoint(self, dist):
         r = self.r
         arcLen = dist / r
-        a = radians(self.a0 + arcLen)
+        a = radians(self.a0) + arcLen
         x = r * cos(a) + self.c[0]
         y = r * sin(a) + self.c[1]
         return((x, y))
@@ -969,6 +943,12 @@ class Arc():
         if self.swapped:
             (a0, a1) = (a1.swap(), a0.swap())
         return((a0, a1))
+
+    def splitPoint(self, p):
+        l = copy(self)
+        l.updateP1(p)
+        self.updateP0(p)
+        return(l)
 
     def intersect(self, l):
         p = None
@@ -1171,6 +1151,20 @@ class Arc():
                 p = pb
             l = Line(p0, p)
         return(l)
+
+    def colinear(self, l):
+        if l.type == LINE:
+            return False
+
+        return (xyDist(self.c, l.c) < MIN_DIST and
+                abs(self.r - l.r) < MIN_DIST)
+
+    def onSegment(self, p):
+        a = degAtan2(p[1] - self.c[1], p[0] - self.c[0])
+        if self.a0 < self.a1:
+            return (self.a0-MIN_DIST) < a and a < (self.a1+MIN_DIST)
+        else:
+            return self.a0 > (a-MIN_DIST) or (a+MIN_DIST) > self.a1
     
     def mill(self, mill, zEnd=None, comment=None):
         mill.setArcCW(self.swapped)
@@ -1201,6 +1195,13 @@ class Arc():
         else:
             out.write(string)
             out.write(eol)
+
+    def label(self, text, layer=None):
+        if draw is None:
+            return
+        (x, y) = self.linePoint(self.length / 2)
+        h = 0.010
+        draw.text(text, (x, y - h), h, layer)
 
 def lineLine(l0, l1):
     # dprt("intersect line line")
@@ -1454,7 +1455,7 @@ def arcArc(l0, l1):
     dx = x1 - x0                # x distance
     dy = y1 - y0                # y distance
 
-    d = sqrt(dx * dx + dy * dy) # center distance
+    d = hypot(dx ,dy)           # center distance
     d0 = (d*d + r0*r0 - r1*r1) / (2 * d) # distance along center line
     p = None
     if abs(abs(d0) - abs(r0)) < MIN_DIST: # if intersection
@@ -1681,20 +1682,22 @@ def reverseSeg(seg, makeCopy=True):
         newSeg.append(l)
     return(newSeg)
 
-def splitArcs(seg):
-    dprt("splitArcs in")
+def splitArcs(seg, splitAngle=90, dbg=False):
+    if dbg:
+        dprt("splitArcs in")
     newSeg = []
     i = 0
     for l in seg:
         # l.prt()
         if l.type == ARC:
-            l.prt()
+            if dbg:
+                l.prt()
             a0 = degrees(calcAngle(l.c, l.p0))
-            aTmp = round(a0 / 90) * 90
+            aTmp = round(a0 / splitAngle) * splitAngle
             if abs(a0 - aTmp) < MIN_DIST:
                 a0 = aTmp
             a1 = degrees(calcAngle(l.c, l.p1))
-            aTmp = round(a1 / 90) * 90
+            aTmp = round(a1 / splitAngle) * splitAngle
             if abs(a1 - aTmp) < MIN_DIST:
                 a1 = aTmp
             if not l.swapped:   # clockwise
@@ -1704,10 +1707,10 @@ def splitArcs(seg):
                 #       (fix(a0), fix(a1), a1 - a0))
                 prev = a = a0
                 while True:
-                    if a % 90 > .001:
-                        a = ceil(a / 90) * 90
+                    if a % splitAngle > .001:
+                        a = ceil(a / splitAngle) * splitAngle
                     else:
-                        a += 90
+                        a += splitAngle
                     if a >= a1:
                         break
                     # dprt("(%5.1f, %5.1f)" % (fix(prev), fix(a)), end=" ")
@@ -1724,10 +1727,10 @@ def splitArcs(seg):
                 #       (fix(a0), fix(a1), a0 - a1))
                 prev = a = a0
                 while True:
-                    if a % 90 > .001:
-                        a = floor(a / 90) * 90
+                    if a % splitAngle > .001:
+                        a = floor(a / splitAngle) * splitAngle
                     else:
-                        a -= 90
+                        a -= splitAngle
                     if a <= a1:
                         break
                     # dprt("(%5.1f, %5.1f)" % (fix(a), fix(prev)), end=" ")
@@ -1747,10 +1750,11 @@ def splitArcs(seg):
             l1 = copy(l)
             newSeg.append(l1)
             i += 1
-    dprt("\nsplitArcs out")
-    for l in newSeg:
-        l.prt()
-    dprt()
+    if dbg:
+        dprt("\nsplitArcs out")
+        for l in newSeg:
+            l.prt()
+        dprt()
     return(newSeg)
 
 def combineArcs(seg):
