@@ -1,4 +1,4 @@
-#!/cygdrive/c/Python27/Python.exe
+#!/cygdrive/c/Python37/Python.exe
 #!/cygdrive/c/DevSoftware/Python/Python36-32/Python.exe
 #!/usr/local/bin/python2.7
 ################################################################################
@@ -33,7 +33,8 @@ from math import ceil, cos, floor, radians, sin, tan
 from ezdxf import readfile as ReadFile
 from hershey import Font
 from os import getcwd
-from imp import load_source
+# from imp import load_source
+import importlib.machinery
 from draw import Draw
 
 import random
@@ -1463,7 +1464,8 @@ class Config():
             moduleFile = os.path.join(getcwd(),  name)
             if not os.path.isfile(moduleFile):
                 moduleFile = os.path.join(self.runPath, name)
-            module = load_source("module", moduleFile)
+            # module = load_source("module", moduleFile)
+            module = importlib.abc.Loader.exec_module("module", moduleFile)
             # print(dir(module))
             # for m in inspect.getmembers(module, inspect.isclass):
             #     print(m)
@@ -1481,7 +1483,9 @@ class Config():
             fileName = os.path.join(getcwd(),  name)
             if not os.path.isfile(fileName):
                 fileName = os.path.join(self.runPath, name)
-            module = load_source(moduleName, fileName)
+            # module = load_source(moduleName, fileName)
+            loader = importlib.machinery.SourceFileLoader(moduleName, fileName)
+            module = loader.load_module()
             # dprt(dir(module))
             for (name, val) in inspect.getmembers(module, inspect.isclass):
                 if val.__module__ == moduleName and \
@@ -2339,7 +2343,8 @@ class Dxf():
                 yMax = max(yMax, y)
                 yMin = min(yMin, y)
             elif dxfType == 'LWPOLYLINE':
-                for (x0, y0) in e.get_rstrip_points():
+                # for (x0, y0) in e.get_rstrip_points():
+                for (x0, y0) in e.vertices():
                     xMax = max(x0, xMax)
                     xMin = min(x0, xMin)
                     yMax = max(y0, yMax)
@@ -2503,9 +2508,11 @@ class Dxf():
                 linNum += 1
             elif dxfType == 'LWPOLYLINE':
                 prev = None
+                vertices = list(e.vertices())
                 if e.closed:
-                    prev = e[-1][:2]
-                for p in e.get_rstrip_points():
+                    prev = vertices[-1]
+                # for p in e.get_rstrip_points():
+                for p in vertices:
                     if prev is not None:
                         l0 = Line(self.fix(prev), self.fix(p), linNum, e)
                         objects.append(l0)
@@ -2551,9 +2558,11 @@ class Dxf():
                     continue
             elif dxfType == 'LWPOLYLINE':
                 prev = None
+                vertices = list(e.vertices())
                 if e.closed:
-                    prev = e[-1][:2]
-                for p in e.get_rstrip_points():
+                    prev = vertices[-1]
+                # for p in e.get_rstrip_points():
+                for p in vertices:
                     if prev is not None:
                         l0 = Line(self.fix(prev), self.fix(p), linNum, e)
                         entities.append(l0)
@@ -2850,12 +2859,16 @@ class Dxf():
 
         return(segments)
             
-    def getLines(self, layer):
+    def getLines(self, layer, unicode=False):
         line = []
         lineNum = 0
+        lineType = 'LINE'
+        if unicode:
+            layer = layer.decode('utf-8')
+            lineType = lineType.decode('utf-8')
         for e in self.modelspace:
             type = e.dxftype()
-            if type == 'LINE' and e.get_dxf_attrib("layer") == layer:
+            if type == lineType and e.get_dxf_attrib("layer") == layer:
                 l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
                           self.fix(e.get_dxf_attrib("end")[:2]), \
                           lineNum, e)

@@ -279,7 +279,7 @@ class Draw():
         self.lCount += 1
         self.move(last)
 
-    def drawX(self, p, txt, swap=False, layer=None):
+    def drawX(self, p, txt=None, swap=False, layer=None):
         if layer is None:
             layer = self.lDebug
         (x, y) = p
@@ -293,7 +293,8 @@ class Draw():
         self.move((x - xOfs, y + yOfs))
         self.line((x + xOfs, y - yOfs), layer)
         self.move(p)
-        self.text('%s' % (txt), (x + xOfs, y - yOfs), .010, layer)
+        if txt is not None:
+            self.text('%s' % (txt), (x + xOfs, y - yOfs), .010, layer)
         self.move(last)
 
     def drawCircle(self, p, d=0.010, layer=None, txt=None):

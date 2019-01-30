@@ -774,7 +774,7 @@ class Line():
         # self.text = text
         if draw is None:
             return
-        if self.length > 0.075:
+        if self.length > 0.025:
             h = 0.010
             x = (self.p1[0] + self.p0[0]) / 2.0
             y = ((self.p0[1] + self.p1[1]) / 2.0) - h
