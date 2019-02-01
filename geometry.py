@@ -1816,10 +1816,10 @@ def combineArcs(seg):
         i += 1
         k += 1
 
-    dprt()
-    for l in newSeg:
-        l.prt()
-    dprt()
+    # dprt()
+    # for l in newSeg:
+    #     l.prt()
+    # dprt()
     return(newSeg)
 
 def createPath(seg, dist, outside, tabPoints=None, \
