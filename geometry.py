@@ -244,36 +244,42 @@ def pathDir(seg, dbg=False):
         dprt("pathDir")
     index = findMinX(seg, dbg=False)[0]
     l = seg[index]
+    prev = seg[index - 1]
+    direction = orientation(prev.p0, l.p0, l.p1)
     if dbg:
+        prev.prt()
         l.prt()
-    if l.type == ARC:
-        direction = (CCW, CW)[l.swapped]
-        if dbg and draw is not None:
-            (x0, y0) = l.p0
-            string = "%3s %2d" % (oStr(direction), l.index)
-            draw.text(string, (x0 + dbg, y0 + dbg), .025)
-    else:
-        (x0, y0) = l.p0
-        (x1, y1) = l.p1
-        dx = x0 - x1
-        dy = y0 - y1
-        if abs(dy) < MIN_DIST:
-            if dx > 0:
-                direction = CW
-            else:
-                direction = CCW
-        elif dy > 0.0:
-            direction = CCW
-        else:
-            direction = CW
-        if dbg and draw is not None:
-            # prev = seg[index - 1]
-            # o = orientation(prev.p0, l.p0, l.p1)
-            string = "%s %s %d dy %3.1f dx %3.1f p0 %7.4f, %7.4f " \
-                "p1 %7.4f %7.4f" % \
-                (oStr(direction), oStr(direction), l.index, \
-                 dy, dx, x0, y0, x1, y1)
-            draw.text(string, (x0 + dbg, y0 + dbg), .020)
+        if draw is not None:
+            string = "%s %d" % (oStr(direction), l.index)
+            draw.text(string, l.p0, .020)
+    # if l.type == ARC:
+    #     direction = (CCW, CW)[l.swapped]
+    #     if dbg and draw is not None:
+    #         (x0, y0) = l.p0
+    #         string = "%3s %2d" % (oStr(direction), l.index)
+    #         draw.text(string, (x0 + dbg, y0 + dbg), .025)
+    # else:
+    #     (x0, y0) = l.p0
+    #     (x1, y1) = l.p1
+    #     dx = x0 - x1
+    #     dy = y0 - y1
+    #     if abs(dy) < MIN_DIST:
+    #         if dx > 0:
+    #             direction = CW
+    #         else:
+    #             direction = CCW
+    #     elif dy > 0.0:
+    #         direction = CCW
+    #     else:
+    #         direction = CW
+    #     if dbg and draw is not None:
+    #         prev = seg[index - 1]
+    #         o = orientation(prev.p0, l.p0, l.p1)
+    #         string = "%s %s %d dy %3.1f dx %3.1f p0 %7.4f, %7.4f " \
+    #             "p1 %7.4f %7.4f" % \
+    #             (oStr(direction), oStr(o), l.index, \
+    #              dy, dx, x0, y0, x1, y1)
+    #         draw.text(string, (x0 + dbg, y0 + dbg), .020)
     if dbg:
         dprt("minXDir %s" % (oStr(direction)))
         dprt()
@@ -281,8 +287,8 @@ def pathDir(seg, dbg=False):
 
 class Line():
     def __init__(self, p0, p1, i=-1, e=None):
-        self.p0 = p0
-        self.p1 = p1
+        self.p0 = newPoint(p0)
+        self.p1 = newPoint(p1)
         self.type = LINE
         self.str = 'line'
         self.index = i
@@ -291,11 +297,11 @@ class Line():
         self.text = None
 
     def updateP0(self, p0):
-        self.p0 = p0
+        self.p0 = newPoint(p0)
         self.length = xyDist(self.p0, self.p1)
 
     def updateP1(self, p1):
-        self.p1 = p1
+        self.p1 = newPoint(p1)
         self.length = xyDist(self.p0, self.p1)
 
     def swap(self):
@@ -347,8 +353,8 @@ class Line():
                 m = -dx / dy
                 xt = sqrt((d * d) / (1 + m * m))
                 yt = m * xt
-            pa = (xM + xt, yM + yt)
-            pb = (xM - xt, yM - yt)
+            pa = Point(xM + xt, yM + yt)
+            pb = Point(xM - xt, yM - yt)
             pM = pa
             direction = orientation(self.p0, (xM, yM), pM)
             if dist > 0:        # dist > 0 is clockwise
@@ -366,7 +372,7 @@ class Line():
             if dbg:
                 dprt("midPoint direction %s" % (oStr(direction)))
         else:
-            pM = (xM, yM)
+            pM = Point(xM, yM)
         return(pM)
 
     def linePoint(self, dist):
@@ -494,8 +500,8 @@ class Line():
             # b = x0 - m * y0
             y = sqrt(dist * dist / (1 + m * m))
             x = m * y
-        pa = (x0 + x, y0 + y)
-        pb = (x0 - x, y0 - y)
+        pa = Point(x0 + x, y0 + y)
+        pb = Point(x0 - x, y0 - y)
         if xyDist(pa, p1) > xyDist(pb, p1):
             p = pa
         else:
@@ -669,12 +675,12 @@ class Line():
                 else:
                     return(self)
         elif abs(dx) < MIN_DIST: # vertical
-            p = (x0, yVal)
+            p = Point(x0, yVal)
         else:
             m = dx / dy
             b = x0 - m * y0
             x = m * yVal + b
-            p = (x, yVal)
+            p = Point(x, yVal)
 
         if yPlus:
             if y0 > yVal:
@@ -717,12 +723,12 @@ class Line():
                 else:
                     return(self)
         elif abs(dy) < MIN_DIST: # horizontal
-            p = (y0, xVal)
+            p = Point(y0, xVal)
         else:
             m = dy / dx
             b = y0 - m * x0
             y = m * xVal + b
-            p = (y, xVal)
+            p = Point(y, xVal)
 
         if xPlus:
             if x0 > xVal:
@@ -740,15 +746,15 @@ class Line():
         if l.type == ARC:       # if other is an arc
             return False
 
-        dx = self.p1[0] - self.p0[0]
-        dy = self.p1[1] - self.p0[1]
+        dx = self.p1.x - self.p0.x
+        dy = self.p1.y - self.p0.y
         # if abs(dx) < MIN_DIST or abs(dy) < MIN_DIST:
         #     dprt("zero")
         dX0Greater = abs(dx) > abs(dy)
         m0 = dy / dx if dX0Greater else dx / dy
 
-        dx = l.p1[0] - l.p0[0]
-        dy = l.p1[1] - l.p0[1]
+        dx = l.p1.x - l.p0.x
+        dy = l.p1.y - l.p0.y
         # if abs(dx) < MIN_DIST or abs(dy) < MIN_DIST:
         #     dprt("zero")
         dX1Greater = abs(dx) > abs(dy)
@@ -764,27 +770,29 @@ class Line():
     def mill(self, mill, zEnd=None, comment=None):
         mill.cut(self.p1, zEnd, comment)
 
-    def draw(self):
+    def draw(self, layer=None):
         if draw is None:
             return
         draw.move(self.p0)
-        draw.line(self.p1)
+        draw.line(self.p1, layer)
 
-    def label(self, text, layer=None):
+    def label(self, text=None, layer=None):
         # self.text = text
         if draw is None:
             return
+        if text is None:
+            text = str(self.index)
         if self.length > 0.025:
             h = 0.010
-            x = (self.p1[0] + self.p0[0]) / 2.0
-            y = ((self.p0[1] + self.p1[1]) / 2.0) - h
+            x = (self.p1.x + self.p0.x) / 2.0
+            y = ((self.p0.y + self.p1.y) / 2.0) - h
             draw.text(text, (x, y), h, layer)
 
     def prt(self, out=None, eol="\n", prefix=None):
         string = prefix if prefix is not None else ""
         string += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \
-            (self.index, self.p0[0], self.p0[1], \
-             self.p1[0], self.p1[1], self.length, \
+            (self.index, self.p0.x, self.p0.y, \
+             self.p1.x, self.p1.y, self.length, \
              xyDist(self.p0, self.p1))
         if self.text != None:
             string += " " + self.text
@@ -798,14 +806,14 @@ class Line():
 
 class Arc():
     def __init__(self, c, r, a0, a1, i=-1, e=None, direction=CCW):
-        self.c = c
+        self.c = newPoint(c)
         (cX, cY) = c
         a0R = radians(a0)
         a1R = radians(a1)
-        self.p0 = (cX + r * cos(a0R), \
-                   cY + r * sin(a0R))
-        self.p1 = (cX + r * cos(a1R), \
-                   cY + r * sin(a1R))
+        self.p0 = Point(cX + r * cos(a0R), \
+                        cY + r * sin(a0R))
+        self.p1 = Point(cX + r * cos(a1R), \
+                        cY + r * sin(a1R))
         if direction == CW:
             (self.p0, self.p1) = (self.p1, self.p0)
             self.swapped = True
@@ -836,7 +844,8 @@ class Arc():
             return(self.a0)
 
     def updateP0(self, p):
-        a = degAtan2(p[1] - self.c[1], p[0] - self.c[0])
+        p = newPoint(p)
+        a = degAtan2(p[1] - self.c.y, p[0] - self.c.x)
         if not self.swapped:
             self.a0 = a
         else:
@@ -845,7 +854,8 @@ class Arc():
         self.length = self.calcLen()
 
     def updateP1(self, p):
-        a = degAtan2(p[1] - self.c[1], p[0] - self.c[0])
+        p = newPoint(p)
+        a = degAtan2(p[1] - self.c.y, p[0] - self.c.x)
         if not self.swapped:
             self.a1 = a
         else:
@@ -899,14 +909,14 @@ class Arc():
     def midPoint(self, dist=0.0, dbg=False):
         a = radians((self.a1 + self.a0) / 2)
         if dist == 0.0:
-            return(self.c[0] + self.r * cos(a), self.c[1] + self.r * sin(a))
+            return(self.c.x + self.r * cos(a), self.c.y + self.r * sin(a))
         else:
             d = self.fixDist(dist)
             if dbg:
-                pM = (self.c[0] + self.r * cos(a), \
-                      self.c[1] + self.r * sin(a))
-                p = (self.c[0] + (self.r + d) * cos(a), \
-                     self.c[1] + (self.r + d) * sin(a))
+                pM = Point(self.c.x + self.r * cos(a), \
+                           self.c.y + self.r * sin(a))
+                p = Point(self.c.x + (self.r + d) * cos(a), \
+                          self.c.y + (self.r + d) * sin(a))
                 d0 = orientation(self.p0, pM, self.p1)
                 d1 = orientation(self.p0, pM, p)
                 dprt("%2d arc direction %s midPoint direction %s swapped %s" % \
@@ -918,15 +928,15 @@ class Arc():
                     draw.drawCircle(self.p1, 0.015, layer=l)
                     draw.drawCircle(p, 0.030, layer=l, \
                                     txt=('+', '-')[dist < 0.0])
-            return(self.c[0] + (self.r + d) * cos(a), \
-                   self.c[1] + (self.r + d) * sin(a))
+            return(self.c.x + (self.r + d) * cos(a), \
+                   self.c.y + (self.r + d) * sin(a))
 
     def linePoint(self, dist):
         r = self.r
         arcLen = dist / r
         a = radians(self.a0) + arcLen
-        x = r * cos(a) + self.c[0]
-        y = r * sin(a) + self.c[1]
+        x = r * cos(a) + self.c.x
+        y = r * sin(a) + self.c.y
         return((x, y))
 
     def split(self, dist):
@@ -957,22 +967,22 @@ class Arc():
         elif l.type == ARC:
             c0 = self.c
             c1 = l.c
-            if self.r != l.r or c0[0] != c1[0] or c0[1] != c1[1]:
+            if self.r != l.r or c0.x != c1.x or c0.y != c1.y:
                 p = arcArc(self, l)
         if p is not None:
             self.updateP1(p)    # update end of this one
             l.updateP0(p)       # and start of next one
         # if p is None:
         #     dprt("a no intersection s %7.4f, %7.4f e %7.4f %7.4f" % \
-        #           (self.p1[0], self.p1[1], l.p0[0], l.p1[1]))
+        #           (self.p1.x, self.p1.y, l.p0.x, l.p1.y))
         return(p)
 
     def horizontalTrim(self, yVal, yPlus):
         if yPlus:
-            if self.p0[1] >= yVal and self.p1[1] >= yVal:
+            if self.p0.y >= yVal and self.p1.y >= yVal:
                 return(None)
         else:
-            if self.p0[1] <= yVal and self.p1[1] <= yVal:
+            if self.p0.y <= yVal and self.p1.y <= yVal:
                 return(None)
         (cX, cY) = self.c
         r = self.r
@@ -980,7 +990,7 @@ class Arc():
         if abs(y) > r:
             return(self)
         aRad = asin(y / r)
-        xMid = (self.p0[0] + self.p1[0]) / 2 - cX
+        xMid = (self.p0.x + self.p1.x) / 2 - cX
         if xMid < 0:
             aRad = pi - aRad
         a = degrees(aRad)
@@ -993,11 +1003,11 @@ class Arc():
             a1 += 360.0
         if self.a0 < a and a <= a1:
             x = r * cos(aRad)
-            p = (x + cX, y + cY)
+            p = Point(x + cX, y + cY)
             if yPlus:
-                p0 = self.p0[1] > self.p1[1]
+                p0 = self.p0.y > self.p1.y
             else:
-                p0 = self.p0[1] < self.p1[1]
+                p0 = self.p0.y < self.p1.y
 
             if p0:
                 self.p0 = p
@@ -1015,10 +1025,10 @@ class Arc():
         
     def verticalTrim(self, xVal, xPlus):
         if xPlus:
-            if self.p0[0] >= xVal and self.p1[0] >= xVal:
+            if self.p0.x >= xVal and self.p1.x >= xVal:
                 return(None)
         else:
-            if self.p0[0] <= xVal and self.p1[0] <= xVal:
+            if self.p0.x <= xVal and self.p1.x <= xVal:
                 return(None)
         (cX, cY) = self.c
         r = self.r
@@ -1026,7 +1036,7 @@ class Arc():
         if abs(x) > r:
             return(self)
         aRad = acos(x / r)
-        yMid = (self.p0[1] + self.p1[1]) / 2 - cY
+        yMid = (self.p0.y + self.p1.y) / 2 - cY
         if yMid < 0:
             aRad = -aRad
         a = degrees(aRad)
@@ -1041,9 +1051,9 @@ class Arc():
             y = r * sin(aRad)
             p = (x + cX, y + cY)
             if xPlus:
-                p0 = self.p0[0] > self.p1[0]
+                p0 = self.p0.x > self.p1.x
             else:
-                p0 = self.p0[0] < self.p1[0]
+                p0 = self.p0.x < self.p1.x
 
             if p0:
                 self.p0 = p
@@ -1060,13 +1070,13 @@ class Arc():
 
     def point90(self, p, dist):
         (i, j) = self.c
-        a = atan2(p[1] - j, p[0] - i)
+        a = atan2(p.y - j, p[0] - i)
         d = self.fixDist(dist)
         d += self.r
         return((i + d * cos(a), j + d * sin(a)))
 
     def pointDistance(self, p):
-        a = degAtan2(p[1] - self.c[1], p[0] - self.c[0])
+        a = degAtan2(p[1] - self.c.y, p[0] - self.c.x)
         a0 = self.a0
         a1 = self.a1
         if a1 < a0:
@@ -1083,7 +1093,7 @@ class Arc():
         return(None)
 
     def startDist(self, p):
-        a = degAtan2(p[1] - self.c[1], p[0] - self.c[0])
+        a = degAtan2(p[1] - self.c.y, p[0] - self.c.x)
         if self.swapped:
             t = self.a1 - a
             if t < 0.0:
@@ -1116,10 +1126,10 @@ class Arc():
             m = -dx / dy
             xa = sqrt(dist * dist / (1 + m * m))
             ya = m * xa
-        pa = (x0 + xa, y0 + ya)
-        pb = (x0 - xa, y0 - ya)
-        # a = degAtan2(pa[1] - j, pa[0] - i)
-        # b = degAtan2(pb[1] - j, pb[0] - i)
+        pa = Point(x0 + xa, y0 + ya)
+        pb = Point(x0 - xa, y0 - ya)
+        # a = degAtan2(pa.y - j, pa.x - i)
+        # b = degAtan2(pb.y - j, pb.x - i)
         labelP(pa, 'pa')
         labelP(pb, 'pb')
         # dprt("extend\n")
@@ -1160,7 +1170,7 @@ class Arc():
                 abs(self.r - l.r) < MIN_DIST)
 
     def onSegment(self, p):
-        a = degAtan2(p[1] - self.c[1], p[0] - self.c[0])
+        a = degAtan2(p[1] - self.c.y, p[0] - self.c.x)
         if self.a0 < self.a1:
             return (self.a0-MIN_DIST) < a and a < (self.a1+MIN_DIST)
         else:
@@ -1172,7 +1182,7 @@ class Arc():
         # dprt("%2d radius %7.4f r %7.4f" % \
         #       (self.index, xyDist(self.p1, self.c), self.r))
 
-    def draw(self):
+    def draw(self, layer=None):
         if draw is None:
             return
         if not self.swapped:
@@ -1186,9 +1196,9 @@ class Arc():
         string = prefix if prefix is not None else ""
         string += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f arc%s" \
             " c%6.3f%6.3f r %5.3f %4.0f %4.0f" % \
-            (self.index, self.p0[0], self.p0[1], \
-             self.p1[0], self.p1[1], self.length, \
-             (' ', 's')[self.swapped], self.c[0], self.c[1], \
+            (self.index, self.p0.x, self.p0.y, \
+             self.p1.x, self.p1.y, self.length, \
+             (' ', 's')[self.swapped], self.c.x, self.c.y, \
              self.r, self.a0, self.a1)
         if out is None:
             dprt(string)
@@ -1196,9 +1206,11 @@ class Arc():
             out.write(string)
             out.write(eol)
 
-    def label(self, text, layer=None):
+    def label(self, text=None, layer=None):
         if draw is None:
             return
+        if text is None:
+            text = str(self.index)
         (x, y) = self.linePoint(self.length / 2)
         h = 0.010
         draw.text(text, (x, y - h), h, layer)
@@ -1356,8 +1368,8 @@ def lineArc(l0, l1, end, dbg=False):
                 t0 = 0
         else:
             t0 = 0
-        pa = (i + t0, y)
-        pb = (i - t0, y)
+        pa = Point(i + t0, y)
+        pb = Point(i - t0, y)
     else:               	  # oblique
         m = (y1 - y0) / (x1 - x0) # slope of line
         b = y0 - m * x0           # intercept
@@ -1466,11 +1478,11 @@ def arcArc(l0, l1):
         cosA = dx / d
         sinA = dy / d
 
-        pa = (x0 + d0 * cosA + h * sinA, \
-              y0 + d0 * sinA - h * cosA)
+        pa = Point(x0 + d0 * cosA + h * sinA, \
+                   y0 + d0 * sinA - h * cosA)
 
-        pb = (x0 + d0 * cosA - h * sinA, \
-              y0 + d0 * sinA + h * cosA)
+        pb = Point(x0 + d0 * cosA - h * sinA, \
+                   y0 + d0 * sinA + h * cosA)
 
         da = xyDist(l0.p1, pa)
         db = xyDist(l0.p1, pb)
