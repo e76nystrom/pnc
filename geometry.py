@@ -1174,10 +1174,10 @@ class Arc():
             return
         if not self.swapped:
             draw.move(self.p0)
-            draw.arc(self.p1, self.c)
+            draw.arc(self.p1, self.c, layer=layer)
         else:
             draw.move(self.p1)
-            draw.arc(self.p0, self.c)
+            draw.arc(self.p0, self.c, layer=layer)
 
     def prt(self, out=None, eol="\n", prefix=None):
         string = prefix if prefix is not None else ""

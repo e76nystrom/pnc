@@ -2862,16 +2862,16 @@ class Dxf():
 
         return(segments)
             
-    def getLines(self, layer, unicode=False):
+    def getLines(self, layer, uniCode=False):
         line = []
         lineNum = 0
         lineType = 'LINE'
-        if unicode:
+        if uniCode:
             layer = layer.decode('utf-8')
             lineType = lineType.decode('utf-8')
         for e in self.modelspace:
-            type = e.dxftype()
-            if type == lineType and e.get_dxf_attrib("layer") == layer:
+            dxfType = e.dxftype()
+            if dxfType == lineType and e.get_dxf_attrib("layer") == layer:
                 l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
                           self.fix(e.get_dxf_attrib("end")[:2]), \
                           lineNum, e)

@@ -518,8 +518,7 @@ class Offset():
                         dbgTxt += "%2d" % (e.index)
                     dbgTxt += ")"
 
-                    (x, y) = evt.p
-                    key = y * self.keyScale
+                    key = evt.p.y * self.keyScale
                     index0 = sweepList.bisect_left(evt0)
                     dbgTxt += " (%2d" % (index0)
                     if index0 < sweepLen:
@@ -800,16 +799,16 @@ class Offset():
                 self.sweepList.add(evt)
                 if dbg:
                     self.sweepPrt(evt, sweepLen, 0)
-                    self.listPrt(sweepList)
+                    self.listPrt()
             elif evt.evtType == RIGHT:
                 try:
                     if dbg:
                         self.sweepPrt(evt, sweepLen, 0)
                     sweepList.remove(evt)
                     if dbg:
-                        self.listPrt(sweepList)
+                        self.listPrt()
                 except ValueError:
-                    self.listPrt(sweepList)
+                    self.listPrt()
                     dprt("insidePoint list error")
                     evt.prt()
             x0 = x
@@ -952,7 +951,7 @@ class Event:
         # else:
         if self.event:
             if self.p.x == other.p.x:
-                if self.p.y == oth.p.y:
+                if self.p.y == other.p.y:
                     return self.index > other.index
                 else:
                     return self.p.y > other.p.y
