@@ -97,7 +97,8 @@ class Offset():
         total = 0
         count = 0
         while len(segments) > 0:
-            dprt("***count %d*** %d" % (count, len(segments[0])))
+            dprt("***count %d*** %d %d" % \
+                 (count, len(segments), len(segments[0])))
             finalPolygons = self.offsetPath(segments, direction, distance)
             if finalPolygons is None:
                 break
@@ -120,6 +121,7 @@ class Offset():
         drawOffset = self.drawOffset
         if dbgOffset and drawOffset:
             drawX = cfg.draw.drawX
+        finalPolygons = []
         for seg in segments:
             newSeg = splitArcs(seg, self.splitArcAngle)
 
@@ -142,8 +144,8 @@ class Offset():
                 wNDirection = CW
             else:
                 wNDirection = None
-            dprt("wNInitial %2d wNDirection %s" % \
-                 (wNInitial, oStr(wNDirection)))
+            dprt("wNInitial %2d wNDirection %s direction %s" % \
+                 (wNInitial, oStr(wNDirection), oStr(direction)))
 
             prevL = newSeg[-1]
             prevL1 = prevL.parallel(distance)
@@ -372,7 +374,6 @@ class Offset():
                     
             dprt("polyList %d" % (len(polyList)))
             dprt("calculate polygon winding number")
-            finalPolygons = []
             for poly in polyList:
                 # direction = pathDir(poly)
                 # dprt("direction %s" % (oStr(direction)))
@@ -390,12 +391,12 @@ class Offset():
                             self.cfg.draw.drawX(p, str(wN))
                 dprt()
 
-            if self.drawFinalPoly:
-                for poly in finalPolygons:
-                    for l in poly:
-                        l.draw()
-                        l.label()
-            return finalPolygons
+        if self.drawFinalPoly:
+            for poly in finalPolygons:
+                for l in poly:
+                    l.draw()
+                    l.label()
+        return finalPolygons
 
     def findIntersections(self, seg):
         pointData = open("points.dat", "wb")
@@ -508,7 +509,8 @@ class Offset():
                     evt0 = evt.evt0
                     evt1 = evt.evt1                
 
-                    dbgTxt = "(%2d %2d)" % (evt0.index, evt1.index)
+                    dbgTxt = "%2d (%2d %2d)" % \
+                        (self.event, evt0.index, evt1.index)
                     dbgTxt += " ("
                     for n, e in enumerate(sweepList):
                         if n != 0:
@@ -565,15 +567,13 @@ class Offset():
                 dbgList.append(dbgTxt)
             lastX = self.curX
             self.event += 1
-        dprt()
+        dprt("\nsweepLen %d\n" % (len(sweepList)))
         for txt in dbgList:
             dprt(txt)
-
         dprt()
         for i, (e, n, idx0, idx1, flag) in enumerate(self.dbgIntersection):
             dprt("%3d %2d (%2d %2d) %s %d" % \
                  (i, e, idx0, idx1, str(flag)[0], n))
-        dprt("sweepLen %d" % (len(sweepList)))
 
     def addEvent(self, p0, p1, l):
         evtStr = Event(p0, l, LEFT)
@@ -1286,32 +1286,3 @@ def arcArcTest(a0, a1):
         if a1.onSegment(pb) and a1.onSegment(pb):
             return pb
     return None
-
-                    # index0 = sweepList.bisect_left(evt0)
-                    # dbgTxt += " (%2d" % (index0)
-                    # if index0 < sweepLen:
-                    #     evtP0 = sweepList[index0]
-                    #     if evt0.key == evtP0.key:
-                    #         sweepList.pop(index0)
-                    #         sweepLen -= 1
-                    #         index1 = sweepList.bisect_left(evt1)
-                    #         if index1 < sweepLen:
-                    #             dbgTxt += " %2d)" % (index1)
-                    #             evtP1 = sweepList[index1]
-                    #             if evt1.key == evtP1.key:
-                    #                 sweepList.pop(index1)
-                    #                 (x, y) = evt.p
-                    #                 key = y * self.keyScale
-                    #                 evt0.key = key + 1
-                    #                 evt0.p = Point(x, y + 1)
-                    #                 evt1.key = key - 1
-                    #                 evt1.p = Point(x, y - 1)
-                    #                 self.evtArray[evt0.index].end.key = evt0.key
-                    #                 self.evtArray[evt1.index].end.key = evt1.key
-                    #                 sweepList.add(evt0)
-                    #                 sweepList.add(evt1)
-                    #             else:
-                    #                 sweepList.add(evt0)
-                    #         else:
-                    #             sweepList.add(evt0)
-                    #     sweepLen = len(sweepList)
