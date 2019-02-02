@@ -502,8 +502,11 @@ class Config():
                             #     ePrint("Missing argument line %d %s" % \
                             #           (self.lineNum, line))
                             except:
+                                dflush()
+                                dclose()
                                 traceback.print_exc()
-                                exit()
+                                inp.close()
+                                break
                         else:
                             ePrint("%2d %s" % (self.lineNum, l))
                             ePrint("invalid cmd %s" % cmd)

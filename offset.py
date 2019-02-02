@@ -20,44 +20,6 @@ Intersection = namedtuple('Intersection', ['loc', 'p', 'l0', 'l1'])
 
 keyScale = None
 
-def windingNumber(p, poly, scale, dbg=False):
-    (x, y) = newPoint(p, scale)
-    l = poly[0]
-    # (x0, y0) = newPoint(l.p0, scale)
-    # x0 -= x
-    # y0 -= y
-    wN = 0
-    if dbg:
-        dprt("\nwindingNum\n")
-        for l in poly:
-            l.prt()
-        dprt("\np (%7.4f %7.4f) (%6d %6d)\n" % (p.x, p.y, x, y))
-    for l in poly:
-        (x0, y0) = newPoint(l.p0, scale)
-        x0 -= x
-        y0 -= y
-        (x1, y1) = newPoint(l.p1, scale)
-        x1 -= x
-        y1 -= y
-        if dbg:
-            dprt("%2d (%6d %6d) (%6d %6d)" % \
-                 (l.index, x0, y0, x1, y1), end='')
-        if (x0 < 0 and x1 > 0 or \
-            x1 < 0 and x0 > 0):
-            if x0 != x1:
-                r = y0 + x0 * float(y1 - y0) / float(x0 - x1)
-                if r > 0:
-                    if x1 < 0:
-                        wN += 1
-                    else:
-                        wN -= 1
-                if dbg:
-                    dprt(" r %6.0f wN %2d" % (r, wN), end='')
-        # (x0, y0) = (x1, y1)
-        if dbg:
-            dprt()
-    return wN
-
 class Offset():
     def __init__(self, cfg):
         self.cfg = cfg
@@ -80,11 +42,12 @@ class Offset():
         self.setKeyScale(100)
         self.dbg = True
         self.drawInitial = True
-        self.dbgOffset = True
+        self.dbgOffset = False
         self.drawOffset = False
         self.dbgIntersect = False
+        self.intersectReturn = False
         self.drawSplitLines = False
-        self.dbgPolygons = True
+        self.dbgPolygons = False
         self.drawFinalPoly = True
         self.drawWindingNum = False
         dprtSet(True)
@@ -106,80 +69,6 @@ class Offset():
         self.keyScale = scale
         keyScale = scale
 
-    def offsetIntersect(self, args):
-        cfg = self.cfg
-        cfg.ncInit()
-        layer = cfg.getLayer(args)
-        seg = cfg.dxfInput.getObjects(layer)
-        lineSegment = []
-        dprt()
-        for l in seg:
-            l.draw()
-            l.label()
-            # cfg.draw.drawX(l.p0, str(l.index))
-            l.prt()
-            lineSegment.append((l.p0, l.p1))
-        self.intersections = []
-        self.findIntersections(seg)
-        for loc, _, _, _ in self.intersections:
-            cfg.draw.drawX(loc)
-
-    def lineArcTest(self, args):
-        cfg = self.cfg
-        cfg.ncInit()
-        layer = cfg.getLayer(args)
-        seg = cfg.dxfInput.getObjects(layer)
-        lines = []
-        arcs = []
-        for l in seg:
-            l.prt()
-            if l.type == LINE:
-                lines.append(l)
-                l.draw()
-            elif l.type == ARC:
-                arcs.append(l)
-
-        dprt()
-        arcsIn = arcs
-        arcs = splitArcs(arcsIn, self.splitArcAngle)
-        for a in arcs:
-            a.draw()
-
-        for a in arcs:
-            dprt()
-            a.prt()
-            for l in lines:
-                l.prt()
-                p = lineArcTest(l, a)
-                if p is not None:
-                    cfg.draw.drawX(p, '')
-                    
-    def arcArcTest(self, args):
-        cfg = self.cfg
-        cfg.ncInit()
-        layer = args[1]
-        refArc = cfg.dxfInput.getObjects(layer)
-        layer = args[2]
-        testArc = cfg.dxfInput.getObjects(layer)
-
-        refArc = splitArcs(refArc, self.splitArcAngle)
-        testArc = splitArcs(testArc, self.splitArcAngle)
-
-        for a in refArc:
-            a.draw()
-
-        for a in testArc:
-            a.draw()
-
-        for a0 in refArc:
-            dprt()
-            a0.prt()
-            for a1 in testArc:
-                a1.prt()
-                p = arcArcTest(a0, a1)
-                if p is not None:
-                    cfg.draw.drawX(p, '')
-
     def offset(self, args):
         if self.dist == 0:
             return
@@ -197,7 +86,7 @@ class Offset():
             if direction == CW:
                 distance = -distance
 
-        passes = 1
+        passes = MAX_VALUE
         if len(args) > 2:
             passes = cfg.evalIntArg(args[2])
 
@@ -211,6 +100,8 @@ class Offset():
             dprt("***count %d*** %d" % (count, len(segments[0])))
             finalPolygons = self.offsetPath(segments, direction, distance)
             if finalPolygons is None:
+                break
+            if len(finalPolygons) == 0:
                 break
             total += distance
             segments = finalPolygons
@@ -354,7 +245,8 @@ class Offset():
                     dprt("%2d (%7.4f %7.4f) %2d %2d" %
                          (n, i.loc.x, i.loc.y, i.l0.index, i.l1.index))
                     cfg.draw.drawX(i.loc, "")
-                # return
+                if self.intersectReturn:
+                    return
 
             dprt("\npoints")
             for (loc, _, l0, l1) in self.intersections:
@@ -540,10 +432,12 @@ class Offset():
         dprt()
         lastX = 0
         dbgList = []
+        self.event = 0
         while len(evtList) > 0:
             evt = evtList.pop(0)
             evt.event = False
             self.curX = evt.p.x
+            dprt("%2d" % (self.event), end=' ')
             evt.prt(end=' ')
             if evt.evtType == LEFT:
                 sweepList.add(evt)
@@ -553,27 +447,47 @@ class Offset():
                 l = evt.l
                 vertical = abs(l.p0.x - l.p1.x) < MIN_DIST
                 idxLeft = index - 1
+                y = None
                 while idxLeft >= 0:
                     evtLeft = sweepList[idxLeft]
-                    self.intersect(evtLeft, evt, 0)
-                    if not vertical:
-                        break
+                    if y is None:
+                        y = evtLeft.p.y
+                        self.intersect(evtLeft, evt, 0)
+                    else:
+                        if y == evtLeft.p.y:
+                            self.intersect(evtLeft, evt, 1)
+                        elif vertical:
+                            self.intersect(evtLeft, evt, 2)
+                        else:
+                            break
                     idxLeft -= 1
 
+                sweepLen = len(sweepList)
                 idxRight = index + 1
+                y = None
                 while idxRight < sweepLen:
                     evtRight = sweepList[idxRight]
-                    self.intersect(evt, evtRight, 1)
-                    if not vertical:
-                        break
+                    if y is None:
+                        y = evtRight.p.y
+                        self.intersect(evt, evtRight, 3)
+                    else:
+                        if y == evt.p.y:
+                            self.intersect(evt, evtRight, 4)
+                        elif vertical:
+                            self.intersect(evtLeft, evt, 5)
+                        else:
+                            break
                     idxRight += 1
 
-                self.listPrt(sweepList)
+                self.listPrt()
             elif evt.evtType == RIGHT:
                 index = sweepList.bisect_left(evt)
                 sweepLen = len(sweepList)
                 self.sweepPrt(evt, sweepLen, index)
-                curEvt = sweepList[index]
+                try:
+                    curEvt = sweepList[index]
+                except IndexError:
+                    pass
                 if curEvt.key != evt.key:
                     ePrint("remove key error %2d %9d %2d %9d" % \
                            (evt.index, evt.key, curEvt.index, curEvt.key))
@@ -584,9 +498,9 @@ class Offset():
                     if idxRight < sweepLen:
                         evtLeft = sweepList[idxLeft]
                         evtRight = sweepList[idxRight]
-                        self.intersect(evtLeft, evtRight, 2)
-                self.listPrt(sweepList)
+                        self.intersect(evtLeft, evtRight, 6)
                 sweepList.pop(index)
+                self.listPrt()
             elif evt.evtType == INTERSECT:
                 sweepLen = len(sweepList)
                 self.sweepPrt(evt, sweepLen)
@@ -602,33 +516,29 @@ class Offset():
                         dbgTxt += "%2d" % (e.index)
                     dbgTxt += ")"
 
+                    (x, y) = evt.p
+                    key = y * self.keyScale
                     index0 = sweepList.bisect_left(evt0)
                     dbgTxt += " (%2d" % (index0)
                     if index0 < sweepLen:
                         evtP0 = sweepList[index0]
                         if evt0.key == evtP0.key:
                             sweepList.pop(index0)
+                            evt0.key = key + 1
+                            # evt0.p = Point(x, y + 1)
+                            self.evtArray[evt0.index].end.key = evt0.key
+                            sweepList.add(evt0)
 
-                            index1 = sweepList.bisect_left(evt1)
-                            if index1 < sweepLen:
-                                dbgTxt += " %2d)" % (index1)
-                                evtP1 = sweepList[index1]
-                                if evt1.key == evtP1.key:
-                                    sweepList.pop(index1)
-                                    (x, y) = evt.p
-                                    key = y * self.keyScale
-                                    evt0.key = key + 1 # evt0 first so make it greater
-                                    evt0.p = Point(x, y + 1)
-                                    evt1.key = key - 1
-                                    evt1.p = Point(x, y - 1)
-                                    self.evtArray[evt0.index].end.key = evt0.key
-                                    self.evtArray[evt1.index].end.key = evt1.key
-                                    sweepList.add(evt0)
-                                    sweepList.add(evt1)
-                                else:
-                                    sweepList.add(evt0)
-                            else:
-                                sweepList.add(evt0)
+                    index1 = sweepList.bisect_left(evt1)
+                    dbgTxt += " %2d)" % (index1)
+                    if index1 < sweepLen:
+                        evtP1 = sweepList[index1]
+                        if evt1.key == evtP1.key:
+                            sweepList.pop(index1)
+                            evt1.key = key - 1
+                            # evt1.p = Point(x, y - 1)
+                            self.evtArray[evt1.index].end.key = evt1.key
+                            sweepList.add(evt1)
 
                     dbgTxt += " (%2d %2d)" % (evt1.index, evt0.index)
                     dbgTxt += " ("
@@ -644,23 +554,25 @@ class Offset():
                     if indexP >= 0:
                         evtP = sweepList[indexP]
                         dbgTxt += " (%2d %2d)" % (evtP.index, evt1.index)
-                        self.intersect(evtP, evt1, 3)
+                        self.intersect(evtP, evt1, 7)
 
                     indexN = index + 2
                     if indexN < sweepLen:
                         evtN = sweepList[indexN]
                         dbgTxt += " (%2d %2d)" % (evt0.index, evtN.index)
-                        self.intersect(evt0, evtN, 4)
-                self.listPrt(sweepList)
+                        self.intersect(evt0, evtN, 8)
+                self.listPrt()
                 dbgList.append(dbgTxt)
             lastX = self.curX
+            self.event += 1
         dprt()
         for txt in dbgList:
             dprt(txt)
 
         dprt()
-        for i, (n, idx0, idx1, flag) in enumerate(self.dbgIntersection):
-            dprt("%3d %2d (%2d %2d) %s" % (i, n, idx0, idx1, str(flag)[0]))
+        for i, (e, n, idx0, idx1, flag) in enumerate(self.dbgIntersection):
+            dprt("%3d %2d (%2d %2d) %s %d" % \
+                 (i, e, idx0, idx1, str(flag)[0], n))
         dprt("sweepLen %d" % (len(sweepList)))
 
     def addEvent(self, p0, p1, l):
@@ -670,6 +582,84 @@ class Offset():
         self.evtList.add(evtStr)
         self.evtList.add(evtEnd)
         self.evtArray[l.index] = EventPair(evtStr, evtEnd)
+
+    def intersect(self, evt0, evt1, n):
+        l0 = evt0.l
+        l1 = evt1.l
+        if (xyDist(l0.p1, l1.p0) < MIN_DIST or
+            xyDist(l1.p1, l0.p0) < MIN_DIST):
+            self.dbgIntersection.append((self.event, n, l0.index, \
+                                         l1.index, False))
+            return
+        self.dbgIntersection.append((self.event, n, l0.index, \
+                                     l1.index, True))
+
+        if l0.type == LINE:
+            if l1.type == LINE:
+                loc = lineIntersection(l0, l1)
+                if isinstance(loc, int) and loc == 1:
+                    return None
+                    # return self.colinear(evt0, evt1)
+            else:
+                loc = lineArcTest(l0, l1)
+        else:
+            if l1.type == LINE:
+                loc = lineArcTest(l1, l0)
+            else:
+                loc = arcArcTest(l0, l1)
+
+        if loc is not None:
+            self.iEvt(loc, evt0, evt1)
+
+# l0 l0Str ---------------------------------------- l0End
+# l1              l1Str --------------- l1End
+# l0 l0Str ------ l1str
+# l1                                    l1End ----- l0End
+
+    def colinear(self, evt0, evt1):
+        if evt1.l.length > evt0.l.length:
+            (evt0, evt1) = (evt1, evt0)
+        l0 = evt0.l
+        l1 = evt1.l
+        scale = self.scale
+        if l1.p1.x < l0.p1.x: # if l1 end < l0 end
+            e = self.evtArray[evt0.index].end # get l0 end
+            index = self.evtList.bisect_left(e)
+            self.evtList.pop(index) # remove from event list
+            e.event = False
+            self.sweepList.remove(e) # remove from sweep list
+
+            e = self.evtArray[evt1.index].end # get l1 end
+            index = self.evtList.bisect_left(e)
+            self.evtList.pop(index)  # rm end from evt
+            e.event = False          # chg to key
+            self.sweepList.remove(e) # rm end from sweep
+
+            (l1Str, l1End) = (l1.p0, l1.p1)
+            if l1.p0.x > l1.p1.x:
+                (l1Str, l1End) = (l1End, l1Str)
+
+            if l0.p0.x < l0.p1.x: # update end point of l0
+                l0End = l0.p1
+                l1.updateP0(l1End) # start of l1
+                l1.updateP1(l0End) # end of l1
+                l0.updateP1(l1Str) # end of l0
+                self.addEvent(newPoint(l1End, scale), \
+                              newPoint(l0End, scale), l1)
+            else:
+                l0End = l0.p0
+                l1.updateP1(l1End) # start of l1
+                l1.updateP0(l0End) # end of l1
+                l0.updateP0(l1Str) # end of l0
+                self.addEvent(newPoint(l0End, scale), \
+                              newPoint(l1End, scale), l1)
+
+        else:
+            pass
+            # else
+            #  remove l0 end from evt list
+            #  add another start for l1 at l0 end
+        return None
 
     def iEvt(self, loc, evt0, evt1):
         if loc is not None:
@@ -687,10 +677,6 @@ class Offset():
                 self.intersections.append(Intersection(loc, p, evt0.l, evt1.l))
                 self.intCount += 1
 
-    def eventPrt(self):
-        for evt in self.evtList:
-            evt.prt()
-        
     def sweepPrt(self, evt, sweepLen, sweepIndex=None):
         self.intCount = 0
         dprt("%s " % (evtStr[evt.evtType]), end='')
@@ -698,15 +684,15 @@ class Offset():
             dprt("%2d x %6d l %2d i %2d" % \
                  (evt.index, evt.p.x, sweepLen, sweepIndex), end='')
         else:
-            dprt("    x %6d l %2d     " % \
+            dprt("   x %6d l %2d     " % \
                  (evt.p.x, sweepLen), end='')
 
-    def listPrt(self, sweepList):
+    def listPrt(self):
         while self.intCount < 2:
             self.intCount += 1
             self.noIntersection()
         dprt(" (", end='')
-        for (i, s) in enumerate(sweepList):
+        for (i, s) in enumerate(self.sweepList):
             if i != 0:
                 dprt(", ", end='')
             dprt("%2d %7d" % (s.l.index, s.key), end='')
@@ -716,6 +702,16 @@ class Offset():
         for e in self.sweepList:
             e.prt()
 
+    def evtListPrt(self):
+        for evt in self.evtList:
+            evt.prt()
+
+    def evtArrayPrt(self):
+        for n, (evtStr, evtEnd) in enumerate(self.evtArray):
+            dprt("%2d" % (n), end=' ')
+            evtStr.prt(end=' ')
+            evtEnd.prt()
+        
     def intersectionPrt(self, index0, index1, loc):
         dprt(" (%2d %2d)" % (index0, index1), end='')
         
@@ -727,29 +723,6 @@ class Offset():
     def noIntersection(self):
         dprt("        ", end='')
         dprt("              ", end='')
-
-    def intersect(self, evt0, evt1, n):
-        l0 = evt0.l
-        l1 = evt1.l
-        if (xyDist(l0.p1, l1.p0) < MIN_DIST or
-            xyDist(l1.p1, l0.p0) < MIN_DIST):
-            self.dbgIntersection.append((n, l0.index, l1.index, False))
-            return
-        self.dbgIntersection.append((n, l0.index, l1.index, True))
-
-        if l0.type == LINE:
-            if l1.type == LINE:
-                loc = lineIntersection(l0, l1)
-            else:
-                loc = lineArcTest(l0, l1)
-        else:
-            if l1.type == LINE:
-                loc = lineArcTest(l1, l0)
-            else:
-                loc = arcArcTest(l0, l1)
-
-        if loc is not None:
-            self.iEvt(loc, evt0, evt1)
 
     def insidePoint(self, seg, dbg=False):
         drawTest = False
@@ -791,6 +764,7 @@ class Offset():
         p = None
         d = 0
         maxDist = MIN_VALUE
+        chkList = []
         while len(evtList) > 0:
             evt = evtList.pop(0)
             evt.event = False
@@ -840,7 +814,8 @@ class Offset():
                     evt.prt()
             x0 = x
         if dbg:
-            dprt("\ninsidePoint maxDist %6d (%7.4f %7.4f)" % (maxDist, p.x, p.y))
+            dprt("\ninsidePoint maxDist %6d (%7.4f %7.4f)" % \
+                 (maxDist, p.x, p.y))
             for l in chkList:
                 l.prt()
             dprt()
@@ -853,10 +828,31 @@ class Offset():
         self.evtList.add(evtStr)
         self.evtList.add(evtEnd)
 
+    def offsetIntersect(self, args):
+        cfg = self.cfg
+        cfg.ncInit()
+        layer = cfg.getLayer(args)
+        seg = cfg.dxfInput.getObjects(layer)
+        lineSegment = []
+        dprt()
+        for l in seg:
+            l.draw()
+            l.label()
+            # cfg.draw.drawX(l.p0, str(l.index))
+            l.prt()
+            lineSegment.append((l.p0, l.p1))
+        self.intersections = []
+        self.findIntersections(seg)
+        for loc, _, _, _ in self.intersections:
+            cfg.draw.drawX(loc)
+
     def insideIntersect(self, l0, l1):
         if l0.type == LINE:
             if l1.type == LINE:
-                return lineIntersection(l0, l1)
+                loc = lineIntersection(l0, l1)
+                if isinstance(loc, int):
+                    return None
+                return loc
             else:
                 return lineArcTest(l0, l1)
         else:
@@ -864,6 +860,62 @@ class Offset():
                 return lineArcTest(l1, l0)
             else:
                 return arcArcTest(l0, l1)
+
+    def lineArcTest(self, args):
+        cfg = self.cfg
+        cfg.ncInit()
+        layer = cfg.getLayer(args)
+        seg = cfg.dxfInput.getObjects(layer)
+        lines = []
+        arcs = []
+        for l in seg:
+            l.prt()
+            if l.type == LINE:
+                lines.append(l)
+                l.draw()
+            elif l.type == ARC:
+                arcs.append(l)
+
+        dprt()
+        arcsIn = arcs
+        arcs = splitArcs(arcsIn, self.splitArcAngle)
+        for a in arcs:
+            a.draw()
+
+        for a in arcs:
+            dprt()
+            a.prt()
+            for l in lines:
+                l.prt()
+                p = lineArcTest(l, a)
+                if p is not None:
+                    cfg.draw.drawX(p, '')
+                    
+    def arcArcTest(self, args):
+        cfg = self.cfg
+        cfg.ncInit()
+        layer = args[1]
+        refArc = cfg.dxfInput.getObjects(layer)
+        layer = args[2]
+        testArc = cfg.dxfInput.getObjects(layer)
+
+        refArc = splitArcs(refArc, self.splitArcAngle)
+        testArc = splitArcs(testArc, self.splitArcAngle)
+
+        for a in refArc:
+            a.draw()
+
+        for a in testArc:
+            a.draw()
+
+        for a0 in refArc:
+            dprt()
+            a0.prt()
+            for a1 in testArc:
+                a1.prt()
+                p = arcArcTest(a0, a1)
+                if p is not None:
+                    cfg.draw.drawX(p, '')
 
 class Event:
     def __init__(self, p, l=None, evtType=None, key=None):
@@ -900,7 +952,10 @@ class Event:
         # else:
         if self.event:
             if self.p.x == other.p.x:
-                return self.p.y > other.p.y
+                if self.p.y == oth.p.y:
+                    return self.index > other.index
+                else:
+                    return self.p.y > other.p.y
             else:
                 return self.p.x > other.p.x
         else:
@@ -912,7 +967,10 @@ class Event:
         # else:
         if self.event:
             if self.p.x == other.p.x:
-                return self.p.y < other.p.y
+                if self.p.y == other.p.y:
+                    return self.index < other.index
+                else:
+                    return self.p.y < other.p.y
             else:
                 return self.p.x < other.p.x
         else:
@@ -924,7 +982,8 @@ class Event:
         # else:
         if self.event:
             if self.p.x == other.p.x:
-                return self.p.y == other.p.y
+                if self.p.y == other.p.y:
+                    return self.index == other.index
             return False
         else:
             return self.key == other.key
@@ -936,7 +995,6 @@ class Intersect:
         self.loc = loc
         self.evt0 = evt0
         self.evt1 = evt1
-        # self.event = True
     
     def prt(self, end='\n', l=False):
         evt0 = self.evt0
@@ -965,6 +1023,11 @@ class Intersect:
         else:
             return self.p.x < other.p.x
 
+    def __eq__(self, other):
+        if self.p.x == other.p.x:
+            return self.p.y == other.p.y
+        return False
+        
 class IntLine:
     def __init__(self, l, scale):
         self.p0 = newPoint(l.p0, scale)
@@ -989,6 +1052,44 @@ class PointLine:
     def append(self, l):
         self.l.append(l)
         
+def windingNumber(p, poly, scale, dbg=False):
+    (x, y) = newPoint(p, scale)
+    l = poly[0]
+    # (x0, y0) = newPoint(l.p0, scale)
+    # x0 -= x
+    # y0 -= y
+    wN = 0
+    if dbg:
+        dprt("\nwindingNum\n")
+        for l in poly:
+            l.prt()
+        dprt("\np (%7.4f %7.4f) (%6d %6d)\n" % (p.x, p.y, x, y))
+    for l in poly:
+        (x0, y0) = newPoint(l.p0, scale)
+        x0 -= x
+        y0 -= y
+        (x1, y1) = newPoint(l.p1, scale)
+        x1 -= x
+        y1 -= y
+        if dbg:
+            dprt("%2d (%6d %6d) (%6d %6d)" % \
+                 (l.index, x0, y0, x1, y1), end='')
+        if (x0 < 0 and x1 > 0 or \
+            x1 < 0 and x0 > 0):
+            if x0 != x1:
+                r = y0 + x0 * float(y1 - y0) / float(x0 - x1)
+                if r > 0:
+                    if x1 < 0:
+                        wN += 1
+                    else:
+                        wN -= 1
+                if dbg:
+                    dprt(" r %6.0f wN %2d" % (r, wN), end='')
+        # (x0, y0) = (x1, y1)
+        if dbg:
+            dprt()
+    return wN
+
 def lineIntersection(l0, l1):
     p0 = l0.p0
     p1 = l0.p1
@@ -1001,8 +1102,8 @@ def lineIntersection(l0, l1):
 
     denom = s10_x * s32_y - s32_x * s10_y
 
-    if denom == 0:
-        return None         # collinear
+    if abs(denom) < MIN_DIST:
+        return 1                # collinear
 
     denomPositive = denom > 0
 
@@ -1012,16 +1113,16 @@ def lineIntersection(l0, l1):
     s_numer = s10_x * s02_y - s10_y * s02_x
 
     if (s_numer < 0) == denomPositive:
-        return None         # no collision
+        return None             # no collision
 
     t_numer = s32_x * s02_y - s32_y * s02_x
 
     if (t_numer < 0) == denomPositive:
-        return None         # no collision
+        return None             # no collision
 
     if (s_numer > denom) == denomPositive or \
         (t_numer > denom) == denomPositive:
-        return None         # no collision
+        return None             # no collision
 
     # collision detected
 
@@ -1185,3 +1286,32 @@ def arcArcTest(a0, a1):
         if a1.onSegment(pb) and a1.onSegment(pb):
             return pb
     return None
+
+                    # index0 = sweepList.bisect_left(evt0)
+                    # dbgTxt += " (%2d" % (index0)
+                    # if index0 < sweepLen:
+                    #     evtP0 = sweepList[index0]
+                    #     if evt0.key == evtP0.key:
+                    #         sweepList.pop(index0)
+                    #         sweepLen -= 1
+                    #         index1 = sweepList.bisect_left(evt1)
+                    #         if index1 < sweepLen:
+                    #             dbgTxt += " %2d)" % (index1)
+                    #             evtP1 = sweepList[index1]
+                    #             if evt1.key == evtP1.key:
+                    #                 sweepList.pop(index1)
+                    #                 (x, y) = evt.p
+                    #                 key = y * self.keyScale
+                    #                 evt0.key = key + 1
+                    #                 evt0.p = Point(x, y + 1)
+                    #                 evt1.key = key - 1
+                    #                 evt1.p = Point(x, y - 1)
+                    #                 self.evtArray[evt0.index].end.key = evt0.key
+                    #                 self.evtArray[evt1.index].end.key = evt1.key
+                    #                 sweepList.add(evt0)
+                    #                 sweepList.add(evt1)
+                    #             else:
+                    #                 sweepList.add(evt0)
+                    #         else:
+                    #             sweepList.add(evt0)
+                    #     sweepLen = len(sweepList)

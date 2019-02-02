@@ -169,6 +169,7 @@ def eqnLine(p0, p1):
 
 # (y2-y1) * (x3-x2) - (y3-y2) * (x2-x1)
 
+LINEAR = 0
 CW = 1
 CCW = 2
 BOTH = 3
@@ -179,7 +180,7 @@ def orientation(p1, p2, p3):
     # dprt("val %9.6f p0 %6.3f, %6.3f p1 %6.3f, %6.3f p2 %6.3f, %6.3f" % \
     #       (val, p1[0], p2[1], p2[0], p2[1], p3[0], p3[1]))
     if abs(val) < MIN_DIST:
-        return 0
+        return LINEAR
     elif val > 0:
         return CW
     else:
@@ -746,21 +747,7 @@ class Line():
         if l.type == ARC:       # if other is an arc
             return False
 
-        dx = self.p1.x - self.p0.x
-        dy = self.p1.y - self.p0.y
-        # if abs(dx) < MIN_DIST or abs(dy) < MIN_DIST:
-        #     dprt("zero")
-        dX0Greater = abs(dx) > abs(dy)
-        m0 = dy / dx if dX0Greater else dx / dy
-
-        dx = l.p1.x - l.p0.x
-        dy = l.p1.y - l.p0.y
-        # if abs(dx) < MIN_DIST or abs(dy) < MIN_DIST:
-        #     dprt("zero")
-        dX1Greater = abs(dx) > abs(dy)
-        m1 = dy / dx if dX1Greater else dx / dy
-
-        return dX0Greater == dX1Greater and abs(m0 - m1) < MIN_DIST
+        return orientation(self.p0, self.p1, l.p1) == LINEAR
 
     def onSegment(self, p):
         d0 = xyDist(p, self.p0)
@@ -829,7 +816,7 @@ class Arc():
         self.a1 = a1
         self.e = e
         self.arcLen = 0.0
-        self.length = self.calcLen()
+        self.calcLen()
 
     def aStr(self):
         if not self.swapped:
@@ -851,7 +838,7 @@ class Arc():
         else:
             self.a1 = a
         self.p0 = p     # set end of this object
-        self.length = self.calcLen()
+        self.calcLen()
 
     def updateP1(self, p):
         p = newPoint(p)
@@ -861,7 +848,7 @@ class Arc():
         else:
             self.a0 = a
         self.p1 = p     # set end of this object
-        self.length = self.calcLen()
+        self.calcLen()
 
     def calcLen(self):
         a1 = self.a1
@@ -870,9 +857,9 @@ class Arc():
             if a1 < a0:
                 a1 += 360.0
             self.arcLen = a1 - a0
-            return(self.r * radians(self.arcLen))
+            self.length = self.r * radians(self.arcLen)
         else:
-            return(pi * 2.0 * self.r)
+            self.length = pi * 2.0 * self.r
 
     def swap(self):
         (self.p0, self.p1) = (self.p1, self.p0)
@@ -1020,7 +1007,7 @@ class Arc():
                 self.a0 = a
             else:
                 self.a1 = a
-            self.length = self.calcLen()
+            self.calcLen()
         return(self)
         
     def verticalTrim(self, xVal, xPlus):
