@@ -1,7 +1,10 @@
 from __future__ import print_function
+
+from time import localtime, strftime
+
 from dbgprt import dprt
-from time import strftime, localtime
 from geometry import MIN_DIST
+
 
 class Mill():
     def __init__(self, cfg, outFile, draw=True):

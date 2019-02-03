@@ -1,7 +1,10 @@
 from __future__ import print_function
-from dbgprt import dprt, ePrint
-from geometry import Arc, Line, LINE, CW, MIN_DIST
+
 from math import ceil, sqrt
+
+from dbgprt import dprt, ePrint
+from geometry import CW, LINE, MIN_DIST, Arc, Line
+
 
 class RectPocket():
     def __init__(self, cfg):
@@ -266,4 +269,3 @@ class RectPocket():
                 draw.arc(p2, c1)
                 draw.line(p3)
         self.millPath()
-        

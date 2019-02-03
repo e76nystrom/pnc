@@ -4,40 +4,39 @@
 ################################################################################
 
 from __future__ import print_function
-import sys
+
+import glob
+# from imp import load_source
+import importlib.machinery
+import inspect
 import os
+import platform
+import random
+import re
+import subprocess
+import sys
 # import wx
 # import wx.lib.colourdb
 import traceback
-import re
+from math import ceil, cos, floor, radians, sin, tan
+from os import getcwd
+
+# from sys import stdout
+from dxfwrite import CENTER
+from dxfwrite import DXFEngine as dxf
+from ezdxf import readfile as ReadFile
+
 import geometry
-import inspect
-import subprocess
-import platform
-import glob
-from orientation import O_UPPER_LEFT, O_LOWER_LEFT, O_UPPER_RIGHT, \
-    O_LOWER_RIGHT, O_CENTER, O_POINT, O_MAX
-from dbgprt import dprt, dflush, dclose, dprtSet, ePrint
-from geometry import Arc, Line, ARC
-from geometry import oStr, xyDist,  offset
-from geometry import inside, rotateMinDist, \
-    pathLength, combineArcs, pathDir, \
-    reverseSeg, createPath
-from geometry import CW, CCW, MAX_VALUE, MIN_DIST, MIN_VALUE
+from dbgprt import dclose, dflush, dprt, dprtSet, ePrint
+from draw import Draw
+from geometry import (ARC, CCW, CW, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc, Line,
+                      combineArcs, createPath, inside, offset, oStr, pathDir,
+                      pathLength, reverseSeg, rotateMinDist, xyDist)
+from hershey import Font
 from mill import Mill
 from millLines import MillLine
-# from sys import stdout
-from dxfwrite import DXFEngine as dxf
-from dxfwrite import CENTER
-from math import ceil, cos, floor, radians, sin, tan
-from ezdxf import readfile as ReadFile
-from hershey import Font
-from os import getcwd
-# from imp import load_source
-import importlib.machinery
-from draw import Draw
-
-import random
+from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_MAX, O_POINT,
+                         O_UPPER_LEFT, O_UPPER_RIGHT)
 
 DRILL = 0
 TAP = 1

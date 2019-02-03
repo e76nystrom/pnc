@@ -1,13 +1,14 @@
 from __future__ import print_function
 
-from math import atan2, degrees, hypot, sqrt
-from geometry import ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE
-from geometry import Arc, Line, Point
-from geometry import calcAngle, combineArcs, eqnLine, newPoint, orientation, \
-    oStr, pathDir, reverseSeg, splitArcs, xyDist
-from dbgprt import dprt, dprtSet, ePrint
-from sortedlist import SortedList
 from collections import namedtuple
+from math import atan2, degrees, hypot, sqrt
+
+from dbgprt import dprt, dprtSet, ePrint
+from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc,
+                      Line, Point, calcAngle, combineArcs, eqnLine, newPoint,
+                      orientation, oStr, pathDir, reverseSeg, splitArcs,
+                      xyDist)
+from sortedlist import SortedList
 
 LEFT      = 0
 RIGHT     = 1
@@ -27,15 +28,30 @@ class Offset():
         self.dist = 0.0
         self.scale = 10000
         self.splitArcAngle = 90
+        self.minLength = 0.002
         self.keyScale = None
         self.cmds = \
         (
             ('dxfoffset', self.offset), \
             ('offsetdist', self.setOffsetDist), \
             ('offsetdir', self.setOffsetDir), \
+            ('offsetscale', self.setOffsetScale), \
             ('offsetintersect', self.offsetIntersect), \
             ('offsetlinearc', self.lineArcTest), \
             ('offsetarcarc', self.arcArcTest), \
+            ('offsetwindingnum', self.windingNumTest), \
+            ('offsetsplitarcangle', self.setSplitArcAngle), \
+            ('drawinitial', self.setDrawInitial), \
+            ('dbgoffset', self.setDbgOffset), \
+            ('drawoffset', self.setDrawOffset), \
+            ('offsetreturn', self.setOffsetReturn), \
+            ('dbgintersect', self.setDbgIntersect), \
+            ('intersectreturn', self.setIntersectReturn), \
+            ('drawsplitlines', self.setDrawSplitLines), \
+            ('dbgpolygons', self.setDbgPolygons), \
+            ('drawfinalpolygon', self.setDrawFinalPolygon), \
+            ('drawwindingnum', self.setDrawWindingNum), \
+            # ('', self.set), \
         )
         self.intersections = None
         self.dbgIntersection = None
@@ -44,6 +60,7 @@ class Offset():
         self.drawInitial = True
         self.dbgOffset = False
         self.drawOffset = False
+        self.offsetReturn = False
         self.dbgIntersect = False
         self.intersectReturn = False
         self.drawSplitLines = False
@@ -51,23 +68,6 @@ class Offset():
         self.drawFinalPoly = True
         self.drawWindingNum = False
         dprtSet(True)
-
-    def setOffsetDist(self, args):
-        self.dist = self.cfg.evalFloatArg(args[1])
-
-    def setOffsetDir(self, args):
-        val = args[1].lower()
-        if val == "cw":
-            self.dir = CW
-        elif val == "ccw":
-            self.dir = CCW
-        else:
-            self.dir = None
-
-    def setKeyScale(self, scale):
-        global keyScale
-        self.keyScale = scale
-        keyScale = scale
 
     def offset(self, args):
         if self.dist == 0:
@@ -149,6 +149,9 @@ class Offset():
 
             prevL = newSeg[-1]
             prevL1 = prevL.parallel(distance)
+            if prevL1 is None:
+                l0 = Line(prevL.p0, prevL.p1)
+                prevL1 = l0.parallel(distance)
             oSeg = []
             for (n, l) in enumerate(newSeg):
                 if self.drawInitial:
@@ -223,8 +226,8 @@ class Offset():
                 prevL = l
                 prevL1 = l1
 
-            # if dbgOffset:
-            #     return
+            if dbgOffset and self.offsetReturn:
+                return
             
             oldSeg = oSeg
             oSeg = splitArcs(oldSeg, self.splitArcAngle)
@@ -341,7 +344,8 @@ class Offset():
 
             dbgPolygons = self.dbgPolygons
             polyList = []
-            dprt("\nlink segments into polygons")
+            if dbgPolygons:
+                dprt("\nlink segments into polygons")
             for i in range(len(oSeg2)): # while lines to process
                 index = i               # set place to start
                 poly = []
@@ -350,9 +354,10 @@ class Offset():
                     if iL is None:      # if no segment
                         break           # exit loop
                     oSeg2[index] = None # mark as processed
-                    iL.prt()
+                    if dbgPolygons:
+                        iL.prt()
                     p1Index = iL.p1Index    # get point index
-                    poly.append(iL.l)         # append to polygon
+                    poly.append(iL.l)       # append to polygon
                     pL = pLine[p1Index]     # look up point
                     for l in pL.l: 	    # loop over connected lines
                         # l.l.prt()
@@ -370,26 +375,51 @@ class Offset():
                         dprt("not found")
                 if len(poly) != 0:
                     polyList.append(poly)
+                if dbgPolygons:
                     dprt()
                     
-            dprt("polyList %d" % (len(polyList)))
-            dprt("calculate polygon winding number")
-            for poly in polyList:
-                # direction = pathDir(poly)
-                # dprt("direction %s" % (oStr(direction)))
-                for l in poly:
-                    l.prt()
-                if True:
-                    (p, chkList) = self.insidePoint(poly)
-                    if p is not None:
-                        wN = windingNumber(p, chkList, self.scale, dbg=False)
-                        if wN == wNInitial:
-                            newPoly = combineArcs(poly)
-                            finalPolygons.append(newPoly)
+            if dbgPolygons:
+                dprt("polyList %d" % (len(polyList)))
+                dprt("calculate polygon winding number")
+            for pN, poly in enumerate(polyList):
+                if dbgPolygons:
+                    dprt("polygon %d" % (pN))
+                    for l in poly:
+                        l.prt()
+
+                newPoly = []
+                n = 0
+                removed = 0
+                lPrev = poly[-1]
+                for i, l in enumerate(poly):
+                    if l.length < self.minLength:
+                        lPrev.updateP1(l.p1)
+                        removed += 1
+                        continue
+                    l.index = n
+                    newPoly.append(l)
+                    n += 1
+                    lPrev = l
+                if removed != 0:
+                    polyList[pN] = newPoly
+
+                if dbgPolygons and removed > 0:
+                    dprt("\nshort segments removed %d" % (removed))
+                    for l in newPoly:
+                        l.prt()
+
+                (p, chkList) = self.insidePoint(poly)
+                if p is not None:
+                    wN = windingNumber(p, chkList, self.scale, dbg=False)
+                    if wN == wNInitial:
+                        newPoly = combineArcs(poly)
+                        finalPolygons.append(newPoly)
+                    if dbgPolygons:
                         dprt("wN %2d (%7.4f %7.4f)" % (wN, p.x, p.y))
                         if self.drawWindingNum:
                             self.cfg.draw.drawX(p, str(wN))
-                dprt()
+                if dbgPolygons:
+                    dprt()
 
         if self.drawFinalPoly:
             for poly in finalPolygons:
@@ -507,7 +537,12 @@ class Offset():
                 self.sweepPrt(evt, sweepLen)
                 if self.curX >= lastX:
                     evt0 = evt.evt0
-                    evt1 = evt.evt1                
+                    evt1 = evt.evt1
+
+                    # if (self.event == 97 and
+                    #     evt0.index == 28 and
+                    #     evt1.index == 32):
+                    #     dprt("stop here")
 
                     dbgTxt = "%2d (%2d %2d)" % \
                         (self.event, evt0.index, evt1.index)
@@ -523,10 +558,9 @@ class Offset():
                     dbgTxt += " (%2d" % (index0)
                     if index0 < sweepLen:
                         evtP0 = sweepList[index0]
-                        if evt0.key == evtP0.key:
+                        if evt0 is evtP0:
                             sweepList.pop(index0)
                             evt0.key = key + 1
-                            # evt0.p = Point(x, y + 1)
                             self.evtArray[evt0.index].end.key = evt0.key
                             sweepList.add(evt0)
 
@@ -534,10 +568,9 @@ class Offset():
                     dbgTxt += " %2d)" % (index1)
                     if index1 < sweepLen:
                         evtP1 = sweepList[index1]
-                        if evt1.key == evtP1.key:
+                        if evt1 is evtP1:
                             sweepList.pop(index1)
                             evt1.key = key - 1
-                            # evt1.p = Point(x, y - 1)
                             self.evtArray[evt1.index].end.key = evt1.key
                             sweepList.add(evt1)
 
@@ -827,6 +860,59 @@ class Offset():
         self.evtList.add(evtStr)
         self.evtList.add(evtEnd)
 
+    def setOffsetDist(self, args):
+        self.dist = self.cfg.evalFloatArg(args[1])
+
+    def setOffsetDir(self, args):
+        val = args[1].lower()
+        if val == "cw":
+            self.dir = CW
+        elif val == "ccw":
+            self.dir = CCW
+        else:
+            self.dir = None
+
+    def setSplitArcAngle(self, args):
+        self.splitArcAngle = self.cfg.evalIntArg(args[1])
+
+    def setOffsetScale(self, args):
+        self.scale = self.cfg.evalIntArg(args[1])
+
+    def setKeyScale(self, scale):
+        global keyScale
+        self.keyScale = scale
+        keyScale = scale
+
+    def setDrawInitial(self, args):
+        self.drawInitial = self.cfg.evalBoolArg(args[1])
+            
+    def setDbgOffset(self, args):
+        self.dbgOffset = self.cfg.evalBoolArg(args[1])
+
+    def setDrawOffset(self, args):
+        self.drawOffset = self.cfg.evalBoolArg(args[1])
+
+    def setOffsetReturn(self, args):
+        self.offsetReturn = self.cfg.evalBoolArg(args[1])
+
+    def setDbgIntersect(self, args):
+        self.dbgInterset = self.cfg.evalBoolArg(args[1])
+
+    def setIntersectReturn(self, args):
+        self.intersectReturn = self.cfg.evalBoolArg(args[1])
+
+    def setDrawSplitLines(self, args):
+        self.drawSplitLines = self.cfg.evalBoolArg(args[1])
+
+    def setDbgPolygons(self, args):
+        self.dbgPolygons = self.cfg.evalBoolArg(args[1])
+
+    def setDrawFinalPolygon(self, args):
+        self.drawFinalPolygon = self.cfg.evalBoolArg(args[1])
+
+    def setDrawWindingNum(self, args):
+        self.drawWindingNum = self.cfg.evalBoolArg(args[1])
+
     def offsetIntersect(self, args):
         cfg = self.cfg
         cfg.ncInit()
@@ -915,6 +1001,64 @@ class Offset():
                 p = arcArcTest(a0, a1)
                 if p is not None:
                     cfg.draw.drawX(p, '')
+
+    def windingNumTest(self, args):
+        cfg = self.cfg
+        cfg.ncInit()
+        layer = args[1]
+        refCircle = cfg.dxfInput.getObjects(layer)
+        layer = args[2]
+        segments = cfg.dxfInput.getPath(layer, dbg=True)
+
+        p = refCircle[0].c
+
+        for seg in segments:
+            wN = windingNumber(p, seg, self.scale, True)
+            dprt("wN %3.1f" % (wN))
+
+        p = Point(0, 0)
+
+        p0 = Point(-0.25, 0.25)
+        p1 = Point( 0.00, 0.50)
+        p2 = Point(-0.25, 0.75)
+
+        l0 = Line(p0, p1, 0)
+        l1 = Line(p1, p2, 1)
+        seg = (l0, l1)
+        windingNumber(p, seg, self.scale, True)
+        
+        l0 = Line(p2, p1, 0)
+        l1 = Line(p1, p0, 1)
+        seg = (l0, l1)
+        windingNumber(p, seg, self.scale, True)
+
+        p3 = Point( 0.25, 0.25)
+        p4 = Point( 0.25, 0.75)
+
+        l0 = Line(p3, p1, 0)
+        l1 = Line(p1, p4, 1)
+        seg = (l0, l1)
+        windingNumber(p, seg, self.scale, True)
+
+        l0 = Line(p4, p1, 0)
+        l1 = Line(p1, p3, 1)
+        seg = (l0, l1)
+        windingNumber(p, seg, self.scale, True)
+
+        p5 = Point( 0.0, 0.25)
+        p6 = Point( 0.0, 0.75)
+
+        l0 = Line(p0, p5, 1)
+        l1 = Line(p5, p6, 2)
+        l2 = Line(p6, p2, 3)
+        seg = (l0, l1, l2)
+        windingNumber(p, seg, self.scale, True)
+
+        l0 = Line(p3, p5, 1)
+        l1 = Line(p5, p6, 2)
+        l2 = Line(p6, p4, 3)
+        seg = (l0, l1, l2)
+        windingNumber(p, seg, self.scale, True)
 
 class Event:
     def __init__(self, p, l=None, evtType=None, key=None):
@@ -1050,41 +1194,43 @@ class PointLine:
 
     def append(self, l):
         self.l.append(l)
+
+def relPoint(p, p0, scale):
+    return (int(round(p.x * scale)) - p0.x, int(round(p.y * scale)) - p0.y)
         
 def windingNumber(p, poly, scale, dbg=False):
-    (x, y) = newPoint(p, scale)
-    l = poly[0]
-    # (x0, y0) = newPoint(l.p0, scale)
-    # x0 -= x
-    # y0 -= y
-    wN = 0
+    (x, y) = pInt = newPoint(p, scale)
     if dbg:
         dprt("\nwindingNum\n")
         for l in poly:
             l.prt()
-        dprt("\np (%7.4f %7.4f) (%6d %6d)\n" % (p.x, p.y, x, y))
+        dprt("p (%7.4f %7.4f) (%6d %6d)" % (p.x, p.y, x, y))
+    wN = 0
     for l in poly:
-        (x0, y0) = newPoint(l.p0, scale)
-        x0 -= x
-        y0 -= y
-        (x1, y1) = newPoint(l.p1, scale)
-        x1 -= x
-        y1 -= y
+        (x0, y0) = relPoint(l.p0, pInt, scale)
+        (x1, y1) = relPoint(l.p1, pInt, scale)
         if dbg:
             dprt("%2d (%6d %6d) (%6d %6d)" % \
                  (l.index, x0, y0, x1, y1), end='')
-        if (x0 < 0 and x1 > 0 or \
-            x1 < 0 and x0 > 0):
-            if x0 != x1:
-                r = y0 + x0 * float(y1 - y0) / float(x0 - x1)
-                if r > 0:
-                    if x1 < 0:
-                        wN += 1
-                    else:
-                        wN -= 1
+        if x0 != x1:
+            if (x0 < 0 and x1 > 0 or \
+                x1 < 0 and x0 > 0):
+                    r = y0 + x0 * float(y1 - y0) / float(x0 - x1)
+                    if r > 0:
+                        if x1 < 0:
+                            wN += 1
+                        else:
+                            wN -= 1
+                    if dbg:
+                        dprt(" r %6.0f wN %2d" % (r, wN), end='')
+            elif x0 == 0 and y0 > 0:
+                wN += 0.5 if x1 > 0 else -0.5
                 if dbg:
-                    dprt(" r %6.0f wN %2d" % (r, wN), end='')
-        # (x0, y0) = (x1, y1)
+                    dprt(" x0 %6d y0 %6d wN %4.1f" % (x0, y0, wN), end='')
+            elif x1 == 0 and y1 > 0:
+                wN += 0.5 if x0 < 0 else -0.5
+                if dbg:
+                    dprt(" x1 %6d y1 %6d wN %4.1f" % (x0, y0, wN), end='')
         if dbg:
             dprt()
     return wN

@@ -1,8 +1,10 @@
 #!/cygdrive/c/DevSoftware/Python/Python36-32/Python.exe
 
 from __future__ import print_function
-from dbgprt import dprt, dprtSet, ePrint
+
 from math import atan2, cos, degrees, hypot, pi, radians, sin
+
+from dbgprt import dprt, dprtSet, ePrint
 
 # The structure is bascially as follows: each character consists of a
 # number 1->4000 (not all used) in column 0:4, the number of vertices in

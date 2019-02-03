@@ -1,14 +1,17 @@
 from __future__ import print_function
-from dbgprt import dprt, ePrint
-from dxfwrite import DXFEngine as dxf
+
+from math import degrees
+
 from dxfwrite import CENTER, MIDDLE
+from dxfwrite import DXFEngine as dxf
 from svgwrite import Drawing
 from svgwrite.path import Path
-from svgwrite.shapes import Rect, Circle
-from orientation import O_UPPER_LEFT, O_LOWER_LEFT, O_UPPER_RIGHT, \
-    O_LOWER_RIGHT, O_CENTER, O_POINT
-from geometry import calcAngle, labelP, offset, xyDist, MIN_DIST
-from math import degrees
+from svgwrite.shapes import Circle, Rect
+
+from dbgprt import dprt, ePrint
+from geometry import MIN_DIST, calcAngle, labelP, offset, xyDist
+from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_POINT,
+                         O_UPPER_LEFT, O_UPPER_RIGHT)
 
 BORDER = 'BORDER'
 PATH = 'PATH'
@@ -316,4 +319,3 @@ class Draw():
         p = (index * 1, 3)
         self.drawLine(p, m, b, 2 * r)
         self.hole(offset((0, 0), p), 2 * r)
-

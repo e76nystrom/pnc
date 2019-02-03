@@ -1,7 +1,10 @@
 from __future__ import print_function
+
+from math import ceil, hypot
+
 from dbgprt import dprt, dprtSet
-from math import hypot, ceil
-from geometry import Line, MIN_DIST, LINE
+from geometry import LINE, MIN_DIST, Line
+
 
 class Engrave():
     def __init__(self, cfg):
@@ -128,5 +131,3 @@ class Engrave():
                     prb.probe((x0, y0), comment="point %d" % i)
 
             m.cut((x0, y0), zOffset, "zOffset %7.4f" % zOffset)
-                
-

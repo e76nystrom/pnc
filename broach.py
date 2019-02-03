@@ -1,7 +1,10 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt
-from geometry import MIN_DIST
+
 from math import ceil
+
+from dbgprt import dprt, dprtSet
+from geometry import MIN_DIST
+
 
 class Broach():
     def __init__(self, cfg):
@@ -79,5 +82,3 @@ class Broach():
             mill.retract()
             mill.blankLine()
         mill.safeZ()
-            
-        

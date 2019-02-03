@@ -1,4 +1,5 @@
 from __future__ import print_function
+
 from sys import stderr, stdout
 
 DBG = False
@@ -58,4 +59,3 @@ def dclose():
     if dbg is not None:
         dbg.close()
         dbg = None
-        

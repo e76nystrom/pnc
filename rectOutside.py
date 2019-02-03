@@ -1,6 +1,8 @@
 from __future__ import print_function
+
 from dbgprt import dprtSet
 from geometry import Line, createPath
+
 
 class RectOutside():
     def __init__(self, cfg):
@@ -39,5 +41,3 @@ class RectOutside():
         (path, tabPoints) = createPath(seg, dist, True, None, \
                                        addArcs = cfg.addArcs)
         mp.millPath(path, tabPoints)
-        
-        

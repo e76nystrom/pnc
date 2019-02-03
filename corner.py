@@ -1,10 +1,9 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt
-from geometry import Arc, Line
-from geometry import createPath, inside, \
-    oStr, reverseSeg, splitArcs, xyDist
-from geometry import ARC, INDEX_MARKER, LINE, CCW, CW, MIN_DIST, \
-    MIN_VALUE, MAX_VALUE
+
+from dbgprt import dprt, dprtSet
+from geometry import (ARC, CCW, CW, INDEX_MARKER, LINE, MAX_VALUE, MIN_DIST,
+                      MIN_VALUE, Arc, Line, createPath, inside, oStr,
+                      reverseSeg, splitArcs, xyDist)
 
 XPLUS_YPLUS   = 0
 XMINUS_YPLUS  = 1

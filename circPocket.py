@@ -1,7 +1,10 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt
-from geometry import Arc, Line, tangent, xyDist, CCW, CW, MIN_DIST
+
 from math import atan2, ceil, cos, degrees, radians, sin, sqrt
+
+from dbgprt import dprt, dprtSet
+from geometry import CCW, CW, MIN_DIST, Arc, Line, tangent, xyDist
+
 
 class CircularPocket():
     def __init__(self, cfg):

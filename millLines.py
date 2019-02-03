@@ -1,8 +1,10 @@
 ################################################################################
 
-from dxfwrite import DXFEngine as dxf
-from dbgprt import dprt
 from math import ceil, hypot, sqrt, tan
+
+from dxfwrite import DXFEngine as dxf
+
+from dbgprt import dprt
 from draw import Draw
 
 MIN_DIST = .0001
@@ -357,4 +359,3 @@ class MillLine():
                     self.mill.cut((x0 - dx, y0 - dy))
                     self.mill.cut(p1)
             lastDepth = currentDepth
-

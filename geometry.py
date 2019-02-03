@@ -1,9 +1,11 @@
 from __future__ import print_function
-from copy import copy
-from dbgprt import dprt, dflush, ePrint
-from math import acos, asin, atan2, ceil, cos, degrees, floor, hypot, \
-    pi, radians, sin, sqrt
+
 from collections import namedtuple
+from copy import copy
+from math import (acos, asin, atan2, ceil, cos, degrees, floor, hypot, pi,
+                  radians, sin, sqrt)
+
+from dbgprt import dflush, dprt, ePrint
 
 # dxf arcs are always counter clockwise.
 

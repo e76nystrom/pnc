@@ -1,12 +1,12 @@
 from __future__ import print_function
-import pyclipper
+
 import sys
-from dbgprt import dprtSet, dprt
-from geometry import Arc, Line
-from geometry import calcAngle, degAtan2, fix, orientation, oStr, \
-    pathDir, xyDist
-from geometry import ARC, LINE, MAX_VALUE
 from math import acos, ceil, cos, degrees, pi, radians, sin
+
+import pyclipper
+from dbgprt import dprt, dprtSet
+from geometry import (ARC, LINE, MAX_VALUE, Arc, Line, calcAngle, degAtan2,
+                      fix, orientation, oStr, pathDir, xyDist)
 
 SCALE = 1000000.0
 

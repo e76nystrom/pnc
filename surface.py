@@ -1,7 +1,10 @@
 from __future__ import print_function
-from dbgprt import dprtSet, dprt, ePrint
-from geometry import Line, LINE, MIN_DIST
+
 from math import ceil
+
+from dbgprt import dprt, dprtSet, ePrint
+from geometry import LINE, MIN_DIST, Line
+
 
 class Surface():
     def __init__(self, cfg):

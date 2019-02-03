@@ -1,5 +1,6 @@
 from math import cos, radians, sin
 
+
 class Engrave():
     def __init__(self, cfg):
         self.cfg = cfg
@@ -130,5 +131,3 @@ class Engrave():
                 x0 = r0 * cos(theta)
                 y0 = r0 * sin(theta)
                 cfg.font.millOnArc((x0, y0), angle - 90, string, True)
-            
-

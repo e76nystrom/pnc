@@ -1,8 +1,10 @@
 import os
+
 from dbgprt import dprt, ePrint
-from pnc import Drill, O_UPPER_LEFT, O_LOWER_LEFT
-from geometry import MIN_DIST
 from draw import Draw
+from geometry import MIN_DIST
+from pnc import O_LOWER_LEFT, O_UPPER_LEFT, Drill
+
 
 class DrillHolder():
     def __init__(self, cfg):
@@ -433,5 +435,3 @@ class DrillHolder():
                      
             
         f.close()
-
-        
