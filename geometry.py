@@ -772,7 +772,7 @@ class Line():
         if text is None:
             text = str(self.index)
         if self.length > 0.025:
-            h = 0.010
+            h = 0.002
             x = (self.p1.x + self.p0.x) / 2.0
             y = ((self.p0.y + self.p1.y) / 2.0) - h
             draw.text(text, (x, y), h, layer)
@@ -1158,6 +1158,28 @@ class Arc():
         return (xyDist(self.c, l.c) < MIN_DIST and
                 abs(self.r - l.r) < MIN_DIST)
 
+    def tangent(self, start, length=None, layer=None, dbg=False):
+        if start:
+            a = self.a1 if self.swapped else self.a0 + 90
+            if a > 360:
+                a -= 360
+            p = self.p0
+        else:
+            a = self.a0 if self.swapped else self.a1 - 90
+            if a < 360:
+                a += 360
+            p = self.p1
+        (x, y) = p
+        a = radians(a)
+        if length is None:
+            length = self.length
+        p1 = Point(x + length * cos(a), y + length * sin(a))
+        if dbg:
+            l0 = Line(p, p1)
+            l0.draw(layer)
+            l0.label(str(self.index), layer)
+        return(p1)
+    
     def onSegment(self, p):
         a = degAtan2(p[1] - self.c.y, p[0] - self.c.x)
         if self.a0 < self.a1:
@@ -1201,7 +1223,7 @@ class Arc():
         if text is None:
             text = str(self.index)
         (x, y) = self.linePoint(self.length / 2)
-        h = 0.010
+        h = 0.005
         draw.text(text, (x, y - h), h, layer)
 
 def lineLine(l0, l1):

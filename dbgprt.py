@@ -48,7 +48,7 @@ def dprtSet(dbgFlag=None, dFile=None):
             dbg = None
         if len(dFile) != 0:
             try:
-                dbg = open(dFile, 'w')
+                dbg = open(dFile, 'wb')
                 dbgFile = dFile
             except IOError:
                 dbg = None
