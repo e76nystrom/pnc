@@ -1159,6 +1159,11 @@ class Arc():
                 abs(self.r - l.r) < MIN_DIST)
 
     def tangent(self, start, length=None, layer=None, dbg=False):
+        # pM = (self.p0.x + self.p1.x) / 2, (self.p0.y + self.p1.y) / 2
+        # err = self.r - xyDist(pM, self.c)
+        # if err < .002:
+        #     return(self.p0 if start else self.p1)
+        
         if start:
             a = self.a1 if self.swapped else self.a0 + 90
             if a > 360:
