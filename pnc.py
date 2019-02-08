@@ -492,6 +492,7 @@ class Config():
                             action = self.cmdAction[cmd]
                             try:
                                 action(arg)
+                                dflush()
                                 if self.error:
                                     break
                             # except ValueError:

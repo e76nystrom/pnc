@@ -51,7 +51,7 @@ def quadrant(p):
         if y >= 0:
             return(1)
         else:
-            return(3)
+            return(2)
 
 def degAtan2(y, x):
     a = degrees(atan2(y, x))
@@ -298,6 +298,9 @@ class Line():
         self.e = e
         self.length = xyDist(p0, p1)
         self.text = None
+        self.vertical = None
+        self.m = None
+        self.b = None
 
     def updateP0(self, p0):
         self.p0 = newPoint(p0)
@@ -306,6 +309,25 @@ class Line():
     def updateP1(self, p1):
         self.p1 = newPoint(p1)
         self.length = xyDist(self.p0, self.p1)
+
+    def setupEquation(self):
+        (x0, y0) = self.p0
+        (x1, y1) = self.p1
+        dx = x1 - x0
+        dy = y1 - y0
+        self.vertical = abs(dx) < MIN_DIST
+        if self.vertical:
+            self.b = max(self.p0.y, self.p1.y)
+        else:
+            self.m = dy / dx
+            self.b = y0 - self.m * x0
+        
+    def yValue(self, x):
+        if self.vertical is None:
+            return None
+        if self.vertical:
+            return self.b
+        return(self.m * x + self.b)
 
     def swap(self):
         (self.p0, self.p1) = (self.p1, self.p0)
@@ -852,6 +874,21 @@ class Arc():
         self.p1 = p     # set end of this object
         self.calcLen()
 
+    def setupEquation(self):
+        self.yPlus = (self.p0.y + self.p1.y) / 2 - self.c.y >= 0
+        self.rSqr = self.r * self.r
+
+    def yValue(self, x):
+        x0 = abs(x - self.c.x)
+        d = self.r - x0
+        if d < -MIN_DIST:
+            return None
+        if abs(d) < MIN_DIST:
+            return self.c.y
+        else:
+            y = sqrt(self.rSqr - x0 * x0)
+        return self.c.y + (y if self.yPlus else -y)
+
     def calcLen(self):
         a1 = self.a1
         a0 = self.a0
@@ -1165,12 +1202,12 @@ class Arc():
         #     return(self.p0 if start else self.p1)
         
         if start:
-            a = self.a1 if self.swapped else self.a0 + 90
+            a = self.a1 - 90 if self.swapped else self.a0 + 90
             if a > 360:
                 a -= 360
             p = self.p0
         else:
-            a = self.a0 if self.swapped else self.a1 - 90
+            a = self.a0 + 90 if self.swapped else self.a1 - 90
             if a < 360:
                 a += 360
             p = self.p1
