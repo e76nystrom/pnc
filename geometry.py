@@ -298,9 +298,9 @@ class Line():
         self.e = e
         self.length = xyDist(p0, p1)
         self.text = None
-        self.vertical = None
-        self.m = None
-        self.b = None
+        self.vertical = False
+        self.m = 0.0
+        self.b = 0.0
 
     def updateP0(self, p0):
         self.p0 = newPoint(p0)

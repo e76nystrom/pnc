@@ -21,6 +21,7 @@ EventPair = namedtuple('EventPair', ['start', 'end'])
 Intersection = namedtuple('Intersection', ['loc', 'p', 'l0', 'l1'])
 
 keyScale = None
+keyOffset = None
 
 class Offset():
     def __init__(self, cfg):
@@ -32,6 +33,7 @@ class Offset():
         self.splitArcAngle = 90
         self.minLength = 0.002
         self.keyScale = None
+        self.keyOffset = None
         self.passNum = 0
         self.cmds = \
         (
@@ -295,7 +297,7 @@ class Offset():
                     l.label(layer=intersectLayer)
                     # cfg.draw.drawX(l.p0, str(n))
 
-            isectPolygon = True
+            isectPolygon = False
             if isectPolygon:
                 points = []
                 for l in oSeg:
@@ -548,8 +550,8 @@ class Offset():
             if pointData != None:
                 pointData.write(b"%6d,%6d,%6d,%6d\n" % \
                                 (p0.x, p0.y, p1.x, p1.y))
-            x0 = p0.x
-            x1 = p1.x
+            (x0, y0) = p0
+            (x1, y1) = p1
             if x0 < x1:
                 self.addEvent(p0, p1, l.p0, l)
             elif x1 < x0:
@@ -563,9 +565,15 @@ class Offset():
             pointData.close()
         
         dprt("\nsweep line event list")
-        for l in evtList:
-            l.prt()
-
+        for e in evtList:
+            e.prt(end='')
+            if e.evtType == LEFT:
+                l = e.l
+                if l.type == LINE:
+                    dprt(" m %7.4f b %7.4f %s" % \
+                         (l.m, l.b, str(l.vertical)[0]), end='')
+            dprt()
+            
         self.sweepList = sweepList = SortedList()
         dprt("\npass %d sweep line processing" % (self.passNum))
         lastX = 0
@@ -581,17 +589,16 @@ class Offset():
                 ePrint("findIntersections break pass %d event %d" % \
                        (self.passNum, self.event))
             if evt.evtType == LEFT:
-                if True:
-                    sweepNew = SortedList() # create new list
-                    x = evt.loc.x           # get current x value
-                    for e in sweepList:     # for all in list
-                        l = e.l             # get line for event
-                        y = l.yValue(x)     # calculate new y value
-                        y = int(round(y * scale)) # scale and convert to int
-                        key = e.updateKey(y)      # calculate new key
-                        self.evtArray[l.index].end.key = key # update rem evt
-                        sweepNew.add(e)		# add back into list
-                    self.sweepList = sweepList = sweepNew # save to old list
+                x = evt.loc.x           # get current x value
+                e0 = None
+                for e in sweepList:     # for all in list
+                    l = e.l             # get line for event
+                    y = int(round(l.yValue(x) * scale)) # calculate new y value
+                    if e0 is not None and y == e0.y:
+                        e0.y -= 1
+                        y += 1
+                    e.y = y # scale and convert to int
+                    e0 = e
                     
                 sweepList.add(evt)
                 index = sweepList.bisect_left(evt)
@@ -636,16 +643,19 @@ class Offset():
                     idxRight += 1
                 self.listPrt()
             elif evt.evtType == RIGHT:
-                index = sweepList.bisect_left(evt)
+                evtSweep = self.evtArray[evt.index].start
+                # index = sweepList.bisect_left(evtSweep)
+                index = sweepList.index(evtSweep)
                 sweepLen = len(sweepList)
                 self.sweepPrt(evt, sweepLen, index)
                 try:
                     curEvt = sweepList[index]
+                    if curEvt.index != evt.index:
+                        ePrint("remove error %2d evt index %3d "\
+                               "curEvt index %2d" % \
+                               (index, evt.index, curEvt.index))
                 except IndexError:
                     pass
-                if curEvt.key != evt.key:
-                    ePrint("remove key error %2d %9d %2d %9d" % \
-                           (evt.index, evt.key, curEvt.index, curEvt.key))
                     
                 (x, y) = self.evtArray[evt.index].start.p
                 y0 = None
@@ -687,25 +697,25 @@ class Offset():
                         dbgTxt += "%2d" % (e.index)
                     dbgTxt += ")"
 
-                    key = evt.p.y * self.keyScale
-                    index0 = sweepList.bisect_left(evt0)
+                    y = int(round(evt.loc.y * self.scale))
+                    evt0Sweep = self.evtArray[evt0.index].start
+                    index0 = sweepList.bisect_left(evt0Sweep)
                     dbgTxt += " (%2d" % (index0)
                     if index0 < sweepLen:
                         evtP0 = sweepList[index0]
                         if evt0 is evtP0:
                             sweepList.pop(index0)
-                            evt0.key = key + 1
-                            self.evtArray[evt0.index].end.key = evt0.key
+                            evt0.y = y + 1
                             sweepList.add(evt0)
 
-                    index1 = sweepList.bisect_left(evt1)
+                    evt1Sweep = self.evtArray[evt1.index].start
+                    index1 = sweepList.bisect_left(evt1Sweep)
                     dbgTxt += " %2d)" % (index1)
                     if index1 < sweepLen:
                         evtP1 = sweepList[index1]
                         if evt1 is evtP1:
                             sweepList.pop(index1)
-                            evt1.key = key - 1
-                            self.evtArray[evt1.index].end.key = evt1.key
+                            evt1.y = y - 1
                             sweepList.add(evt1)
 
                     dbgTxt += " (%2d %2d)" % (evt1.index, evt0.index)
@@ -743,9 +753,8 @@ class Offset():
                  (i, e, idx0, idx1, str(flag)[0], n))
 
     def addEvent(self, p0, p1, loc, l):
-        evtStr = Event(p0, loc, l, LEFT)
-        evtEnd = Event(p1, loc, l, RIGHT, evtStr.key)
-        evtStr.evtEnd = evtEnd
+        evtStr = Event(p0, p1, loc, l, LEFT)
+        evtEnd = Event(p1, p0, loc, l, RIGHT)
         self.evtList.add(evtStr)
         self.evtList.add(evtEnd)
         self.evtArray[l.index] = EventPair(evtStr, evtEnd)
@@ -799,7 +808,7 @@ class Offset():
             e = self.evtArray[evt1.index].end # get l1 end
             index = self.evtList.bisect_left(e)
             self.evtList.pop(index)  # rm end from evt
-            e.event = False          # chg to key
+            e.event = False          # chg to sweep
             self.sweepList.remove(e) # rm end from sweep
 
             (l1Str, l1End) = (l1.p0, l1.p1)
@@ -862,14 +871,20 @@ class Offset():
         for (i, s) in enumerate(self.sweepList):
             if i != 0:
                 dprt(", ", end='')
-            dprt("%2d %7d" % (s.l.index, s.key), end='')
+            dprt("%2d %7d" % (s.l.index, s.y), end='')
         dprt(")")
 
     def sweepListPrt(self, sweepList=None):
         if sweepList is None:
             sweepList = self.sweepList
+        e0 = None
         for e in sweepList:
-            e.prt()
+            e.prt(end='')
+            if e0 is not None:
+                dprt(" %s" % (str(e > e0)[0]), end='')
+            e0 = e
+            dprt()
+            
 
     def evtListPrt(self):
         for evt in self.evtList:
@@ -903,7 +918,7 @@ class Offset():
         if dbg:
             dprt("\ninsidePoint")
         self.evtList = evtList = SortedList()
-        self.evtArray = [None] * len(seg)
+        self.evtArray = {}
         for l in seg:
             scale = self.scale
             p0 = newPoint(l.p0, scale)
@@ -979,7 +994,8 @@ class Offset():
                 try:
                     if dbg:
                         self.sweepPrt(evt, sweepLen, 0)
-                    sweepList.remove(evt)
+                    evtStr = self.evtArray[evt.index]
+                    sweepList.remove(evtStr)
                     if dbg:
                         self.listPrt()
                 except ValueError:
@@ -997,10 +1013,11 @@ class Offset():
         return(p, chkList)
 
     def addInsideEvent(self, p0, p1, loc, l):
-        evtStr = Event(p0, loc, l, LEFT)
-        evtEnd = Event(p1, loc, l, RIGHT, evtStr.key)
+        evtStr = Event(p0, p1, loc, l, LEFT)
+        evtEnd = Event(p1, p0, loc, l, RIGHT)
         self.evtList.add(evtStr)
         self.evtList.add(evtEnd)
+        self.evtArray[evtStr.index] = evtStr
 
     def setOffsetDist(self, args):
         self.dist = self.cfg.evalFloatArg(args[1])
@@ -1024,9 +1041,9 @@ class Offset():
         self.scale = self.cfg.evalIntArg(args[1])
 
     def setKeyScale(self, scale):
-        global keyScale
-        self.keyScale = scale
-        keyScale = scale
+        global keyOffset, keyScale
+        self.keyScale = keyScale = scale
+        self.keyOffset = keyOffset = scale / 2
 
     def setDrawInitial(self, args):
         self.drawInitial = self.cfg.evalBoolArg(args[1])
@@ -1224,86 +1241,83 @@ class Offset():
         windingNumber(p, seg, self.scale, True)
 
 class Event:
-    def __init__(self, p, loc, l=None, evtType=None, key=None, slope=0):
+    def __init__(self, p, p1, loc, l=None, evtType=None):
         self.evtType = evtType
         self.p = p
+        self.p1 = p1
+        self.y = p.y
         self.loc = loc
         self.l = l
-        self.slope = slope
         if l is not None:
             self.index = l.index
             self.event = True
-            if key is None:
-                self.key = self.p.y * keyScale + l.index
-            else:
-                self.key = key
-        else:
-            self.evtType = INTERSECT
-            self.event = False
-            self.key = self.p.y * keyScale
-            self.index = -1
-            self.l = None
-
-    def updateKey(self, y):
-        self.key = y * keyScale + slope
-        return self.key
             
     def prt(self, end='\n'):
-        dprt("p (%6d %6d) %2d %9d %s" % \
-                (self.p.x, self.p.y, self.index, self.key, \
-                evtStr[self.evtType]), end)
+        dprt("p (%6d %6d) (%6d %6d) %2d %6d %s" % \
+                (self.p.x, self.p.y, self.p1.x, self.p1.y, self.index, \
+                 self.y, evtStr[self.evtType]), end)
 
     def __str__(self):
         return("p (%6d %6d) %2d %9d %s" % \
-               (self.p.x, self.p.y, self.index, self.key, \
+               (self.p.x, self.p.y, self.index, self.y, \
                 evtStr[self.evtType]))
 
     def __gt__(self, other):
-        # if not isinstance(other, Event):
-        #     raise Exception("")
-        # else:
         if self.event:
             if self.p.x == other.p.x:
                 if self.p.y == other.p.y:
-                    return self.index > other.index
+                    if self.evtType != other.evtType:
+                        return self.evtType == LEFT
+                    else:
+                        return self.p1.y > other.p1.y
                 else:
                     return self.p.y > other.p.y
             else:
                 return self.p.x > other.p.x
         else:
-            return self.key > other.key
+            if self.y == other.y:
+                if self.p.y == other.p.y:
+                    return self.p1.x > other.p1.x
+                else:
+                    return self.p1.y > other.p1.y
+            else:
+                return self.y > other.y
 
     def __lt__(self, other):
-        # if not isinstance(other, Event):
-        #     raise Exception("")
-        # else:
         if self.event:
             if self.p.x == other.p.x:
                 if self.p.y == other.p.y:
-                    return self.index < other.index
+                    if self.evtType != other.evtType:
+                        return self.evtType == RIGHT
+                    else:
+                        return self.p1.y < other.p1.y
                 else:
                     return self.p.y < other.p.y
             else:
                 return self.p.x < other.p.x
         else:
-            return self.key < other.key
+            if self.y == other.y:
+                if self.p1.y == other.p1.y:
+                    return self.p1.x < other.p1.x
+                else:
+                    return self.p1.y < other.p1.y
+            else:
+                return self.y < other.y
 
     def __eq__(self, other):
-        # if not isinstance(other, Event):
-        #     raise Exception("")
-        # else:
         if self.event:
             if self.p.x == other.p.x:
                 if self.p.y == other.p.y:
                     return self.index == other.index
             return False
         else:
-            return self.key == other.key
+            return self.index == other.index
 
 class Intersect:
     def __init__(self, p, loc, evt0, evt1):
         self.evtType = INTERSECT
         self.p = p
+        self.p1 = Point(0, 0)
         self.loc = loc
         self.evt0 = evt0
         self.evt1 = evt1
@@ -1311,9 +1325,8 @@ class Intersect:
     def prt(self, end='\n', l=False):
         evt0 = self.evt0
         evt1 = self.evt1
-        dprt("p (%6d %6d) %2d %2d %s      I" % \
-             (self.p.x, self.p.y, evt0.index, evt1.index, \
-              str(evt0.key > evt1.key)[0]), end='')
+        dprt("p (%6d %6d) %13s %2d %2d       I" % \
+             (self.p.x, self.p.y, "", evt0.index, evt1.index), end='')
         if l:
             dprt(" %2d %2d" % (self.evt0.index, self.evt1.index), '')
         dprt(end=end)
