@@ -323,8 +323,6 @@ class Line():
             self.b = y0 - self.m * x0
         
     def yValue(self, x):
-        if self.vertical is None:
-            return None
         if self.vertical:
             return self.b
         return(self.m * x + self.b)
@@ -787,14 +785,13 @@ class Line():
         draw.move(self.p0)
         draw.line(self.p1, layer)
 
-    def label(self, text=None, layer=None):
+    def label(self, text=None, layer=None, h=0.005):
         # self.text = text
         if draw is None:
             return
         if text is None:
             text = str(self.index)
         if self.length > 0.025:
-            h = 0.002
             x = (self.p1.x + self.p0.x) / 2.0
             y = ((self.p0.y + self.p1.y) / 2.0) - h
             draw.text(text, (x, y), h, layer)
@@ -808,7 +805,7 @@ class Line():
         if self.text != None:
             string += " " + self.text
         if out is None:
-            dprt(string)
+            dprt(string, end=eol)
         else:
             out.write(string)
             out.write(eol)
@@ -1254,19 +1251,19 @@ class Arc():
              (' ', 's')[self.swapped], self.c.x, self.c.y, \
              self.r, self.a0, self.a1)
         if out is None:
-            dprt(string)
+            dprt(string, end=eol)
         else:
             out.write(string)
             out.write(eol)
 
-    def label(self, text=None, layer=None):
+    def label(self, text=None, layer=None, h=0.005):
         if draw is None:
             return
         if text is None:
             text = str(self.index)
-        (x, y) = self.linePoint(self.length / 2)
-        h = 0.005
-        draw.text(text, (x, y - h), h, layer)
+        if self.r > MIN_DIST:
+            (x, y) = self.linePoint(self.length / 2)
+            draw.text(text, (x, y - h), h, layer)
 
 def lineLine(l0, l1):
     # dprt("intersect line line")
