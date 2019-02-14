@@ -225,6 +225,7 @@ class Config():
             ('pausecenter', self.setPauseCenter), \
             ('pauseheight', self.setPauseHeight), \
             ('homepause', self.setHomePause), \
+            ('pausehere', self.pauseHere), \
 
             ('rampangle', self.setRampAngle), \
             ('shortramp', self.setShortRamp), \
@@ -648,8 +649,9 @@ class Config():
     def getLocation(self, args, result=None):
         if result is None:
             result = [0.0, 0.0, 0.0]
-        self.reLoc = r"^.*? +([xyz]) *([0-9\.\-]+) *([xyz]*) *([0-9\.\-]*)" \
-                     r" *([xyz]*) *([0-9\.\-]*)"
+        self.reLoc = (r"^.*? +([xyz]) *([a-zA-Z0-9\.\-]+) " \
+                      r"*([xyz]*) *([a-zA-Z0-9\.\-]*)" \
+                      r" *([xyz]*) *([a-zA-Z0-9\.\-]*)")
         match = re.match(self.reLoc, args[0].lower())
         if match is not None:
             groups = len(match.groups())
@@ -661,14 +663,14 @@ class Config():
                     break
                 if i > groups:
                     break
-                val = float(match.group(i))
+                val = self.evalFloatArg(match.group(i))
                 i += 1
                 if axis == 'x':
                     result[0] = val
                 elif axis == 'y':
                     result[1] = val
                 elif axis == 'z':
-                    result[1] = val
+                    result[2] = val
         return(result)
                     
     def setSize(self, args):
@@ -799,6 +801,18 @@ class Config():
     def setPause(self, args):
         self.pause = self.evalBoolArg(args[1])
 
+    def pauseHere(self, args):
+        mill = self.mill
+        result = self.getLocation(args, [mill.last[0],
+                                         mill.last[1], self.safeZ])
+        (xPause, yPause, zPause) = result
+        mill.moveZ(zPause)
+        mill.move((xPause, yPause))
+        speed = mill.speed
+        mill.setSpeed(0)
+        mill.pause()
+        mill.setSpeed(speed)
+
     def setHomePause(self, args):
         self.homePause = self.evalBoolArg(args[1])
 
@@ -890,26 +904,29 @@ class Config():
         mill = self.mill
         out = mill.out
         gMove = "0"
-        if abs(self.lastY - self.y) < MIN_DIST:
+        if abs(mill.last[1] - self.y) < MIN_DIST:
             if self.xOffset != 0:
                 out.write("g0 x %7.4f\n" % (self.x - self.xOffset))
                 gMove = "1"
                 mill.setFeed(self.feed)
             out.write("g%s x %7.4f\n" % (gMove, self.x))
-        elif abs(self.lastX - self.x) < MIN_DIST:
+            mill.last = (self.x, self.y)
+        elif abs(mill.last[0] - self.x) < MIN_DIST:
             if self.yOffset != 0:
                 out.write("g0 y %7.4f\n" % (self.y - self.yOffset))
                 gMove = "1"
                 mill.setFeed(self.feed)
             out.write("g%s y %7.4f\n" % (gMove, self.y))
+            mill.last = (self.x, self.y)
         else:
-            if self.lastX != self.x and self.lastY != self.y:
+            if mill.last[0] != self.x and mill.last[1] != self.y:
                 if self.xOffset != 0 or self.yOffset != 0:
                     out.write("g0 x %7.4f y %7.4f\n" % \
                               (self.x - self.xOffset, self.y - self.yOffset))
                     gMove = "1"
                     mill.setFeed(self.feed)
                 out.write("g%s x %7.4f y %7.4f\n" % (gMove, self.x, self.y))
+                mill.last = (self.x, self.y)
         self.draw.hole((self.x, self.y), size)
         holeCount = "/%d" % (self.holeCount) if self.holeCount is not None \
                     else ""
@@ -960,8 +977,6 @@ class Config():
             mill.retract()
             
         mill.blankLine()
-        self.lastX = self.x
-        self.lastY = self.y
 
     def bore(self, args):
         self.drill(args, BORE)
@@ -2203,13 +2218,13 @@ class Point():
 
     def add(self, l, end):
         i = self.ends
-        if self.l[i] is None:
+        if i < 2 and self.l[i] is None:
             self.l[i] = l
             self.lIndex[i] = l.index
             self.lEnd[i] = end
             self.ends += 1
         else:
-            dprt("err, pt %d" % (self.index))
+            dprt("err, end %d pt %d" % (end, self.index))
             self.prt()
 
     def prt(self):
@@ -2528,7 +2543,7 @@ class Dxf():
             linNum += 1
         return(objects)
     
-    def getPath(self, layer, circle=False, dbg=True, rand=False):
+    def getPath(self, layer, circle=False, dbg=False, rand=False):
         if dbg:
             dprt("getPath %s" % (layer))
         # find everything that matches layer
@@ -2536,7 +2551,7 @@ class Dxf():
         entities = []
         for e in self.modelspace:
             dxfType = e.dxftype()
-            if dbg:
+            if False and dbg:
                 dprt("dxfType %-10s layer %s" % \
                      (dxfType, e.get_dxf_attrib("layer")))
             if layer != e.get_dxf_attrib("layer"):

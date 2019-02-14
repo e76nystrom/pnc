@@ -330,7 +330,7 @@ class Line():
     def swap(self):
         (self.p0, self.p1) = (self.p1, self.p0)
 
-    def parallel(self, dist):
+    def parallel(self, dist, direction=None, outsie=None):
         (x0, y0) = self.p0      # start and end
         (x1, y1) = self.p1
         xM = (x0 + x1) / 2      # mid point
@@ -917,10 +917,34 @@ class Arc():
             d = -d
         return(d)
 
-    def parallel(self, dist):
-        d = self.fixDist(dist)
-        r = self.r
-        r += d
+    def parallel(self, dist, direction=None, outside=None):
+        if direction is None and outside is None:
+            d = self.fixDist(dist)
+        else:
+            dist = abs(dist)
+            if direction == CCW:  # direction ccw
+                if self.swapped: # arc cw
+                    if outside:
+                        d = -dist
+                    else:
+                        d = dist
+                else:           # arc ccw
+                    if outside:
+                        d = dist
+                    else:
+                        d = -dist
+            elif direction == CW: # direction cw
+                if self.swapped: # arc cw
+                    if outside:
+                        d = dist
+                    else:
+                        d = -dist
+                else:           # arc ccw
+                    if outside:
+                        d = -dist
+                    else:
+                        d = dist
+        r = self.r + d
         if r < 0.0:
             l1 = None
         else:

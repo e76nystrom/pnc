@@ -87,7 +87,7 @@ class Offset():
         cfg = self.cfg
         cfg.ncInit()
         layer = cfg.getLayer(args)
-        segments = cfg.dxfInput.getPath(layer, dbg=True)
+        segments = cfg.dxfInput.getPath(layer, dbg=False)
 
         direction = self.dir
         if direction is None:
@@ -140,10 +140,14 @@ class Offset():
         if dbgOffset and drawOffset:
             drawX = cfg.draw.drawX
         finalPolygons = []
+        initialLayer = "%02dinitial" % (self.passNum)
         for seg in segments:
             dprt("\noriginal path")
             for l in seg:
                 l.prt()
+                if self.drawInitial:
+                    l.draw(initialLayer)
+                    l.label(layer=initialLayer)
 
             newSeg = splitArcs(seg, self.splitArcAngle)
 
@@ -158,7 +162,8 @@ class Offset():
             if curDir != direction:
                 newSeg = reverseSeg(newSeg)
             if dbgOffset:
-                dprt("direction %s" % (oStr(direction)))
+                dprt("direction %s distance %7.4f" % \
+                     (oStr(direction), distance))
 
             (p, chkList) = self.insidePoint(newSeg)
             wNInitial = windingNumber(p, chkList, self.scale, dbg=True)
@@ -172,35 +177,29 @@ class Offset():
                  (wNInitial, oStr(wNDirection), oStr(direction)))
 
             offsetIntersect = False # +++dbg+++
+            dprt("\ncreate offset path")
+            if self.passNum == 7:
+                dprt("break point for pass")
             skip = False
             i = -1
             while True:
                 prevL = newSeg[i]
-                l1 = prevL.parallel(distance)
+                l1 = prevL.parallel(distance, direction, outside)
                 if l1 is not None:
                     prevP = l1.p1
                     prevL1 = l1
                     break
                 i -= 1
-            # prevL = newSeg[-1]
-            # l1 = prevL.parallel(distance)
-            # if l1 is None:
-            #     prevP = prevL.c
-            # else:
-            #     prevP = l1.p1
-            #     prevL1 = l1
             lastLoc = None
             oSeg = []
-            dprt("\ncreate offset path")
             offsetLayer = "%02dOffset" % (self.passNum)
-            initialLayer = "%02dInitial" % (self.passNum)
+            splitLayer = "%02dsplit" % (self.passNum)
             for (n, l) in enumerate(newSeg):
-                if self.drawInitial:
-                    l.draw(initialLayer)
-                    if dbgOffset:
-                        l.label(layer=initialLayer)
+                if dbgOffset:
+                    l.draw(splitLayer)
+                    l.label(layer=splitLayer)
 
-                l1 = l.parallel(distance) # create parallel line
+                l1 = l.parallel(distance, direction, outside)
                 if l1 is None:
                     if xyDist(prevP, l.c) > MIN_DIST:
                         if not offsetIntersect:
@@ -500,7 +499,7 @@ class Offset():
                         break
                     if dbgPolygons:
                         dprt()
-                if len(poly) > 3:
+                if len(poly) >= 3:
                     if dbgPolygons:
                         dprt("polygon %d linked %d" % (polyCount, len(poly)))
                         polyCount += 1
@@ -533,28 +532,70 @@ class Offset():
                     for l in poly:
                         l.prt()
 
-                newPoly = []
-                n = 0
-                removed = 0
-                lPrev = poly[-1]
-                for i, l in enumerate(poly):
-                    if l.length < self.minLength:
-                        lPrev.updateP1(l.p1)
-                        removed += 1
-                        continue
-                    l.index = n
-                    newPoly.append(l)
-                    n += 1
-                    lPrev = l
-                if removed != 0:
-                    polyList[pN] = newPoly
-
-                if dbgPolygons and removed > 0:
-                    dprt("\nshort segments removed %d" % (removed))
-                    for l in newPoly:
+                if True:
+                    dprt("\nremoving short segments")
+                    newPoly = []
+                    n = 0
+                    removed = 0
+                    update = False
+                    index = 1
+                    dprt("find starting point")
+                    while True:
+                        l = poly[-index]
                         l.prt()
+                        if l.length > self.minLength:
+                            prevL = l
+                            index -= 1
+                            if index != 0:
+                                poly = poly[-index:] + poly[:-index]
+                            break
+                        index += 1
+                    dprt()
+                    prevL.prt()
+                    dprt()
+                    for i, l in enumerate(poly):
+                        if l.length < self.minLength:
+                            removed += 1
+                            update = True
+                            dprt("r %2d" % (removed), end=' ')
+                            l.prt()
+                            continue
+                        if update:
+                            update = False
+                            if prevL.type == LINE:
+                                if l.type == LINE:
+                                    (x0, y0) = prevL.p1
+                                    (x1, y1) = l.p0
+                                    p = Point((x0 + x1) / 2, (y0 + y1) / 2)
+                                    prevL.updateP1(p)
+                                    l.updateP0(p)
+                                else:
+                                    prevL.updateP1(l.p0)
+                            else:
+                                if l.type == LINE:
+                                    l.updateP0(prevL.p1)
+                                else:
+                                    l0 = Line(prevL.p1, l.p0, n)
+                                    n += 1
+                                    newPoly.append(l0)
+                                    dprt("a    ", end='')
+                                    l0.prt()
+                        dprt("s %2d" % (n), end=' ')
+                        l.prt()
+                        l.index = n
+                        newPoly.append(l)
+                        n += 1
+                        prevL = l
+                    if removed != 0:
+                        polyList[pN] = newPoly
+                        poly = newPoly
 
-                result = self.insidePoint(poly)
+                    if dbgPolygons and removed > 0:
+                        dprt("\nshort segments removed %d" % (removed))
+                        for l in newPoly:
+                            l.prt()
+
+                result = self.insidePoint(poly, True)
                 if result is not None:
                     (p, chkList) = result
                     wN = windingNumber(p, chkList, self.scale, dbg=False)
@@ -570,9 +611,10 @@ class Offset():
 
         if self.drawFinalPoly:
             for poly in finalPolygons:
+                finalLayer = "%02dFinal" % (self.passNum)
                 for l in poly:
-                    l.draw()
-                    l.label()
+                    l.draw(layer=finalLayer)
+                    l.label(layer=finalLayer)
         return finalPolygons
 
     def pathIntersect(self, l0, l1):
@@ -698,22 +740,6 @@ class Offset():
                     sweepList.remove(evt)
             elif evt.evtType == RIGHT:
                 index = self.sweepFind(evt)
-                # try:
-                #     if self.passNum == 0 and self.event == 17:
-                #         dprt()
-                #         self.sweepListPrt()
-                #         evtDbg = True
-                #     # index = sweepList.bisect_left(evtSweep)
-                #     index = sweepList.index(evtSweep)
-                #     evtDbg = False
-                #     curEvt = sweepList[index]
-                #     if curEvt.index != evt.index:
-                #         ePrint("remove error %2d evt index %3d "\
-                #                "curEvt index %2d" % \
-                #                (index, evt.index, curEvt.index))
-                # except ValueError:
-                #     evtDbg = False
-                #     self.eventError(evtSweep, "remove error")
                 sweepLen = len(sweepList)
                 self.sweepPrt(evt, sweepLen, index)
                     
@@ -851,6 +877,22 @@ class Offset():
             self.sweepListPrt()
             raise ValueError("not found")
         return None
+        # try:
+        #     if self.passNum == 0 and self.event == 17:
+        #         dprt()
+        #         self.sweepListPrt()
+        #         evtDbg = True
+        #     # index = sweepList.bisect_left(evtSweep)
+        #     index = sweepList.index(evtSweep)
+        #     evtDbg = False
+        #     curEvt = sweepList[index]
+        #     if curEvt.index != evt.index:
+        #         ePrint("remove error %2d evt index %3d "\
+        #                "curEvt index %2d" % \
+        #                (index, evt.index, curEvt.index))
+        # except ValueError:
+        #     evtDbg = False
+        #     self.eventError(evtSweep, "remove error")
     
     def updateSweepY(self, x):
         if self.curX != self.lastX:
@@ -909,16 +951,6 @@ class Offset():
     def intersect(self, evt0, evt1, n):
         l0 = evt0.l
         l1 = evt1.l
-        # if evt0.p.x == evt1.p.x and evt0.p.y == evt0.p.y:
-        #     self.dbgIntersection.append((self.event, n, l0.index, \
-        #                                  l1.index, False))
-        #     return
-        # elif evt0.p1.x == evt1.p1.x and evt0.p1.y == evt0.p1.y:
-        #     if xyDist(l0.p0, l1.p1) < MIN_DIST:
-        #         self.iEvt(l0.p0, evt0, evt1, False)
-        #     else:
-        #         self.iEvt(l0.p1, evt0, evt1, False)
-        #     return
         if xyDist(l0.p0, l1.p1) < MIN_DIST:
             self.dbgIntersection.append((self.event, n, self.curX, l0.index, \
                                          l1.index, False))
@@ -1104,7 +1136,6 @@ class Offset():
             dprt("%2d (%7.4f %7.4f) (%2d %2d)" % \
                  (i, loc.x, loc.y, l0.index, l1.index))
 
-
     def insidePoint(self, seg, dbg=False):
         global before
         drawTest = False
@@ -1185,6 +1216,7 @@ class Offset():
                 except ValueError:
                     dprt("\ninsidePoint list error")
                     evt.prt()
+                    dprt()
                     self.sweepListPrt()
             x0 = x
         if chkList is not None:
@@ -1217,6 +1249,8 @@ class Offset():
         evtEnd = Event(p1, p0, loc, l, RIGHT)
         self.evtList.add(evtStr)
         self.evtList.add(evtEnd)
+        if evtStr.index in self.evtArray:
+            print("error")
         self.evtArray[evtStr.index] = evtStr
 
     def setOffsetDist(self, args):
@@ -1400,7 +1434,7 @@ class Offset():
         layer = args[1]
         refCircle = cfg.dxfInput.getObjects(layer)
         layer = args[2]
-        segments = cfg.dxfInput.getPath(layer, dbg=True)
+        segments = cfg.dxfInput.getPath(layer, dbg=False)
 
         p = refCircle[0].c
 
