@@ -13,6 +13,7 @@ LINE = 0
 ARC = 1
 
 MIN_DIST = .0001
+MIN_ORIENTATION = 1e-6
 MAX_VALUE = 999999
 MIN_VALUE = -999999
 
@@ -181,7 +182,7 @@ def orientation(p1, p2, p3):
            (p3[1] - p2[1]) * (p2[0] - p1[0]))
     # dprt("val %9.6f p0 %6.3f, %6.3f p1 %6.3f, %6.3f p2 %6.3f, %6.3f" % \
     #       (val, p1[0], p2[1], p2[0], p2[1], p3[0], p3[1]))
-    if abs(val) < MIN_DIST:
+    if abs(val) < MIN_ORIENTATION:
         return LINEAR
     elif val > 0:
         return CW
@@ -791,7 +792,7 @@ class Line():
             return
         if text is None:
             text = str(self.index)
-        if self.length > 0.025:
+        if self.length > 0.010:
             x = (self.p1.x + self.p0.x) / 2.0
             y = ((self.p0.y + self.p1.y) / 2.0) - h
             draw.text(text, (x, y), h, layer)
@@ -1761,10 +1762,11 @@ def pathLength(seg):
 
 def reverseSeg(seg, makeCopy=True):
     newSeg = []
-    for l in reversed(seg):
+    for i, l in enumerate(reversed(seg)):
         if makeCopy:
             l = copy(l)
         l.swap()
+        l.index = i
         newSeg.append(l)
     return(newSeg)
 

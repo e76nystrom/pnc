@@ -4,10 +4,10 @@ from collections import namedtuple
 from math import atan2, degrees, hypot, sqrt
 
 from dbgprt import dprt, dprtSet, ePrint
-from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc,
-                      Line, Point, calcAngle, combineArcs, eqnLine, newPoint,
-                      orientation, oStr, pathDir, reverseSeg, splitArcs,
-                      xyDist)
+from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST,
+                      MIN_VALUE, Arc, Line, Point, calcAngle, combineArcs,
+                      eqnLine, newPoint, orientation, oStr, 
+                      reverseSeg, splitArcs, xyDist)
 from poly_point_isect import isect_polygon, isect_segments
 from sortedlist import SortedList
 
@@ -115,8 +115,11 @@ class Offset():
             self.passNum = count
             total += distance
             dprt("***pass %d*** distance %7.4f " \
-                 "segments %d segment[0] len %d" % \
-                 (count, total, len(segments), len(segments[0])))
+                 "segments %d len" % \
+                 (count, total, len(segments)), end='')
+            for i, seg in enumerate(segments):
+                dprt(" [%d] %d" % (i, len(seg)), end='')
+            dprt()
             finalPolygons = self.offsetPath(segments, direction, \
                                             distance, self.outside)
             if finalPolygons is None:
@@ -156,25 +159,32 @@ class Offset():
                 l.index = i
                 l.prt()
             
-            curDir = pathDir(newSeg, False)
-            if curDir == 0:
-                ePrint("###direction error###")
-            if curDir != direction:
-                newSeg = reverseSeg(newSeg)
-            if dbgOffset:
-                dprt("direction %s distance %7.4f" % \
-                     (oStr(direction), distance))
-
-            (p, chkList) = self.insidePoint(newSeg)
-            wNInitial = windingNumber(p, chkList, self.scale, dbg=True)
-            if wNInitial == 1:
-                wNDirection = CCW
-            elif wNInitial == -1:
-                wNDirection = CW
-            else:
-                wNDirection = None
+            (p, chkList) = self.insidePoint(newSeg, dbg=False)
+            wNInitial = windingNumber(p, chkList, self.scale, dbg=False)
+            wNDirection = windingNumDir(wNInitial)
             dprt("wNInitial %2d wNDirection %s direction %s" % \
                  (wNInitial, oStr(wNDirection), oStr(direction)))
+
+            # curDir = pathDir(newSeg, False)
+            # if curDir == 0:
+            #     ePrint("pass %d ###direction error###" % (self.passNum))
+
+            if wNDirection != direction:
+                newSeg = reverseSeg(newSeg)
+                dprt("\nsegments reversed")
+                for l in newSeg:
+                    l.prt()
+                    
+                (p, chkList) = self.insidePoint(newSeg)
+                wNReversed = windingNumber(p, chkList, self.scale, dbg=False)
+                wNDirection =  windingNumDir(wNReversed)
+                dprt("wNReversed %2d  wnDirection %s direction %s" % \
+                     (wNReversed, oStr(wNDirection), oStr(direction)))
+                wNInitial = wNReversed
+
+            if dbgOffset:
+                dprt("pass %d direction %s distance %7.4f" % \
+                     (self.passNum, oStr(direction), distance))
 
             offsetIntersect = False # +++dbg+++
             dprt("\ncreate offset path")
@@ -248,6 +258,8 @@ class Offset():
                                 (n, degrees(a0), degrees(a1), \
                                 degrees(a0 - a1), oStr(o)))
 
+                    # if o == LINEAR:
+                    #     pass
                     if ((not outside and o == direction) or
                         (outside and o != direction)): # convex
                         if offsetIntersect:
@@ -395,22 +407,24 @@ class Offset():
                 else:
                     dprt("oSeg1 missing")
             
-            dprt("\ninteger point line list")
+            dbgPolygons = self.dbgPolygons
+            if dbgPolygons:
+                dprt("\ninteger point line list")
             pToLine = {}
             oSeg2 = []
-            scale = self.scale * self.keyScale
+            kScale = self.scale * self.keyScale
             ptIndex = 0
-            splitLayer = "%02dSplit" % (self.passNum)
+            polyLayer = "%02dPoly" % (self.passNum)
             for i, l in enumerate(oSeg1):
-                if self.drawSplitLines:
-                    l.draw(splitLayer)
-                    l.label("%d->%d" % (l.index, i), layer=splitLayer)
+                if dbgPolygons and self.drawSplitLines:
+                    l.draw(polyLayer)
+                    l.label("%d->%d" % (l.index, i), layer=polyLayer)
                 l.index = i
                 l0 = IntLine(l, self.scale)
                 oSeg2.append(l0)
 
                 p0 = l0.p0
-                key = p0.y + p0.x * scale
+                key = p0.y + p0.x * kScale
                 if not key in pToLine:
                     pToLine[key] = PointLine(p0, l0, ptIndex)
                     # cfg.draw.drawX(l.p0, str(i))
@@ -422,7 +436,7 @@ class Offset():
                     l0.p0Index = pL.index
 
                 p1 = l0.p1
-                key = p1.y + p1.x * scale
+                key = p1.y + p1.x * kScale
                 if not key in pToLine:
                     pToLine[key] = PointLine(p1, l0, ptIndex)
                     # cfg.draw.drawX(l.p1, str(i))
@@ -439,19 +453,24 @@ class Offset():
             for (_, pL) in pToLine.items():
                 pLine[pL.index] = pL
 
-            dprt("\npoint to line list")
-            for pL in pLine:
-                p = pL.p
-                dprt("%2d (%6d %6d) - (" % (pL.index, p.x, p.y), end='')
-                for i, intLine in enumerate(pL.l):
-                    if i != 0:
-                        dprt(", ", end='')
-                    dprt("%2d" % (intLine.l.index,), end='')
-                dprt(")")
-
-            dbgPolygons = self.dbgPolygons
             if dbgPolygons:
-                dprt("\nlink segments into polygons")
+                dprt("\npoint to line list")
+                for pL in pLine:
+                    p = pL.p
+                    dprt("%2d (%6d %6d) - (" % (pL.index, p.x, p.y), end='')
+                    for i, intLine in enumerate(pL.l):
+                        if i != 0:
+                            dprt(", ", end='')
+                        dprt("%2d" % (intLine.l.index,), end='')
+                    dprt(")")
+                    if len(pL.l) > 2:
+                        cfg.draw.drawX((float(p.x) / scale,
+                                        float(p.y) / scale),
+                                        str(pL.index), layer=polyLayer)
+
+            if dbgPolygons:
+                dprt("\npass %d link segments into polygons\n" % \
+                     (self.passNum))
                 polyCount = 0
             polyList = []
             ref = []
@@ -459,6 +478,9 @@ class Offset():
                 ref.append(l.l)
             for i in range(len(oSeg2)): # while lines to process
                 index = i               # set place to start
+                if dbgPolygons:
+                    if oSeg2[index] is not None:
+                        dprt("linking polygon %d" % (polyCount))
                 poly = []
                 while True:		# while not at end
                     iL = oSeg2[index]   # get next segment
@@ -469,7 +491,7 @@ class Offset():
                     poly.append(iL.l)       # append to polygon
                     pL = pLine[p1Index]     # look up point
                     if dbgPolygons:
-                        dprt("p%2d " % (p1Index), end='')
+                        dprt("p %2d " % (p1Index), end='')
                         iL.prt()
                     for i, l in enumerate(pL.l): # loop over connected lines
                         index = l.l.index   # get the line index
@@ -478,7 +500,7 @@ class Offset():
                         if len(pL.l) == 2:      # if only two lines
                             break
                         if dbgPolygons:
-                            dprt("l%2d" % (i), end=' ')
+                            dprt("  %2d" % (i), end=' ')
                             l.prt()
                         (x0, y0) = iL.p1      # point location
                         (x1, y1) = l.p0       # start of line
@@ -497,26 +519,30 @@ class Offset():
                     else:
                         dprt("not found")
                         break
-                    if dbgPolygons:
-                        dprt()
                 if len(poly) >= 3:
                     if dbgPolygons:
-                        dprt("polygon %d linked %d" % (polyCount, len(poly)))
-                        polyCount += 1
+                        dprt("pass %d polygon %d linked %d" % \
+                             (self.passNum, polyCount, len(poly)))
                         for l in poly:
                             l.prt()
                     result = self.insidePoint(poly)
                     if result is not None:
                         p = result[0]
                         wN = windingNumber(p, ref, self.scale, dbg=False)
-                        dprt("wN %2d (%7.4f %7.4f)" % (wN, p.x, p.y))
+                        if dbgPolygons:
+                            dprt("pass %d polygon %d len %2d " \
+                                 "wN %2d (%7.4f %7.4f)" % \
+                                 (self.passNum, polyCount, len(poly), \
+                                  wN, p.x, p.y))
                         if (outside and abs(wN) == 1 or
                             not outside and wN == wNInitial):
                             polyList.append(poly)
                         if self.drawWindingNum:
-                            self.cfg.draw.drawX(p, str(wN), layer=splitLayer)
+                            self.cfg.draw.drawX(p, "%d %d" % (polyCount, wN), \
+                                                layer=polyLayer)
                         if dbgPolygons:
                             dprt()
+                            polyCount += 1
                 else:
                     if len(poly) > 0:
                         dprt("bad polygon")
@@ -524,78 +550,91 @@ class Offset():
                             l.prt()
                     
             if dbgPolygons:
-                dprt("polyList %d" % (len(polyList)))
+                dprt("pass %d polyList %d" % (self.passNum, len(polyList)))
                 dprt("calculate polygon winding number")
+            dbgShort = True
             for pN, poly in enumerate(polyList):
                 if dbgPolygons:
-                    dprt("polygon %d" % (pN))
+                    dprt("polygon %d len %d" % (pN, len(poly)))
                     for l in poly:
                         l.prt()
 
-                if True:
-                    dprt("\nremoving short segments")
-                    newPoly = []
-                    n = 0
-                    removed = 0
-                    update = False
-                    index = 1
-                    dprt("find starting point")
-                    while True:
-                        l = poly[-index]
+                if dbgShort:
+                    dprt("\npoly %d removing short segments" % (pN))
+                newPoly = []
+                n = 0
+                removed = 0
+                update = False
+                index = 1
+                dprt("find starting point")
+                while True:
+                    l = poly[-index]
+                    if dbgShort:
                         l.prt()
-                        if l.length > self.minLength:
-                            prevL = l
-                            index -= 1
-                            if index != 0:
-                                poly = poly[-index:] + poly[:-index]
-                            break
-                        index += 1
+                    if l.length > self.minLength:
+                        prevL = l
+                        index -= 1
+                        if index != 0:
+                            poly = poly[-index:] + poly[:-index]
+                        break
+                    index += 1
+                    if index > len(poly):
+                        prevL = None
+                        break
+                if prevL is None:
+                    dprt("all segments too short")
+                    continue
+                    
+                if dbgShort:
                     dprt()
                     prevL.prt()
                     dprt()
-                    for i, l in enumerate(poly):
-                        if l.length < self.minLength:
-                            removed += 1
-                            update = True
+                for i, l in enumerate(poly):
+                    if l.length < self.minLength:
+                        removed += 1
+                        update = True
+                        if dbgShort:
                             dprt("r %2d" % (removed), end=' ')
                             l.prt()
-                            continue
-                        if update:
-                            update = False
-                            if prevL.type == LINE:
-                                if l.type == LINE:
-                                    (x0, y0) = prevL.p1
-                                    (x1, y1) = l.p0
-                                    p = Point((x0 + x1) / 2, (y0 + y1) / 2)
-                                    prevL.updateP1(p)
-                                    l.updateP0(p)
-                                else:
-                                    prevL.updateP1(l.p0)
+                        continue
+                    if update:
+                        update = False
+                        if prevL.type == LINE:
+                            if l.type == LINE:
+                                (x0, y0) = prevL.p1
+                                (x1, y1) = l.p0
+                                p = Point((x0 + x1) / 2, (y0 + y1) / 2)
+                                prevL.updateP1(p)
+                                l.updateP0(p)
                             else:
-                                if l.type == LINE:
-                                    l.updateP0(prevL.p1)
-                                else:
-                                    l0 = Line(prevL.p1, l.p0, n)
-                                    n += 1
-                                    newPoly.append(l0)
+                                prevL.updateP1(l.p0)
+                        else:
+                            if l.type == LINE:
+                                l.updateP0(prevL.p1)
+                            else:
+                                l0 = Line(prevL.p1, l.p0, n)
+                                n += 1
+                                newPoly.append(l0)
+                                if dbgShort:
                                     dprt("a    ", end='')
                                     l0.prt()
-                        dprt("s %2d" % (n), end=' ')
+                    if dbgShort:
+                        dprt("+ %2d" % (n), end=' ')
                         l.prt()
-                        l.index = n
-                        newPoly.append(l)
-                        n += 1
-                        prevL = l
-                    if removed != 0:
-                        polyList[pN] = newPoly
-                        poly = newPoly
+                    l.index = n
+                    newPoly.append(l)
+                    n += 1
+                    prevL = l
+                if removed != 0:
+                    polyList[pN] = newPoly
+                    poly = newPoly
 
-                    if dbgPolygons and removed > 0:
-                        dprt("\nshort segments removed %d" % (removed))
-                        for l in newPoly:
-                            l.prt()
+                if dbgPolygons and removed > 0:
+                    dprt("\nshort segments removed %d" % (removed))
+                    for l in newPoly:
+                        l.prt()
 
-                result = self.insidePoint(poly, True)
+                result = self.insidePoint(poly, False)
                 if result is not None:
                     (p, chkList) = result
                     wN = windingNumber(p, chkList, self.scale, dbg=False)
@@ -817,8 +856,8 @@ class Offset():
                         evt0.updateY(x)
                         evt1.updateY(x)
                         self.updateSweepY(x)
-                        sweepList.add(evt0)
-                        sweepList.add(evt1)
+                        sweepList.add(evt0Sweep)
+                        sweepList.add(evt1Sweep)
 
                         if evt.save:
                             before = False
@@ -1682,6 +1721,13 @@ class PointLine:
 def relPoint(p, p0, scale):
     return (int(round(p.x * scale)) - p0.x, int(round(p.y * scale)) - p0.y)
         
+def windingNumDir(wN):
+    if wN == 1:
+        return  CCW
+    elif wN == -1:
+        return  CW
+    return  None
+
 def windingNumber(p, poly, scale, dbg=False):
     (x, y) = pInt = newPoint(p, scale)
     if dbg:
