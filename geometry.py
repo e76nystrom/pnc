@@ -331,7 +331,7 @@ class Line():
     def swap(self):
         (self.p0, self.p1) = (self.p1, self.p0)
 
-    def parallel(self, dist, direction=None, outsie=None):
+    def parallel(self, dist, direction=None, outside=None):
         (x0, y0) = self.p0      # start and end
         (x1, y1) = self.p1
         xM = (x0 + x1) / 2      # mid point

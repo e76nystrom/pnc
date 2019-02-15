@@ -4,11 +4,10 @@ from collections import namedtuple
 from math import atan2, degrees, hypot, sqrt
 
 from dbgprt import dprt, dprtSet, ePrint
-from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST,
-                      MIN_VALUE, Arc, Line, Point, calcAngle, combineArcs,
-                      eqnLine, newPoint, orientation, oStr, 
-                      reverseSeg, splitArcs, xyDist)
-from poly_point_isect import isect_polygon, isect_segments
+from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc,
+                      Line, Point, calcAngle, combineArcs, eqnLine, newPoint,
+                      orientation, oStr, reverseSeg, splitArcs, xyDist)
+from poly_point_isect import isect_polygon
 from sortedlist import SortedList
 
 RIGHT     = 0                   # priority order of events
@@ -111,6 +110,7 @@ class Offset():
 
         total = 0
         count = 0
+        finalPath = []
         while len(segments) > 0:
             self.passNum = count
             total += distance
@@ -127,6 +127,7 @@ class Offset():
             if len(finalPolygons) == 0:
                 break
             segments = finalPolygons
+            finalPath.append(segments)
             count += 1
             if count >= passes:
                 break
@@ -135,17 +136,23 @@ class Offset():
                 self.dbgIntersect = True
                 self.drawSplitLines = True
                 self.drawWindingNum = True
+        dprt("\nfinal result")
+        for i, segments in enumerate(finalPath):
+            dprt("pass %2d segments %2d" % (i, len(segments)), end='')
+            for seg in segments:
+                dprt(" %2d" % (len(seg)), end='')
+            dprt()
 
     def offsetPath(self, segments, direction, distance, outside):
         cfg = self.cfg
         dbgOffset = self.dbgOffset
         drawOffset = self.drawOffset
-        if dbgOffset and drawOffset:
-            drawX = cfg.draw.drawX
+        # if dbgOffset and drawOffset:
+        #     drawX = cfg.draw.drawX
         finalPolygons = []
         initialLayer = "%02dinitial" % (self.passNum)
         for seg in segments:
-            dprt("\noriginal path")
+            dprt("\npass %d original path" % (self.passNum))
             for l in seg:
                 l.prt()
                 if self.drawInitial:
@@ -154,7 +161,7 @@ class Offset():
 
             newSeg = splitArcs(seg, self.splitArcAngle)
 
-            dprt("\npath with split arcs")
+            dprt("\npass %d path with split arcs" % (self.passNum))
             for i, l in enumerate(newSeg):
                 l.index = i
                 l.prt()
@@ -171,7 +178,7 @@ class Offset():
 
             if wNDirection != direction:
                 newSeg = reverseSeg(newSeg)
-                dprt("\nsegments reversed")
+                dprt("\npass %d segments reversed" % (self.passNum))
                 for l in newSeg:
                     l.prt()
                     
@@ -187,7 +194,7 @@ class Offset():
                      (self.passNum, oStr(direction), distance))
 
             offsetIntersect = False # +++dbg+++
-            dprt("\ncreate offset path")
+            dprt("\npass %d create offset path" % (self.passNum))
             if self.passNum == 7:
                 dprt("break point for pass")
             skip = False
@@ -333,7 +340,7 @@ class Offset():
             dbgIntersect = self.dbgIntersect # ++dbg++
             if dbgIntersect:
                 intersectLayer = "%02dIntersect" % (self.passNum)
-                dprt("\nlines for intersection pass %d" % (self.passNum))
+                dprt("\npass %d lines for intersection pass" % (self.passNum))
             self.cfg.draw.drawX(l.p0, "pass %d" % (self.passNum))
             for n, l in enumerate(oSeg):
                 l.index = n
@@ -359,7 +366,7 @@ class Offset():
                     dprt("%2d (%7.4f %7.4f)" % (n, x, y))
 
             if dbgIntersect:
-                dprt("\nintersections")
+                dprt("\npass %d intersections" % (self.passNum))
                 for n, i in enumerate(self.intersections):
                     dprt("%2d (%7.4f %7.4f) %2d %2d" %
                          (n, i.loc.x, i.loc.y, i.l0.index, i.l1.index))
@@ -367,12 +374,12 @@ class Offset():
                 if self.intersectReturn:
                     return
 
-            dprt("\npoints")
-            for (loc, _, l0, l1) in self.intersections:
-                dprt("(%7.4f %7.4f) %2d %2d" % \
-                     (loc.x, loc.y, l0.index, l1.index))
+            # dprt("\npoints")
+            # for (loc, _, l0, l1) in self.intersections:
+            #     dprt("(%7.4f %7.4f) %2d %2d" % \
+            #          (loc.x, loc.y, l0.index, l1.index))
 
-            dprt("\npassNum %d split lines" % (self.passNum))
+            dprt("\npass %d split lines" % (self.passNum))
             oSeg1 = []
             for l in oSeg:
                 # if self.passNum == -1 and l.index == 14:
@@ -400,7 +407,7 @@ class Offset():
                 if l.length > MIN_DIST:
                     oSeg1.append(l)
 
-            dprt("\npassNum %d oSeg1 split lines" % (self.passNum))
+            dprt("\npass %d oSeg1 split lines" % (self.passNum))
             for l in oSeg1:
                 if l is not None:
                     l.prt()
@@ -409,7 +416,7 @@ class Offset():
             
             dbgPolygons = self.dbgPolygons
             if dbgPolygons:
-                dprt("\ninteger point line list")
+                dprt("\npass %d integer point line list" % (self.passNum))
             pToLine = {}
             oSeg2 = []
             kScale = self.scale * self.keyScale
@@ -454,7 +461,7 @@ class Offset():
                 pLine[pL.index] = pL
 
             if dbgPolygons:
-                dprt("\npoint to line list")
+                dprt("\npass %d point to line list" % (self.passNum))
                 for pL in pLine:
                     p = pL.p
                     dprt("%2d (%6d %6d) - (" % (pL.index, p.x, p.y), end='')
@@ -480,7 +487,8 @@ class Offset():
                 index = i               # set place to start
                 if dbgPolygons:
                     if oSeg2[index] is not None:
-                        dprt("linking polygon %d" % (polyCount))
+                        dprt("pass %d linking polygon %d" % \
+                             (self.passNum, polyCount))
                 poly = []
                 while True:		# while not at end
                     iL = oSeg2[index]   # get next segment
@@ -700,7 +708,7 @@ class Offset():
         if pointData != None:
             pointData.close()
         
-        dprt("\nsweep line event list")
+        dprt("\npass %d sweep line event list" % (self.passNum))
         for n, e in enumerate(evtList):
             dprt("%3d" % (n), end=' ')
             e.prt(end='')
@@ -900,7 +908,7 @@ class Offset():
             self.lastX = self.curX
             self.event += 1
         dprt("\nsweepLen %d" % (len(sweepList)))
-        dprt("\nsweep line intersections")
+        dprt("\npass %d sweep line intersections" % (self.passNum))
         for txt in dbgList:
             dprt(txt)
         self.dbgIntersectPrt()
@@ -934,6 +942,7 @@ class Offset():
         #     self.eventError(evtSweep, "remove error")
     
     def updateSweepY(self, x):
+        global before
         if self.curX != self.lastX:
             e0 = None
             before = False
@@ -957,7 +966,7 @@ class Offset():
                 e0 = e
                     
     def dbgIntersectPrt(self):
-        dprt("\nsweep line intersection checks")
+        dprt("\npass %d sweep line intersection checks" % (self.passNum))
         for i, (e, n, curX, idx0, idx1, flag) in \
             enumerate(self.dbgIntersection):
             dprt("%3d %2d %6d (%2d %2d) %s %d" % \
@@ -1022,6 +1031,7 @@ class Offset():
             self.iEvt(loc, evt0, evt1)
 
     def swap(self, loc, evt0, evt1):
+        global before
         sweepList = self.sweepList
         y = int(round(evt0.l.yValue(loc.x) * self.scale))
         try:
@@ -1083,14 +1093,14 @@ class Offset():
                 l1.updateP1(l0End) # end of l1
                 l0.updateP1(l1Str) # end of l0
                 self.addEvent(newPoint(l1End, scale), \
-                              newPoint(l0End, scale), l1End, l1)
+                              newPoint(l0End, scale), l1End, l0End, l1)
             else:
                 l0End = l0.p0
                 l1.updateP1(l1End) # start of l1
                 l1.updateP0(l0End) # end of l1
                 l0.updateP0(l1Str) # end of l0
                 self.addEvent(newPoint(l0End, scale), \
-                              newPoint(l1End, scale), l0End, l1)
+                              newPoint(l1End, scale), l0End, l1End, l1)
 
         else:
             pass
