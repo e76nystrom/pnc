@@ -3,7 +3,7 @@ from __future__ import print_function
 from collections import namedtuple
 from math import atan2, degrees, hypot, sqrt
 
-from dbgprt import dprt, dprtSet, ePrint
+from dbgprt import dprt, dprtSet
 from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc,
                       Line, Point, calcAngle, combineArcs, eqnLine, newPoint,
                       orientation, oStr, reverseSeg, splitArcs, xyDist)
@@ -120,8 +120,8 @@ class Offset():
             for i, seg in enumerate(segments):
                 dprt(" [%d] %d" % (i, len(seg)), end='')
             dprt()
-            finalPolygons = self.offsetPath(segments, direction, \
-                                            distance, self.outside)
+            finalPolygons = self.offsetSeg(segments, direction, \
+                                           distance, self.outside)
             if finalPolygons is None:
                 break
             if len(finalPolygons) == 0:
@@ -143,13 +143,8 @@ class Offset():
                 dprt(" %2d" % (len(seg)), end='')
             dprt()
 
-    def offsetPath(self, segments, direction, distance, outside):
+    def offsetSeg(self, segments, direction, distance, outside):
         cfg = self.cfg
-        dbgOffset = self.dbgOffset
-        drawOffset = self.drawOffset
-        # if dbgOffset and drawOffset:
-        #     drawX = cfg.draw.drawX
-        finalPolygons = []
         initialLayer = "%02dinitial" % (self.passNum)
         for seg in segments:
             dprt("\npass %d original path" % (self.passNum))
@@ -172,10 +167,6 @@ class Offset():
             dprt("wNInitial %2d wNDirection %s direction %s" % \
                  (wNInitial, oStr(wNDirection), oStr(direction)))
 
-            # curDir = pathDir(newSeg, False)
-            # if curDir == 0:
-            #     ePrint("pass %d ###direction error###" % (self.passNum))
-
             if wNDirection != direction:
                 newSeg = reverseSeg(newSeg)
                 dprt("\npass %d segments reversed" % (self.passNum))
@@ -189,159 +180,16 @@ class Offset():
                      (wNReversed, oStr(wNDirection), oStr(direction)))
                 wNInitial = wNReversed
 
-            if dbgOffset:
-                dprt("pass %d direction %s distance %7.4f" % \
-                     (self.passNum, oStr(direction), distance))
-
-            offsetIntersect = False # +++dbg+++
-            dprt("\npass %d create offset path" % (self.passNum))
-            if self.passNum == 7:
-                dprt("break point for pass")
-            skip = False
-            i = -1
-            while True:
-                prevL = newSeg[i]
-                l1 = prevL.parallel(distance, direction, outside)
-                if l1 is not None:
-                    prevP = l1.p1
-                    prevL1 = l1
-                    break
-                i -= 1
-            lastLoc = None
-            oSeg = []
-            offsetLayer = "%02dOffset" % (self.passNum)
-            splitLayer = "%02dsplit" % (self.passNum)
-            for (n, l) in enumerate(newSeg):
-                if dbgOffset:
-                    l.draw(splitLayer)
-                    l.label(layer=splitLayer)
-
-                l1 = l.parallel(distance, direction, outside)
-                if l1 is None:
-                    if xyDist(prevP, l.c) > MIN_DIST:
-                        if not offsetIntersect:
-                            l1 = Line(prevP, l.c)
-                            oSeg.append(l1)
-                            prevP = l.c
-                            skip = True
-                            # if dbgOffset and drawOffset:
-                            #     l1.draw(offsetLayer)
-                    continue
-
-                if dbgOffset:
-                    dprt()
-                    l1.prt()
-                    dprt("(%2d -> %2d) dist %7.4f" % \
-                         (prevL.index, l.index, xyDist(prevP, l1.p0)))
-                    # if drawOffset:
-                    #     l1.draw(offsetLayer)
-                    #     l1.label(str(l1.index), layer=offsetLayer)
-
-                if xyDist(prevP, l1.p0) > MIN_DIST:
-                    if prevL.type == LINE:
-                        p0 = prevL.p0
-                    else:
-                        p0 = prevL.tangent(False, 0.1, offsetLayer, True)
-                    (x0, y0) = p0
-                    (x1, y1) = l.p0
-                    if l.type == LINE:
-                        p2 = l.p1
-                    else:
-                        p2 = l.tangent(True, 0.1, offsetLayer, True)
-                    (x2, y2) = p2
-
-                    o = orientation(p0, l.p0, p2)
-                    if dbgOffset:
-                        a0 = atan2(y0 - y1, x0 - x1)
-                        a1 = atan2(y2 - y1, x2 - x1)
-                        dprt()
-                        prevL.prt()
-                        l.prt()
-                        dprt("0 (%7.4f %7.4f) 1 (%7.4f %7.4f) "\
-                                "2 (%7.4f %7.4f)" % \
-                                (x0, y0, x1, y1, x2, y2))
-                        dprt("n %2d a0 %7.2f a1 %7.2f a1-a0 %7.2f "\
-                                "orientation %s" % \
-                                (n, degrees(a0), degrees(a1), \
-                                degrees(a0 - a1), oStr(o)))
-
-                    # if o == LINEAR:
-                    #     pass
-                    if ((not outside and o == direction) or
-                        (outside and o != direction)): # convex
-                        if offsetIntersect:
-                            loc = self.pathIntersect(prevL1, l1)
-                            if loc is not None:
-                                prevL1.updateP1(loc)
-                                l1.updateP0(loc)
-                                if lastLoc is None:
-                                    lastLoc = loc
-                        elif not skip:
-                            lEnd = Line(prevP, l.p0)
-                            lStr = Line(l.p0, l1.p0)
-                            oSeg.append(lEnd)
-                            oSeg.append(lStr)
-                            if dbgOffset:
-                                dprt("convex")
-                                # if drawOffset:
-                                #     lEnd.draw(offsetLayer)
-                                #     drawX(prevP, str(-n), layer=offsetLayer)
-                                #     lStr.draw(offsetLayer)
-                                #     drawX(l1.p0, str(n), layer=offsetLayer)
-                        else:
-                            skip = False
-                            if xyDist(prevP, l1.p0) > MIN_DIST:
-                                l = Line(prevP, l1.p0)
-                                oSeg.append(l)
-                                # if dbgOffset and drawOffset:
-                                #     l.draw(offsetLayer)
-                    else:           # concave
-                        if ((not outside and direction == CCW) or
-                            (outside and direction == CW)):
-                            a1 = degrees(calcAngle(l.p0, prevP))
-                            a0 = degrees(calcAngle(l.p0, l1.p0))
-                            aDir = CW
-                        else:
-                            a0 = degrees(calcAngle(l.p0, prevP))
-                            a1 = degrees(calcAngle(l.p0, l1.p0))
-                            aDir = CCW
-                        lArc = Arc(l.p0, abs(distance), a0, a1, \
-                                    direction=aDir)
-
-                        if dbgOffset:
-                            dprt("concave")
-                            dprt("n %2d a0 %7.2f a1 %7.2f %s" % \
-                                    (n, a0, a1, oStr(aDir)))
-                            lArc.prt()
-                            # if drawOffset:
-                            #     drawX(l.p0, "C", layer=offsetLayer)
-                            #     drawX(prevP, "0", layer=offsetLayer)
-                            #     drawX(l1.p0, "1", layer=offsetLayer)
-                            #     lArc.draw(offsetLayer)
-                        oSeg.append(lArc)
-                oSeg.append(l1)
-                prevL = l
-                prevL1 = l1
-                prevP = l1.p1
-            if lastLoc is not None:
-                prevL1.updateP1(lastLoc)
-
-            if dbgOffset:
-                if drawOffset:
-                    for l in oSeg:
-                        l.draw(layer=offsetLayer)
-                        l.label(layer=offsetLayer)
-                if self.offsetReturn:
-                    return
-            
-            oldSeg = oSeg
-            oSeg = splitArcs(oldSeg, self.splitArcAngle)
+            oSeg = self.offsetPath(newSeg, direction, distance, outside)
+            if oSeg is None:
+                return
             
             dbgIntersect = self.dbgIntersect # ++dbg++
             if dbgIntersect:
                 intersectLayer = "%02dIntersect" % (self.passNum)
                 dprt("\npass %d lines for intersection pass" % (self.passNum))
-            self.cfg.draw.drawX(l.p0, "pass %d" % (self.passNum))
+                self.cfg.draw.drawX(l.p0, "pass %d" % (self.passNum))
+
             for n, l in enumerate(oSeg):
                 l.index = n
                 l.prt()
@@ -357,8 +205,7 @@ class Offset():
                     points.append(l.p0)
                 tmp = isect_polygon(points)
 
-            self.intersections = []
-            self.findIntersections(oSeg)
+            self.findIntersections(oSeg, dbgIntersect)
 
             if isectPolygon:
                 dprt("\nisect_polygon intersections")
@@ -374,287 +221,16 @@ class Offset():
                 if self.intersectReturn:
                     return
 
-            # dprt("\npoints")
-            # for (loc, _, l0, l1) in self.intersections:
-            #     dprt("(%7.4f %7.4f) %2d %2d" % \
-            #          (loc.x, loc.y, l0.index, l1.index))
-
-            dprt("\npass %d split lines" % (self.passNum))
-            oSeg1 = []
-            for l in oSeg:
-                # if self.passNum == -1 and l.index == 14:
-                #     ePrint("splitLines break pass %d index %d" % \
-                #            (self.passNum, self.event))
-
-                points = []
-                for (loc, _, l0, l1) in self.intersections:
-                    if l.index == l0.index or l.index == l1.index:
-                        points.append(loc)
-
-                if len(points) != 0:
-                    while len(points) != 0:
-                        minDist = MAX_VALUE
-                        for i, loc in enumerate(points):
-                            d = xyDist(l.p0, loc)
-                            if d < minDist:
-                                minDist = d
-                                splitLoc = loc
-                                index = i
-                        points.pop(index)
-                        l0 = l.splitPoint(splitLoc)
-                        if l0.length > MIN_DIST:
-                            oSeg1.append(l0)
-                if l.length > MIN_DIST:
-                    oSeg1.append(l)
-
-            dprt("\npass %d oSeg1 split lines" % (self.passNum))
-            for l in oSeg1:
-                if l is not None:
-                    l.prt()
-                else:
-                    dprt("oSeg1 missing")
+            oSeg1 = self.splitLines(oSeg)
             
             dbgPolygons = self.dbgPolygons
-            if dbgPolygons:
-                dprt("\npass %d integer point line list" % (self.passNum))
-            pToLine = {}
-            oSeg2 = []
-            kScale = self.scale * self.keyScale
-            ptIndex = 0
             polyLayer = "%02dPoly" % (self.passNum)
-            for i, l in enumerate(oSeg1):
-                if dbgPolygons and self.drawSplitLines:
-                    l.draw(polyLayer)
-                    l.label("%d->%d" % (l.index, i), layer=polyLayer)
-                l.index = i
-                l0 = IntLine(l, self.scale)
-                oSeg2.append(l0)
 
-                p0 = l0.p0
-                key = p0.y + p0.x * kScale
-                if not key in pToLine:
-                    pToLine[key] = PointLine(p0, l0, ptIndex)
-                    # cfg.draw.drawX(l.p0, str(i))
-                    l0.p0Index = ptIndex
-                    ptIndex += 1
-                else:
-                    pL = pToLine[key]
-                    pL.append(l0)
-                    l0.p0Index = pL.index
+            (pLine, oSeg2) = self.pointLine(oSeg1, dbgPolygons, polyLayer)
 
-                p1 = l0.p1
-                key = p1.y + p1.x * kScale
-                if not key in pToLine:
-                    pToLine[key] = PointLine(p1, l0, ptIndex)
-                    # cfg.draw.drawX(l.p1, str(i))
-                    l0.p1Index = ptIndex
-                    ptIndex += 1
-                else:
-                    pL = pToLine[key]
-                    pL.append(l0)
-                    l0.p1Index = pL.index
-                l0.prt()
-
-            pLine = [None] * len(pToLine)
-            # for (_, pL) in pToLine.iteritems():
-            for (_, pL) in pToLine.items():
-                pLine[pL.index] = pL
-
-            if dbgPolygons:
-                dprt("\npass %d point to line list" % (self.passNum))
-                for pL in pLine:
-                    p = pL.p
-                    dprt("%2d (%6d %6d) - (" % (pL.index, p.x, p.y), end='')
-                    for i, intLine in enumerate(pL.l):
-                        if i != 0:
-                            dprt(", ", end='')
-                        dprt("%2d" % (intLine.l.index,), end='')
-                    dprt(")")
-                    if len(pL.l) > 2:
-                        cfg.draw.drawX((float(p.x) / scale,
-                                        float(p.y) / scale),
-                                        str(pL.index), layer=polyLayer)
-
-            if dbgPolygons:
-                dprt("\npass %d link segments into polygons\n" % \
-                     (self.passNum))
-                polyCount = 0
-            polyList = []
-            ref = []
-            for l in oSeg2:
-                ref.append(l.l)
-            for i in range(len(oSeg2)): # while lines to process
-                index = i               # set place to start
-                if dbgPolygons:
-                    if oSeg2[index] is not None:
-                        dprt("pass %d linking polygon %d" % \
-                             (self.passNum, polyCount))
-                poly = []
-                while True:		# while not at end
-                    iL = oSeg2[index]   # get next segment
-                    if iL is None:      # if no segment
-                        break           # exit loop
-                    oSeg2[index] = None # mark as processed
-                    p1Index = iL.p1Index    # get point index
-                    poly.append(iL.l)       # append to polygon
-                    pL = pLine[p1Index]     # look up point
-                    if dbgPolygons:
-                        dprt("p %2d " % (p1Index), end='')
-                        iL.prt()
-                    for i, l in enumerate(pL.l): # loop over connected lines
-                        index = l.l.index   # get the line index
-                        if iL.l.index == index: # if same line
-                            continue            # skip
-                        if len(pL.l) == 2:      # if only two lines
-                            break
-                        if dbgPolygons:
-                            dprt("  %2d" % (i), end=' ')
-                            l.prt()
-                        (x0, y0) = iL.p1      # point location
-                        (x1, y1) = l.p0       # start of line
-                        if (x0 == x1) and (y0 == y1): # if line start
-                            l0 = iL.l
-                            l1 = l.l
-                            if l0.type == l1.type:
-                                if not l0.colinear(l1): # and not colinear
-                                    break
-                            elif l0.type == LINE:
-                                if not lineArcTangent(l0, l1):
-                                    break
-                            else:
-                                if not lineArcTangent(l1, l0):
-                                    break
-                    else:
-                        dprt("not found")
-                        break
-                if len(poly) >= 3:
-                    if dbgPolygons:
-                        dprt("pass %d polygon %d linked %d" % \
-                             (self.passNum, polyCount, len(poly)))
-                        for l in poly:
-                            l.prt()
-                    result = self.insidePoint(poly)
-                    if result is not None:
-                        p = result[0]
-                        wN = windingNumber(p, ref, self.scale, dbg=False)
-                        if dbgPolygons:
-                            dprt("pass %d polygon %d len %2d " \
-                                 "wN %2d (%7.4f %7.4f)" % \
-                                 (self.passNum, polyCount, len(poly), \
-                                  wN, p.x, p.y))
-                        if (outside and abs(wN) == 1 or
-                            not outside and wN == wNInitial):
-                            polyList.append(poly)
-                        if self.drawWindingNum:
-                            self.cfg.draw.drawX(p, "%d %d" % (polyCount, wN), \
-                                                layer=polyLayer)
-                        if dbgPolygons:
-                            dprt()
-                            polyCount += 1
-                else:
-                    if len(poly) > 0:
-                        dprt("bad polygon")
-                        for l in poly:
-                            l.prt()
-                    
-            if dbgPolygons:
-                dprt("pass %d polyList %d" % (self.passNum, len(polyList)))
-                dprt("calculate polygon winding number")
-            dbgShort = True
-            for pN, poly in enumerate(polyList):
-                if dbgPolygons:
-                    dprt("polygon %d len %d" % (pN, len(poly)))
-                    for l in poly:
-                        l.prt()
-
-                if dbgShort:
-                    dprt("\npoly %d removing short segments" % (pN))
-                newPoly = []
-                n = 0
-                removed = 0
-                update = False
-                index = 1
-                dprt("find starting point")
-                while True:
-                    l = poly[-index]
-                    if dbgShort:
-                        l.prt()
-                    if l.length > self.minLength:
-                        prevL = l
-                        index -= 1
-                        if index != 0:
-                            poly = poly[-index:] + poly[:-index]
-                        break
-                    index += 1
-                    if index > len(poly):
-                        prevL = None
-                        break
-                if prevL is None:
-                    dprt("all segments too short")
-                    continue
-                    
-                if dbgShort:
-                    dprt()
-                    prevL.prt()
-                    dprt()
-                for i, l in enumerate(poly):
-                    if l.length < self.minLength:
-                        removed += 1
-                        update = True
-                        if dbgShort:
-                            dprt("r %2d" % (removed), end=' ')
-                            l.prt()
-                        continue
-                    if update:
-                        update = False
-                        if prevL.type == LINE:
-                            if l.type == LINE:
-                                (x0, y0) = prevL.p1
-                                (x1, y1) = l.p0
-                                p = Point((x0 + x1) / 2, (y0 + y1) / 2)
-                                prevL.updateP1(p)
-                                l.updateP0(p)
-                            else:
-                                prevL.updateP1(l.p0)
-                        else:
-                            if l.type == LINE:
-                                l.updateP0(prevL.p1)
-                            else:
-                                l0 = Line(prevL.p1, l.p0, n)
-                                n += 1
-                                newPoly.append(l0)
-                                if dbgShort:
-                                    dprt("a    ", end='')
-                                    l0.prt()
-                    if dbgShort:
-                        dprt("+ %2d" % (n), end=' ')
-                        l.prt()
-                    l.index = n
-                    newPoly.append(l)
-                    n += 1
-                    prevL = l
-                if removed != 0:
-                    polyList[pN] = newPoly
-                    poly = newPoly
-
-                if dbgPolygons and removed > 0:
-                    dprt("\nshort segments removed %d" % (removed))
-                    for l in newPoly:
-                        l.prt()
-
-                result = self.insidePoint(poly, False)
-                if result is not None:
-                    (p, chkList) = result
-                    wN = windingNumber(p, chkList, self.scale, dbg=False)
-                    if wN == wNInitial:
-                        newPoly = combineArcs(poly)
-                        finalPolygons.append(newPoly)
-                    if dbgPolygons:
-                        dprt("wN %2d (%7.4f %7.4f)" % (wN, p.x, p.y))
-                        if self.drawWindingNum:
-                            self.cfg.draw.drawX(p, str(wN))
-                if dbgPolygons:
-                    dprt()
+            finalPolygons = \
+                self.makePolygons(pLine, oSeg2, wNInitial, outside, \
+                                  dbgPolygons, polyLayer)
 
         if self.drawFinalPoly:
             for poly in finalPolygons:
@@ -663,6 +239,157 @@ class Offset():
                     l.draw(layer=finalLayer)
                     l.label(layer=finalLayer)
         return finalPolygons
+
+    def offsetPath(self, newSeg, direction, distance, outside):
+        dbgOffset = self.dbgOffset
+        drawOffset = self.drawOffset
+        offsetIntersect = False # +++dbg+++
+        if dbgOffset:
+            dprt("pass %d direction %s distance %7.4f" % \
+                 (self.passNum, oStr(direction), distance))
+            dprt("\npass %d create offset path" % (self.passNum))
+        # if dbgOffset and drawOffset:
+        #     drawX = self.cfg.draw.drawX
+        skip = False
+        i = -1
+        while True:
+            prevL = newSeg[i]
+            l1 = prevL.parallel(distance, direction, outside)
+            if l1 is not None:
+                prevP = l1.p1
+                prevL1 = l1
+                break
+            i -= 1
+        lastLoc = None
+        oSeg = []
+        offsetLayer = "%02dOffset" % (self.passNum)
+        splitLayer = "%02dsplit" % (self.passNum)
+        for (n, l) in enumerate(newSeg):
+            if dbgOffset:
+                l.draw(splitLayer)
+                l.label(layer=splitLayer)
+
+            l1 = l.parallel(distance, direction, outside)
+            if l1 is None:
+                if xyDist(prevP, l.c) > MIN_DIST:
+                    if not offsetIntersect:
+                        l1 = Line(prevP, l.c)
+                        oSeg.append(l1)
+                        prevP = l.c
+                        skip = True
+                        # if dbgOffset and drawOffset:
+                        #     l1.draw(offsetLayer)
+                continue
+
+            if dbgOffset:
+                dprt()
+                l1.prt()
+                dprt("(%2d -> %2d) dist %7.4f" % \
+                     (prevL.index, l.index, xyDist(prevP, l1.p0)))
+                # if drawOffset:
+                #     l1.draw(offsetLayer)
+                #     l1.label(str(l1.index), layer=offsetLayer)
+
+            if xyDist(prevP, l1.p0) > MIN_DIST:
+                if prevL.type == LINE:
+                    p0 = prevL.p0
+                else:
+                    p0 = prevL.tangent(False, 0.1, offsetLayer, True)
+                (x0, y0) = p0
+                (x1, y1) = l.p0
+                if l.type == LINE:
+                    p2 = l.p1
+                else:
+                    p2 = l.tangent(True, 0.1, offsetLayer, True)
+                (x2, y2) = p2
+
+                o = orientation(p0, l.p0, p2)
+                if dbgOffset:
+                    a0 = atan2(y0 - y1, x0 - x1)
+                    a1 = atan2(y2 - y1, x2 - x1)
+                    dprt()
+                    prevL.prt()
+                    l.prt()
+                    dprt("0 (%7.4f %7.4f) 1 (%7.4f %7.4f) "\
+                            "2 (%7.4f %7.4f)" % \
+                            (x0, y0, x1, y1, x2, y2))
+                    dprt("n %2d a0 %7.2f a1 %7.2f a1-a0 %7.2f "\
+                            "orientation %s" % \
+                            (n, degrees(a0), degrees(a1), \
+                            degrees(a0 - a1), oStr(o)))
+
+                # if o == LINEAR:
+                #     pass
+                if ((not outside and o == direction) or
+                    (outside and o != direction)): # convex
+                    if offsetIntersect:
+                        loc = self.pathIntersect(prevL1, l1)
+                        if loc is not None:
+                            prevL1.updateP1(loc)
+                            l1.updateP0(loc)
+                            if lastLoc is None:
+                                lastLoc = loc
+                    elif not skip:
+                        lEnd = Line(prevP, l.p0)
+                        lStr = Line(l.p0, l1.p0)
+                        oSeg.append(lEnd)
+                        oSeg.append(lStr)
+                        if dbgOffset:
+                            dprt("convex")
+                            # if drawOffset:
+                            #     lEnd.draw(offsetLayer)
+                            #     drawX(prevP, str(-n), layer=offsetLayer)
+                            #     lStr.draw(offsetLayer)
+                            #     drawX(l1.p0, str(n), layer=offsetLayer)
+                    else:
+                        skip = False
+                        if xyDist(prevP, l1.p0) > MIN_DIST:
+                            l = Line(prevP, l1.p0)
+                            oSeg.append(l)
+                            # if dbgOffset and drawOffset:
+                            #     l.draw(offsetLayer)
+                else:           # concave
+                    if ((not outside and direction == CCW) or
+                        (outside and direction == CW)):
+                        a1 = degrees(calcAngle(l.p0, prevP))
+                        a0 = degrees(calcAngle(l.p0, l1.p0))
+                        aDir = CW
+                    else:
+                        a0 = degrees(calcAngle(l.p0, prevP))
+                        a1 = degrees(calcAngle(l.p0, l1.p0))
+                        aDir = CCW
+                    lArc = Arc(l.p0, abs(distance), a0, a1, \
+                                direction=aDir)
+
+                    if dbgOffset:
+                        dprt("concave")
+                        dprt("n %2d a0 %7.2f a1 %7.2f %s" % \
+                                (n, a0, a1, oStr(aDir)))
+                        lArc.prt()
+                        # if drawOffset:
+                        #     drawX(l.p0, "C", layer=offsetLayer)
+                        #     drawX(prevP, "0", layer=offsetLayer)
+                        #     drawX(l1.p0, "1", layer=offsetLayer)
+                        #     lArc.draw(offsetLayer)
+                    oSeg.append(lArc)
+            oSeg.append(l1)
+            prevL = l
+            prevL1 = l1
+            prevP = l1.p1
+        if lastLoc is not None:
+            prevL1.updateP1(lastLoc)
+
+        if dbgOffset:
+            if drawOffset:
+                for l in oSeg:
+                    l.draw(layer=offsetLayer)
+                    l.label(layer=offsetLayer)
+            if self.offsetReturn:
+                return None
+
+        oldSeg = oSeg
+        oSeg = splitArcs(oldSeg, self.splitArcAngle)
+        return oSeg
 
     def pathIntersect(self, l0, l1):
         if l0.type == LINE:
@@ -680,9 +407,287 @@ class Offset():
                 loc = arcArcTest(l0, l1)
         return loc
 
-    def findIntersections(self, seg):
+    def splitLines(self, oSeg, dbgSplit=True):
+        # dprt("\npoints")
+        # for (loc, _, l0, l1) in self.intersections:
+        #     dprt("(%7.4f %7.4f) %2d %2d" % \
+        #          (loc.x, loc.y, l0.index, l1.index))
+
+        if dbgSplit:
+            dprt("\npass %d split lines" % (self.passNum))
+        oSeg1 = []
+        for l in oSeg:
+            points = []
+            for (loc, _, l0, l1) in self.intersections:
+                if l.index == l0.index or l.index == l1.index:
+                    points.append(loc)
+
+            if len(points) != 0:
+                while len(points) != 0:
+                    minDist = MAX_VALUE
+                    for i, loc in enumerate(points):
+                        d = xyDist(l.p0, loc)
+                        if d < minDist:
+                            minDist = d
+                            splitLoc = loc
+                            index = i
+                    points.pop(index)
+                    l0 = l.splitPoint(splitLoc)
+                    if l0.length > MIN_DIST:
+                        oSeg1.append(l0)
+            if l.length > MIN_DIST:
+                oSeg1.append(l)
+
+        if dbgSplit:
+            dprt("\npass %d oSeg1 split lines" % (self.passNum))
+            for l in oSeg1:
+                if l is not None:
+                    l.prt()
+                else:
+                    dprt("oSeg1 missing")
+        return oSeg1
+
+    def pointLine(self, oSeg1, dbgPolygons, polyLayer):
+        if dbgPolygons:
+            dprt("\npass %d integer point line list" % (self.passNum))
+        pToLine = {}
+        oSeg2 = []
+        kScale = self.scale * self.keyScale
+        ptIndex = 0
+        for i, l in enumerate(oSeg1):
+            if dbgPolygons and self.drawSplitLines:
+                l.draw(polyLayer)
+                l.label("%d->%d" % (l.index, i), layer=polyLayer)
+            l.index = i
+            l0 = IntLine(l, self.scale)
+            oSeg2.append(l0)
+
+            p0 = l0.p0
+            key = p0.y + p0.x * kScale
+            if not key in pToLine:
+                pToLine[key] = PointLine(p0, l0, ptIndex)
+                # cfg.draw.drawX(l.p0, str(i))
+                l0.p0Index = ptIndex
+                ptIndex += 1
+            else:
+                pL = pToLine[key]
+                pL.append(l0)
+                l0.p0Index = pL.index
+
+            p1 = l0.p1
+            key = p1.y + p1.x * kScale
+            if not key in pToLine:
+                pToLine[key] = PointLine(p1, l0, ptIndex)
+                # cfg.draw.drawX(l.p1, str(i))
+                l0.p1Index = ptIndex
+                ptIndex += 1
+            else:
+                pL = pToLine[key]
+                pL.append(l0)
+                l0.p1Index = pL.index
+            l0.prt()
+
+        pLine = [None] * len(pToLine)
+        # for (_, pL) in pToLine.iteritems():
+        for (_, pL) in pToLine.items():
+            pLine[pL.index] = pL
+
+        if dbgPolygons:
+            dprt("\npass %d point to line list" % (self.passNum))
+            for pL in pLine:
+                p = pL.p
+                dprt("%2d (%6d %6d) - (" % (pL.index, p.x, p.y), end='')
+                for i, intLine in enumerate(pL.l):
+                    if i != 0:
+                        dprt(", ", end='')
+                    dprt("%2d" % (intLine.l.index,), end='')
+                dprt(")")
+                if len(pL.l) > 2:
+                    self.cfg.draw.drawX((float(p.x) / scale,
+                                         float(p.y) / scale),
+                                        str(pL.index), layer=polyLayer)
+        return (pLine, oSeg2)
+
+    def makePolygons(self, pLine, oSeg2, wNInitial, outside, \
+                     dbgPolygons, polyLayer):
+        if dbgPolygons:
+            dprt("\npass %d link segments into polygons\n" % (self.passNum))
+            polyCount = 0
+        finalPolygons = []
+        polyList = []
+        ref = []
+        for l in oSeg2:
+            ref.append(l.l)
+        for i in range(len(oSeg2)): # while lines to process
+            index = i               # set place to start
+            if dbgPolygons:
+                if oSeg2[index] is not None:
+                    dprt("pass %d linking polygon %d" % \
+                         (self.passNum, polyCount))
+            poly = []
+            while True:		# while not at end
+                iL = oSeg2[index]   # get next segment
+                if iL is None:      # if no segment
+                    break           # exit loop
+                oSeg2[index] = None # mark as processed
+                p1Index = iL.p1Index    # get point index
+                poly.append(iL.l)       # append to polygon
+                pL = pLine[p1Index]     # look up point
+                if dbgPolygons:
+                    dprt("p %2d " % (p1Index), end='')
+                    iL.prt()
+                for i, l in enumerate(pL.l): # loop over connected lines
+                    index = l.l.index   # get the line index
+                    if iL.l.index == index: # if same line
+                        continue            # skip
+                    if len(pL.l) == 2:      # if only two lines
+                        break
+                    if dbgPolygons:
+                        dprt("  %2d" % (i), end=' ')
+                        l.prt()
+                    (x0, y0) = iL.p1      # point location
+                    (x1, y1) = l.p0       # start of line
+                    if (x0 == x1) and (y0 == y1): # if line start
+                        l0 = iL.l
+                        l1 = l.l
+                        if l0.type == l1.type:
+                            if not l0.colinear(l1): # and not colinear
+                                break
+                        elif l0.type == LINE:
+                            if not lineArcTangent(l0, l1):
+                                break
+                        else:
+                            if not lineArcTangent(l1, l0):
+                                break
+                else:
+                    dprt("next line not found")
+                    break
+            if len(poly) >= 3:
+                if dbgPolygons:
+                    dprt("pass %d polygon %d linked %d" % \
+                         (self.passNum, polyCount, len(poly)))
+                    for l in poly:
+                        l.prt()
+                result = self.insidePoint(poly)
+                if result is not None:
+                    p = result[0]
+                    wN = windingNumber(p, ref, self.scale, dbg=False)
+                    if dbgPolygons:
+                        dprt("pass %d polygon %d len %2d " \
+                             "wN %2d (%7.4f %7.4f)" % \
+                             (self.passNum, polyCount, len(poly), \
+                              wN, p.x, p.y))
+                    if (outside and abs(wN) == 1 or
+                        not outside and wN == wNInitial):
+                        polyList.append(poly)
+                    if self.drawWindingNum:
+                        self.cfg.draw.drawX(p, "%d %d" % (polyCount, wN), \
+                                            layer=polyLayer)
+                    if dbgPolygons:
+                        dprt()
+                        polyCount += 1
+            else:
+                if len(poly) > 0:
+                    dprt("bad polygon len %d" % (len(poly)))
+                    for l in poly:
+                        l.prt()
+
+        if dbgPolygons:
+            dprt("pass %d polyList %d" % (self.passNum, len(polyList)))
+        for pN, poly in enumerate(polyList):
+            newPoly = self.removeShort(poly, pN)
+            if newPoly is None:
+                newPoly = poly
+            poly = combineArcs(newPoly)
+            finalPolygons.append(poly)
+            if dbgPolygons:
+                dprt("polygon %d len %d" % (pN, len(poly)))
+                for l in poly:
+                    l.prt()
+
+        return finalPolygons
+
+    def removeShort(self, poly, pN, dbgShort=True):
+        if dbgShort:
+            dprt("\npoly %d removing short segments" % (pN))
+        newPoly = []
+        n = 0
+        removed = 0
+        update = False
+        index = 1
+        dprt("find starting point")
+        while True:
+            l = poly[-index]
+            if dbgShort:
+                l.prt()
+            if l.length > self.minLength:
+                prevL = l
+                index -= 1
+                if index != 0:
+                    poly = poly[-index:] + poly[:-index]
+                break
+            index += 1
+            if index > len(poly):
+                prevL = None
+                break
+        if prevL is None:
+            dprt("all segments too short")
+            return None
+
+        if dbgShort:
+            dprt()
+            prevL.prt()
+            dprt()
+        for l in poly:
+            if l.length < self.minLength:
+                removed += 1
+                update = True
+                if dbgShort:
+                    dprt("r %2d" % (removed), end=' ')
+                    l.prt()
+                continue
+            if update:
+                update = False
+                if prevL.type == LINE:
+                    if l.type == LINE:
+                        (x0, y0) = prevL.p1
+                        (x1, y1) = l.p0
+                        p = Point((x0 + x1) / 2, (y0 + y1) / 2)
+                        prevL.updateP1(p)
+                        l.updateP0(p)
+                    else:
+                        prevL.updateP1(l.p0)
+                else:
+                    if l.type == LINE:
+                        l.updateP0(prevL.p1)
+                    else:
+                        l0 = Line(prevL.p1, l.p0, n)
+                        n += 1
+                        newPoly.append(l0)
+                        if dbgShort:
+                            dprt("a    ", end='')
+                            l0.prt()
+            if dbgShort:
+                dprt("+ %2d" % (n), end=' ')
+                l.prt()
+            l.index = n
+            newPoly.append(l)
+            n += 1
+            prevL = l
+
+        if removed == 0:
+            return poly
+
+        if dbgShort:
+            dprt("\nshort segments removed %d" % (removed))
+            for l in newPoly:
+                l.prt()
+        return(newPoly)
+            
+    def findIntersections(self, seg, dbgIntersect=False):
         global before, evtDbg
         pointData = open("points.dat", "wb")
+        self.intersections = []
         self.dbgIntersection = []
         self.evtList = evtList = SortedList()
         self.evtArray = [None] * len(seg)
@@ -708,19 +713,20 @@ class Offset():
         if pointData != None:
             pointData.close()
         
-        dprt("\npass %d sweep line event list" % (self.passNum))
-        for n, e in enumerate(evtList):
-            dprt("%3d" % (n), end=' ')
-            e.prt(end='')
-            if e.evtType == LEFT:
-                l = e.l
-                if l.type == LINE:
-                    dprt(" m %7.4f b %7.4f %s" % \
-                         (l.m, l.b, str(l.vertical)[0]), end='')
-            dprt()
-            
+        if dbgIntersect:
+            dprt("\npass %d sweep line event list" % (self.passNum))
+            for n, e in enumerate(evtList):
+                dprt("%3d" % (n), end=' ')
+                e.prt(end='')
+                if e.evtType == LEFT:
+                    l = e.l
+                    if l.type == LINE:
+                        dprt(" m %7.4f b %7.4f %s" % \
+                             (l.m, l.b, str(l.vertical)[0]), end='')
+                dprt()
+            dprt("\npass %d sweep line processing" % (self.passNum))
+
         self.sweepList = sweepList = SortedList()
-        dprt("\npass %d sweep line processing" % (self.passNum))
         lastX = 0
         dbgList = []
         self.event = 0
@@ -731,20 +737,18 @@ class Offset():
             evt.event = False
             self.curX = evt.p.x
             realX = evt.loc.x
-            dprt("%3d" % (self.event), end=' ')
-            evt.prt(end=' ')
-            if self.passNum == -1 and self.event == 57:
-                ePrint("findIntersections break pass %d event %d" % \
-                       (self.passNum, self.event))
-
+            if dbgIntersect:
+                dprt("%3d" % (self.event), end=' ')
+                evt.prt(end=' ')
 
             if evt.evtType == LEFT:
                 before = False
-                self.updateSweepY(evt.loc.x)
+                self.updateSweepY(evt.loc.x, dbgIntersect)
                 sweepList.add(evt)
                 index = sweepList.bisect_left(evt)
                 sweepLen = len(sweepList)
-                self.sweepPrt(evt, sweepLen, index)
+                if dbgIntersect:
+                    self.sweepPrt(evt, sweepLen, index)
                 l = evt.l
                 (x, y) = evt.p
                 vertical = abs(l.p0.x - l.p1.x) < MIN_DIST
@@ -782,13 +786,15 @@ class Offset():
                             else:
                                 break
                     idxRight += 1
-                self.listPrt()
+                if dbgIntersect:
+                    self.listPrt()
                 if vertical:
                     sweepList.remove(evt)
             elif evt.evtType == RIGHT:
                 index = self.sweepFind(evt)
                 sweepLen = len(sweepList)
-                self.sweepPrt(evt, sweepLen, index)
+                if dbgIntersect:
+                    self.sweepPrt(evt, sweepLen, index)
                     
                 (x, y) = self.evtArray[evt.index].start.p
                 y0 = None
@@ -813,69 +819,53 @@ class Offset():
                         idxRight += 1
                     idxLeft -= 1
                 sweepList.pop(index)
-                self.listPrt()
+                if dbgIntersect:
+                    self.listPrt()
             elif evt.evtType == INTERSECT:
                 sweepLen = len(sweepList)
-                self.sweepPrt(evt, sweepLen)
-                dbgTxt = ""
+                if dbgIntersect:
+                    self.sweepPrt(evt, sweepLen)
+                    dbgTxt = ""
                 if self.curX >= lastX:
                     evt0 = evt.evt0
                     evt1 = evt.evt1
 
-                    dbgTxt = "%3d (%2d %2d)" % \
-                        (self.event, evt0.index, evt1.index)
+                    if dbgIntersect:
+                        dbgTxt = "%3d (%2d %2d)" % \
+                            (self.event, evt0.index, evt1.index)
                     if (evt0.slope > MIN_VALUE and
                         evt1.slope > MIN_VALUE): # if neither is vertical
-                        dbgTxt += " ("
-                        for n, e in enumerate(sweepList):
-                            if n != 0:
-                                dbgTxt += " "
-                            dbgTxt += "%2d" % (e.index)
-                        dbgTxt += ")"
-
-                        # y = int(round(evt.loc.y * self.scale))
-                        index0 = self.sweepFind(evt0)
-                        evt0Sweep = sweepList.pop(index0)
-                        # before = False
-                        # try:
-                        #     evt0Sweep = self.evtArray[evt0.index].start
-                        #     index0 = sweepList.index(evt0Sweep)
-                        #     dbgTxt += " (%2d" % (index0)
-                        #     # evtP0 = sweepList[index0]
-                        #     sweepList.pop(index0)
-                        #     # evt0.y = y
-                        # except ValueError:
-                        #     self.eventError(evt0Sweep, "intersect 0")
-
-
-                        index1 = self.sweepFind(evt1)
-                        evt1Sweep = sweepList.pop(index1)
-                        # try:
-                        #     evt1Sweep = self.evtArray[evt1.index].start
-                        #     index1 = sweepList.index(evt1Sweep)
-                        #     dbgTxt += " %2d)" % (index1)
-                        #     # evtP1 = sweepList[index1]
-                        #     sweepList.pop(index1)
-                        #     # evt1.y = y
-                        # except ValueError:
-                        #     self.eventError(evt1Sweep, "intersect 1")
-                        before = False
-                        x = evt.loc.x
-                        evt0.updateY(x)
-                        evt1.updateY(x)
-                        self.updateSweepY(x)
-                        sweepList.add(evt0Sweep)
-                        sweepList.add(evt1Sweep)
-
-                        if evt.save:
-                            before = False
-                            dbgTxt += " (%2d %2d)" % (evt1.index, evt0.index)
+                        if dbgIntersect:
                             dbgTxt += " ("
                             for n, e in enumerate(sweepList):
                                 if n != 0:
                                     dbgTxt += " "
                                 dbgTxt += "%2d" % (e.index)
                             dbgTxt += ")"
+
+                        index0 = self.sweepFind(evt0)
+                        evt0Sweep = sweepList.pop(index0)
+                        index1 = self.sweepFind(evt1)
+                        evt1Sweep = sweepList.pop(index1)
+
+                        before = False
+                        x = evt.loc.x
+                        evt0.updateY(x)
+                        evt1.updateY(x)
+                        self.updateSweepY(x, dbgIntersect)
+                        sweepList.add(evt0Sweep)
+                        sweepList.add(evt1Sweep)
+
+                        if evt.save:
+                            before = False
+                            if dbgIntersect:
+                                dbgTxt += " (%2d %2d) (" % \
+                                    (evt1.index, evt0.index)
+                                for n, e in enumerate(sweepList):
+                                    if n != 0:
+                                        dbgTxt += " "
+                                    dbgTxt += "%2d" % (e.index)
+                                dbgTxt += ")"
 
                             if False:
                                 dprt()
@@ -887,31 +877,34 @@ class Offset():
                             except ValueError:
                                 evtDbg = False
                                 self.eventError(evt1, "intersect 2")
-                            # index = sweepList.bisect_left(evt1)
-                            dbgTxt += " (%2d -> %2d)" % (evt1.index, index)
+                            if dbgIntersect:
+                                dbgTxt += " (%2d -> %2d)" % (evt1.index, index)
                             indexP = index - 1
                             if indexP >= 0:
                                 evtP = sweepList[indexP]
-                                dbgTxt += " (%2d %2d)" % (evtP.index, \
-                                                          evt1.index)
                                 self.intersect(evtP, evt1, 7)
-
+                                if dbgIntersect:
+                                    dbgTxt += " (%2d %2d)" % \
+                                        (evtP.index, evt1.index)
                             indexN = index + 2
                             if indexN < sweepLen:
                                 evtN = sweepList[indexN]
-                                dbgTxt += " (%2d %2d)" % (evt0.index, \
-                                                          evtN.index)
                                 self.intersect(evt0, evtN, 8)
-                self.listPrt()
-                if len(dbgTxt) > 0:
-                    dbgList.append(dbgTxt)
+                                if dbgIntersect:
+                                    dbgTxt += " (%2d %2d)" % \
+                                        (evt0.index, evtN.index)
+                if dbgIntersect:
+                    self.listPrt()
+                    if len(dbgTxt) > 0:
+                        dbgList.append(dbgTxt)
             self.lastX = self.curX
             self.event += 1
-        dprt("\nsweepLen %d" % (len(sweepList)))
-        dprt("\npass %d sweep line intersections" % (self.passNum))
-        for txt in dbgList:
-            dprt(txt)
-        self.dbgIntersectPrt()
+        if dbgIntersect:
+            dprt("\nsweepLen %d" % (len(sweepList)))
+            dprt("\npass %d sweep line intersections" % (self.passNum))
+            for txt in dbgList:
+                dprt(txt)
+                self.dbgIntersectPrt()
 
     def sweepFind(self, evt):
         evtSweep = self.evtArray[evt.index].start
@@ -941,7 +934,7 @@ class Offset():
         #     evtDbg = False
         #     self.eventError(evtSweep, "remove error")
     
-    def updateSweepY(self, x):
+    def updateSweepY(self, x, dbgIntersect):
         global before
         if self.curX != self.lastX:
             e0 = None
@@ -952,16 +945,17 @@ class Offset():
                     # if e.y == e0.y:
                     #     e0.y -= 1
                     if e0 > e:
-                        dprt()
-                        self.sweepListPrt()
-                        dprt("y %6d s %7.3f x0 %6d x1 %6d" %
-                             (e0.y, e0.slope, e0.p.x, e0.p1.x), end=' ')
-                        e0.l.prt(eol=' ')
-                        e0.prt()
-                        dprt("y %6d s %7.3f x0 %6d x1 %6d" %
-                             (e.y, e.slope, e.p.x, e.p1.x), end=' ')
-                        e.l.prt(eol=' ')
-                        e.prt()
+                        if dbgIntersect:
+                            dprt()
+                            self.sweepListPrt()
+                            dprt("y %6d s %7.3f x0 %6d x1 %6d" %
+                                 (e0.y, e0.slope, e0.p.x, e0.p1.x), end=' ')
+                            e0.l.prt(eol=' ')
+                            e0.prt()
+                            dprt("y %6d s %7.3f x0 %6d x1 %6d" %
+                                 (e.y, e.slope, e.p.x, e.p1.x), end=' ')
+                            e.l.prt(eol=' ')
+                            e.prt()
                         raise ValueError("sweep list out of order")
                 e0 = e
                     
@@ -1002,12 +996,10 @@ class Offset():
         if xyDist(l0.p0, l1.p1) < MIN_DIST:
             self.dbgIntersection.append((self.event, n, self.curX, l0.index, \
                                          l1.index, False))
-            # self.iEvt(l0.p0, evt0, evt1, False)
             return
         elif xyDist(l0.p1, l1.p0) < MIN_DIST:
             self.dbgIntersection.append((self.event, n, self.curX, l0.index, \
                                          l1.index, False))
-            # self.iEvt(l0.p1, evt0, evt1, False)
             return
 
         self.dbgIntersection.append((self.event, n, self.curX, l0.index, \
@@ -1018,7 +1010,6 @@ class Offset():
                 loc = lineIntersection(l0, l1)
                 if isinstance(loc, int) and loc == 1:
                     return None
-                    # return self.colinear(evt0, evt1)
             else:
                 loc = lineArcTest(l0, l1)
         else:
@@ -1121,9 +1112,10 @@ class Offset():
                 evt = Intersect(p, loc, evt0, evt1, save)
                 self.evtList.add(evt)
                 if save:
-                    self.intersectionPrt(evt0.index, evt1.index, loc)
-                    self.intersections.append(Intersection(loc, p, \
-                                                       evt0.l, evt1.l))
+                    if self.dbgIntersect:
+                        self.intersectionPrt(evt0.index, evt1.index, loc)
+                    self.intersections.\
+                        append(Intersection(loc, p, evt0.l, evt1.l))
                     self.intCount += 1
 
     def sweepPrt(self, evt, sweepLen, sweepIndex=None):

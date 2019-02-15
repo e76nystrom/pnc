@@ -7,7 +7,8 @@ from __future__ import print_function
 
 import glob
 # from imp import load_source
-import importlib.machinery
+# import importlib.machinery
+import importlib
 import inspect
 import os
 import platform
