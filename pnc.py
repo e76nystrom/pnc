@@ -650,15 +650,15 @@ class Config():
     def getLocation(self, args, result=None):
         if result is None:
             result = [0.0, 0.0, 0.0]
-        self.reLoc = (r"^.*? +([xyz]) *([a-zA-Z0-9\.\-]+) " \
-                      r"*([xyz]*) *([a-zA-Z0-9\.\-]*)" \
-                      r" *([xyz]*) *([a-zA-Z0-9\.\-]*)")
-        match = re.match(self.reLoc, args[0].lower())
+        self.reLoc = (r"^.*? +([xyzXYZ]) *([a-zA-Z0-9\.\-]+) " \
+                      r"*([xyzXYZ]*) *([a-zA-Z0-9\.\-]*)" \
+                      r" *([xyzXYZ]*) *([a-zA-Z0-9\.\-]*)")
+        match = re.match(self.reLoc, args[0])
         if match is not None:
             groups = len(match.groups())
             i = 1
             while i <= groups:
-                axis = match.group(i)
+                axis = match.group(i).lower()
                 i += 1
                 if len(axis) == 0:
                     break
@@ -1495,7 +1495,7 @@ class Config():
                 self.ncInit()
                 self.engraveModule.engrave()
 
-    def load(self, args):
+    def load(self, args, dbg=False):
         if len(args) >= 2:
             moduleName = args[1]
             name = moduleName + ".py"
@@ -1505,11 +1505,13 @@ class Config():
             # module = load_source(moduleName, fileName)
             loader = importlib.machinery.SourceFileLoader(moduleName, fileName)
             module = loader.load_module()
-            # dprt(dir(module))
+            if dbg:
+                dprt(dir(module))
             for (name, val) in inspect.getmembers(module, inspect.isclass):
+                if dbg:
+                    dprt("class %s module %s" % (name, val.__module__))
                 if val.__module__ == moduleName and \
-                   name.lower() == moduleName:
-                    # dprt("class %s" % (name))
+                   (name[0].lower() + name[1:]) == moduleName:
                     cmd = "module.%s(cfg)" % (name)
                     c = eval(cmd)
                     cmd = "self.%s = c" % (moduleName)
@@ -1675,6 +1677,11 @@ class MillPath():
     def __init__(self, cfg):
         self.cfg = cfg
         self.mill = cfg.mill
+        # absDepth, cfg, cfgDepth, closed, currentDepth, depth, depthPass,
+        # done, finalPass, last, lastDepth, lastRamp, mill, millRamp,
+        # passCount, passLoc, passNum, ramp, rampAngle, rampClean,
+        # rampDepth, rampDist, rampPass, tab, tabDepth, tabNum, tabPass,
+        # tabPos, tabWidth, tabs, tanRampAngle, totalLength
 
     def config(self, cfg=None):
         if cfg is None:
@@ -1692,7 +1699,6 @@ class MillPath():
         self.config()
         self.closed = closed
         self.passNum = 0
-        self.passes = 0
         self.rampDist = 0.0
         self.currentDepth = 0.0
         self.lastDepth = 0.0
@@ -1704,6 +1710,7 @@ class MillPath():
     def rampSetup(self):
         self.ramp = False
         self.millRamp = False
+        self.lastRamp = 0.0
         self.rampClean = []
         # if self.closed and self.rampAngle != 0.0:
         if self.rampAngle != 0:
@@ -1727,17 +1734,17 @@ class MillPath():
 
         tmp = self.absDepth / self.depthPass
         if tmp - floor(tmp) < 0.002:
-            self.passes = int(floor(tmp))
+            passes = int(floor(tmp))
         else:
-            self.passes = int(ceil(tmp))
-        self.passCount = self.passes
+            passes = int(ceil(tmp))
+        self.passCount = passes
         
         if self.cfg.evenDepth:
-            self.depthPass = self.absDepth / self.passes
+            self.depthPass = self.absDepth / passes
 
-        dprt("passes %d cfgDepth %6.4f depth %6.4f " \
+        dprt("passCount %d cfgDepth %6.4f depth %6.4f " \
               "depthPass %6.4f finalPass %6.4f" % \
-              (self.passes, self.cfgDepth, self.depth, \
+              (self.passCount, self.cfgDepth, self.depth, \
                self.depthPass, self.finalPass))
 
         self.rampPass = 0
@@ -1842,7 +1849,7 @@ class MillPath():
         if self.tab:            # if tab pass
             return
         # if self.closed and self.rampAngle != 0.0: # if ramp configured
-        self.lastRamp = 0.0
+        # self.lastRamp = 0.0
         if self.rampAngle != 0.0: # if ramp configured
             self.ramp = True
             passDepth = self.currentDepth - self.lastDepth
@@ -2070,6 +2077,7 @@ class MillPath():
         self.tabPos = tabPos
 
     def millSeg(self, l, zEnd=None, comment=None):
+        dprt("%d %s " % (self.passCount, str(self.ramp)[0]), end='')
         l.prt()
         # dprt("millSeg p %7.4f, %7.4f %s" % (l.p0[0], l.p0[1], comment))
         l.mill(self.mill, zEnd, comment)
@@ -2081,7 +2089,6 @@ class MillPath():
             return
         dprt("millPath")
         self.init(closed)
-        closed = self.closed
 
         dprt("combine arcs")
         path0 = combineArcs(path)
@@ -2152,10 +2159,6 @@ class MillPath():
 
             p = path0[0].p0
             dist = xyDist(p, mill.last)
-            # if abs(mill.last[0] - p[0]) > MIN_DIST or \
-            #    abs(mill.last[1] - p[1]) > MIN_DIST:
-            # dprt("millPath dist %7.4f last (%7.4f, %7.4f) p (%7.4f, %7.4f)" %\
-            #      (dist, mill.last[0], mill.last[1], p[0], p[1]))
             if dist > MIN_DIST:
                 if dist > cfg.endMillSize:
                     mill.retract()
@@ -2206,6 +2209,14 @@ class MillPath():
             self.lastDepth = self.currentDepth
             self.passNum += 1
         out.write("\n")
+        # for var, _ in inspect.getmembers(self):
+        #     if var.startswith("__"):
+        #         continue
+        #     tmp = "callable(self." + var + ")"
+        #     if eval(tmp):
+        #         continue
+        #     print(var)
+        # pass
 
 class Point():
     def __init__(self, p, l, end, index):
