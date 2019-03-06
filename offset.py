@@ -138,6 +138,7 @@ class Offset():
                 dprt(" %2d" % (len(seg)), end='')
             dprt()
         millingPath = self.mPath1(Point(0, 0), finalPath)
+        self.orderPath(millingPath)
 
     def findNearest(self, p, seg, dbg=False):
         if dbg:
@@ -262,6 +263,71 @@ class Offset():
                     l.draw(layer=millLayer)
             if dbg:
                 dprt()
+        return finalPath
+
+    def orderPath(self, millingPath, dbg=True):
+        for segments in millingPath: # reorder inner to outer
+            segments.reverse()
+
+        p = Point(0, 0)
+        path = millingPath
+        millingPath = []
+        while len(path) > 0: # sort by fewest passes and then distance
+            minDist = MAX_VALUE
+            minLen = MAX_VALUE
+            for i, segments in enumerate(path):
+                p0 = segments[0][0].p0
+                dist = xyDist(p0, p)
+                segLen = len(segments)
+                if segLen < minLen:
+                    segLen = minLen
+                    index = i
+                elif segLen == minLen:
+                    if dist < minDist:
+                        minDist = dist
+                        index = i
+            millingPath.append(path.pop(index))
+            p = p0
+
+        for segments in millingPath:
+            i = 1
+            while i < len(segments):
+                seg = segments[i - 1]
+                l = seg[0]
+                lp = perpendicular(self.cfg, l, self.dist * 1.5, CCW)
+                seg = segments[i]
+                for j, l in enumerate(seg):
+                    if l.type == LINE:
+                        loc = lineIntersection(lp, l)
+                    elif l.type == ARC:
+                        loc = lineArcTest(lp, l)
+                    if loc is not None:
+                        if xyDist(loc, l.p0) < MIN_DIST:
+                            seg = seg[j:] + seg[:j]
+                        else:
+                            l0 = l.splitPoint(loc)
+                            seg = seg[j:] + seg[:j]
+                            seg.append(l0)
+                        break
+                segments[i] = seg
+                i += 1
+                
+        if dbg:
+            p = Point(0, 0)
+            for i, segments in enumerate(millingPath):
+                p0 = segments[0][0].p0
+                dprt("path %d len %d dist %7.4f" % \
+                     (i, len(segments), xyDist(p0, p)))
+                pEnd = p
+                for j, seg in enumerate(segments):
+                    dprt("pass %d dist %7.4f" % (j, xyDist(pEnd, seg[0].p0)))
+                    for l in seg:
+                        dprt("%7.4f " % (xyDist(l.p0, p)), end='')
+                        l.prt()
+                    pEnd = seg[-1].p1
+                p = p0
+                dprt()
+        return millingPath
 
     def offsetSeg(self, segments, direction, distance, outside):
         cfg = self.cfg
@@ -821,7 +887,7 @@ class Offset():
         self.evtArray = [None] * len(seg)
         for l in seg:
             l.setupEquation()
-            scalen = self.scale
+            scale = self.scale
             p0 = newPoint(l.p0, scale)
             p1 = newPoint(l.p1, scale)
             if points:
@@ -2206,3 +2272,38 @@ def spiral(arc, angle, dist, direction, outside, err=0.001, dbg=True):
             break
         pLast = p
     return spiral
+
+def perpendicular(cfg, l, dist, direction):
+    if l.type == LINE:
+        (x0, y0) = l.p0         # start and end
+        (x1, y1) = l.p1
+        dx = x1 - x0
+        dy = y1 - y0
+        if abs(dx) > abs(dy):   # if dx greater
+            m = -dy / dx
+            yt = sqrt((dist * dist) / (1 + m * m))
+            xt = m * yt
+        else:
+            m = -dx / dy
+            xt = sqrt((dist * dist) / (1 + m * m))
+            yt = m * xt
+    else:
+        (x0, y0) = l.p0         # start and end
+        (x1, y1) = l.c
+        dx = x1 - x0
+        dy = y1 - y0
+        if abs(dx) > abs(dy):   # if dx greater
+            m = dy / dx
+            xt = sqrt((dist * dist) / (1 + m * m))
+            yt = m * xt
+        else:
+            m = dx / dy
+            yt = sqrt((dist * dist) / (1 + m * m))
+            xt = m * yt
+    p = Point(x0 + xt, y0 + yt)
+    dir0 = orientation(p, l.p0, l.p1)
+    if dir0 != direction:
+        p = Point(x0 - xt, y0 - yt)
+    l1 = Line(l.p0, p)
+    l1.draw()
+    return l1
