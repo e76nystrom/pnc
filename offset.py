@@ -2,13 +2,13 @@
 from __future__ import print_function
 
 from collections import namedtuple
-from math import (acos, atan2, ceil, cos, degrees, hypot, radians, sin, sqrt,
-                  tan)
+from math import (acos, atan2, ceil, cos, degrees, floor, hypot, radians, sin,
+                  sqrt, tan)
 
 from dbgprt import dprt, dprtSet
 from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc,
-                      Line, Point, calcAngle, combineArcs, eqnLine, fix,
-                      newPoint, orientation, oStr, reverseSeg, splitArcs,
+                      Line, Point, calcAngle, combineArcs, degAtan2, eqnLine,
+                      fix, newPoint, orientation, oStr, reverseSeg, splitArcs,
                       xyDist)
 from poly_point_isect import isect_polygon
 from sortedlist import SortedList
@@ -82,6 +82,7 @@ class Offset():
         self.dbgPolygons = False
         self.drawFinalPoly = True
         self.drawWindingNum = False
+        self.transAngle = 30
         dprtSet(True)
 
     def offset(self, args):
@@ -138,7 +139,9 @@ class Offset():
                 dprt(" %2d" % (len(seg)), end='')
             dprt()
         millingPath = self.mPath1(Point(0, 0), finalPath)
-        self.orderPath(millingPath)
+        self.roundCorners(millingPath, direction)
+        millingPath = self.orderPath(Point(0, 0), millingPath)
+        self.createPath(millingPath)
 
     def findNearest(self, p, seg, dbg=False):
         if dbg:
@@ -265,11 +268,41 @@ class Offset():
                 dprt()
         return finalPath
 
-    def orderPath(self, millingPath, dbg=True):
+    def roundCorners(self, millingPath, direction):
+        for segments in millingPath:
+            for seg in segments:
+                for i, l in enumerate(seg):
+                    lPrev = seg[i - 1]
+                    if lPrev.type == LINE and l.type == LINE:
+                        d = self.dist if direction == CCW else -self.dist
+                        d /= 2.0
+                        lP0 = lPrev.parallel(d)
+                        lP1 = l.parallel(d)
+                        p = lineIntersection(lP0, lP1)
+                        if p is None:
+                            continue
+                        p0 = linePoint(lPrev, p)
+                        p1 = linePoint(l, p)
+                        d0 = xyDist(p0, lPrev.p1)
+                        d1 = xyDist(p1, l.p0)
+                        if (d0 > lPrev.length/2 or d1 > l.length/2):
+                            continue
+                        (xc, yc) = p
+                        a0 = degAtan2(p0.y - yc, p0.x - xc)
+                        a1 = degAtan2(p1.y - yc, p1.x - xc)
+                        (a0, a1) = (a1, a0)
+                        # lPrev.updateP1(p0)
+                        arc = Arc(p, self.dist/2, a0, a1, direction=direction)
+                        # l.updateP0(p1)
+                        lPrev.prt()
+                        arc.prt()
+                        arc.draw()
+                        l.prt()
+
+    def orderPath(self, p, millingPath, dbg=True):
         for segments in millingPath: # reorder inner to outer
             segments.reverse()
 
-        p = Point(0, 0)
         path = millingPath
         millingPath = []
         while len(path) > 0: # sort by fewest passes and then distance
@@ -294,7 +327,9 @@ class Offset():
             while i < len(segments):
                 seg = segments[i - 1]
                 l = seg[0]
-                lp = perpendicular(self.cfg, l, self.dist * 1.5, CCW)
+                lp = perpendicular(l, self.dist * 1.5, CCW)
+                if dbg:
+                    lp.draw()
                 seg = segments[i]
                 for j, l in enumerate(seg):
                     if l.type == LINE:
@@ -308,8 +343,8 @@ class Offset():
                             l0 = l.splitPoint(loc)
                             seg = seg[j:] + seg[:j]
                             seg.append(l0)
+                        segments[i] = seg
                         break
-                segments[i] = seg
                 i += 1
                 
         if dbg:
@@ -328,6 +363,77 @@ class Offset():
                 p = p0
                 dprt()
         return millingPath
+
+    def passSetup(self):
+        cfg = self.cfg
+        self.absDepth = abs(cfg.depth)
+
+        tmp = self.absDepth / cfg.depthPass
+        if tmp - floor(tmp) < 0.002:
+            passes = int(floor(tmp))
+        else:
+            passes = int(ceil(tmp))
+        self.passCount = passes
+        
+        if cfg.evenDepth:
+            cfg.depthPass = self.absDepth / passes
+
+        dprt("passCount %d depth %6.4f depthPass %6.4f" % \
+              (self.passCount, cfg.depth, cfg.depthPass))
+
+    def createPath(self, millingPath, dbg=True):
+        cfg = self.cfg
+        self.passSetup()
+        mp = cfg.getMillPath()
+        mill = cfg.mill
+        direction = CCW
+        for segments in millingPath:
+            path = segments[0]
+            mp.millPath(path, minDist=False)
+            curDepth = 0.0
+            for j in range(self.passCount):
+                curDepth -= cfg.depthPass
+                if curDepth < cfg.depth:
+                    curDepth = cfg.depth
+                cleanup = []
+                i = 1
+                seg = segments[i - 1]
+                pPrev = seg[0].p0
+                mill.zTop()
+                mill.move(pPrev)
+                mill.plungeZ(curDepth)
+                while i < len(segments):
+                    seg = segments[i]
+                    last = i + 1  == len(segments)
+                    d = self.dist
+                    if dbg:
+                        dprt("\npass %2d depth %6.3f" % (j, curDepth))
+                    for l in seg:
+                        if d != 0:
+                            s0, d = transition(pPrev, l, self.transAngle, d, \
+                                               direction, True, err=0.001)
+                            for l0 in s0:
+                                l0.mill(mill)
+                                if dbg:
+                                    l0.prt()
+                            if last:
+                                if d == 0 and len(s0) > 1:
+                                    p = s0[-1].p0
+                                    lc = l.copy().updateP1(p)
+                                    cleanup.append(lc)
+                                else:
+                                    cleanup.append(l)
+                            pPrev = l0.p1
+                        else:
+                            l.mill(mill)
+                            if dbg:
+                                l.prt()
+                            pPrev = l.p1
+                    i += 1
+                    for l in cleanup:
+                        l.mill(mill, comment="cleanup")
+                        if dbg:
+                            l.prt()
 
     def offsetSeg(self, segments, direction, distance, outside):
         cfg = self.cfg
@@ -1732,7 +1838,7 @@ class Offset():
     def spiralTest(self, args):
         self.cfg.ncInit()
         arc = Arc(Point(0, 0), 1, 0, 90)
-        spiral(arc, 5, 0.125, CCW, False)
+        spiral(Point(0, 0), arc, 5, 0.125, CCW, False)
 
 class Event:
     def __init__(self, p, p1, loc, l, evtType):
@@ -2196,84 +2302,7 @@ def arcArcTest(a0, a1):
             return pb
     return None
 
-def spiral(arc, angle, dist, direction, outside, err=0.001, dbg=True):
-    if direction == CCW:  # direction ccw
-        if arc.swapped: # arc cw
-            if outside:
-                d = -1
-            else:
-                d = 1
-        else:           # arc ccw
-            if outside:
-                d = 1
-            else:
-                d = -1
-    elif direction == CW: # direction cw
-        if arc.swapped: # arc cw
-            if outside:
-                d = 1
-            else:
-                d = -1
-        else:           # arc ccw
-            if outside:
-                d = -1
-            else:
-                d = 1
-
-    r = arc.r
-    adjSide = r - err
-    aInc = degrees(acos(adjSide / r))
-    a0 = arc.a0
-    a1 = arc.a1
-    if not arc.swapped:   # clockwise
-        if a1 < a0:
-            a1 += 360.0
-        if dbg:
-            dprt("a0 %5.1f a1 %5.1f total %5.1f cw" % \
-                 (fix(a0), fix(a1), a1 - a0))
-        arcAngle = a1 - a0
-        segments = int(ceil((arcAngle) / aInc))
-    else:               # counter clockwise
-        if a0 < a1:
-            a0 += 360.0
-        if dbg:
-            dprt("a0 %5.1f a1 %5.1f total %5.1f ccw" % \
-                 (fix(a0), fix(a1), a0 - a1))
-        arcAngle = a0 - a1
-        segments = int(ceil((arcAngle) / aInc))
-        arcAngle = -arcAngle
-        (a0, a1) = (a1, a0)
-    aInc = arcAngle / segments
-    stepDist = r * sin(radians(aInc))
-    stepR = tan(radians(angle)) * stepDist
-    
-    arc.prt()
-    arc.draw()
-    (x, y) = arc.c
-    pLast = arc.p0
-    done = False
-    spiral = []
-    rInc = 0
-    for i in range(segments - 1):
-        a0 += aInc
-        rInc += stepR
-        if rInc > (dist - MIN_DIST):
-            done = True
-            rInc = dist
-        rCur = r + d * rInc
-        dprt("rInc %7.4f rCur %7.4f" % (rInc, rCur))
-        a = radians(a0)
-        p = Point(rCur * cos(a) + x, rCur * sin(a) + y)
-        l = Line(pLast, p)
-        # l.prt()
-        l.draw()
-        spiral.append(l)
-        if done:
-            break
-        pLast = p
-    return spiral
-
-def perpendicular(cfg, l, dist, direction):
+def perpendicular(l, dist, direction):
     if l.type == LINE:
         (x0, y0) = l.p0         # start and end
         (x1, y1) = l.p1
@@ -2305,5 +2334,166 @@ def perpendicular(cfg, l, dist, direction):
     if dir0 != direction:
         p = Point(x0 - xt, y0 - yt)
     l1 = Line(l.p0, p)
-    l1.draw()
     return l1
+
+def transition(p, l, angle, dist, direction, outside, err, dbg=True):
+    if l.type == LINE:
+        return linearTransition(p, l, angle, dist, direction, dbg)
+    elif l.type == ARC:
+        return spiral(p, l, angle, dist, direction, outside, err, dbg)
+
+def linearTransition(p, l, angle, dist, direction, dbg):
+    (x0, y0) = l.p0         # start and end
+    (x1, y1) = l.p1
+    dx = x1 - x0
+    dy = y1 - y0
+    a0 = atan2(dy, dx)
+    aRad = radians(angle)
+    if direction == CCW:
+        a0 += aRad
+    elif direction == CW:
+        a0 -= aRad
+    transLen = dist / tan(aRad) # tan = o / a = dist / len, len = dist / tan
+    if transLen > l.length:
+        length = l.length
+        pTrans = Point(length * cos(a0) + p.x, length * sin(a0) + p.y)
+        s0 = (Line(p, pTrans),)
+        dist -= length * tan(aRad)
+    else:
+        transDist = hypot(dist, transLen)
+        pTrans = Point(transDist * cos(a0) + p.x, transDist * sin(a0) + p.y)
+        s0 = (Line(p, pTrans), l.copy().updateP0(pTrans))
+        dist = 0
+    return (s0, dist)
+
+def spiral(p, arc, angle, dist, direction, outside, err=0.001, dbg=True):
+    if direction == CCW:  # direction ccw
+        if arc.swapped: # arc cw
+            if outside:
+                d = -1
+            else:
+                d = 1
+        else:           # arc ccw
+            if outside:
+                d = 1
+            else:
+                d = -1
+    elif direction == CW: # direction cw
+        if arc.swapped: # arc cw
+            if outside:
+                d = 1
+            else:
+                d = -1
+        else:           # arc ccw
+            if outside:
+                d = -1
+            else:
+                d = 1
+
+    r = xyDist(p, arc.c)
+    adjSide = r - err
+    aInc = degrees(acos(adjSide / r))
+    a0 = arc.a0
+    a1 = arc.a1
+    if not arc.swapped:   # clockwise
+        if a1 < a0:
+            a1 += 360.0
+        if dbg:
+            dprt("a0 %5.1f a1 %5.1f total %5.1f cw" % \
+                 (fix(a0), fix(a1), a1 - a0))
+        arcAngle = a1 - a0
+        segments = int(ceil((arcAngle) / aInc))
+    else:               # counter clockwise
+        if a0 < a1:
+            a0 += 360.0
+        if dbg:
+            dprt("a0 %5.1f a1 %5.1f total %5.1f ccw" % \
+                 (fix(a0), fix(a1), a0 - a1))
+        arcAngle = a0 - a1
+        segments = int(ceil((arcAngle) / aInc))
+        arcAngle = -arcAngle
+        (a0, a1) = (a1, a0)
+    aInc = arcAngle / segments
+    stepDist = r * sin(radians(aInc))
+    stepR = tan(radians(angle)) * stepDist
+    if dbg:
+        dprt("p (%7.4f %7.4f) aInc %6.2f stepDist %7.4f stepR %7.4f" % \
+             (p.x, p.y, aInc, stepDist, stepR))
+    
+    d = -1
+    arc.prt()
+    (x, y) = arc.c
+    pLast = p
+    done = False
+    spiral = []
+    rInc = 0
+    for _ in range(segments - 1):
+        a0 += aInc
+        rInc += stepR
+        if rInc > (dist - MIN_DIST):
+            done = True
+            rInc = dist
+        rCur = r + d * rInc
+        if dbg:
+            dprt("rInc %7.4f rCur %7.4f" % (rInc, rCur))
+        a = radians(a0)
+        p = Point(rCur * cos(a) + x, rCur * sin(a) + y)
+        l = Line(pLast, p)
+        spiral.append(l)
+        if done:
+            spiral.append(arc.copy().updateP0(p))
+            break
+        pLast = p
+    return spiral, dist - rInc
+
+def bisect(l0, l1, dist, dbg=True):
+    (x0, y0) = l0.p0
+    (x1, y1) = l0.p1
+    a0 = atan2(y0 - y1, x0 - x1)
+    (x2, y2) = l1.p1
+    a1 = atan2(y2 - y1, x2 - x1)
+    aBisect = (a0 + a1) / 2
+    if dbg:
+        dprt("a0 %7.2f b0 %7.2f aBisect %7.2f" % \
+             (degrees(a0), degrees(a1), degrees(aBisect)))
+    return Point(dist * cos(aBisect) + x1, dist * sin(aBisect) + y1)
+
+# y = m * x + b line
+
+# y = -x/m + bp perpendicular line
+# y - bp = -x/m
+# x = -m*(y - bp) = -m*y + bp
+# x = -m * y + bp
+
+# y = m * (-m * y + bp) + b substitue
+# y = -m*m*y + m*bp + b
+# y * (1 + m*m) = m*bp + b
+# y = (m*bp + b) / (1 + m*m)
+
+def linePoint(l, p):
+    if l.type == LINE:
+        (x0, y0) = l.p0         # start and end
+        (x1, y1) = l.p1
+        (x, y) = p
+        dx = x1 - x0
+        dy = y1 - y0
+        if abs(dy) < MIN_DIST:
+            return Point(x, y0)
+        elif abs(dx) < MIN_DIST:
+            return Point(x0, y)
+        elif abs(dx) > abs(dy):
+            m = dy / dx         # y = m*x + b
+            b = y0 - m * x0
+            bp = x + m * y
+            yp = (m * bp + b) / (1 + m * m)
+            xp = -m * yp + bp
+            return Point(xp, yp)
+        else:
+            m = dx / dy         # x = m*y + b
+            b = x0 - m * y0
+            bp = y + m * x
+            xp = (m * bp + b) / (1 + m * m)
+            yp = -m * xp + bp
+            return Point(xp, yp)
+    else:
+        return None

@@ -303,13 +303,18 @@ class Line():
         self.m = 0.0
         self.b = 0.0
 
+    def copy(self):
+        return copy(self)
+
     def updateP0(self, p0):
         self.p0 = newPoint(p0)
         self.length = xyDist(self.p0, self.p1)
+        return(self)
 
     def updateP1(self, p1):
         self.p1 = newPoint(p1)
         self.length = xyDist(self.p0, self.p1)
+        return(self)
 
     def setupEquation(self):
         (x0, y0) = self.p0
@@ -840,6 +845,9 @@ class Arc():
         self.arcLen = 0.0
         self.calcLen()
 
+    def copy(self):
+        return copy(self)
+
     def aStr(self):
         if not self.swapped:
             return(self.a0)
@@ -861,6 +869,7 @@ class Arc():
             self.a1 = a
         self.p0 = p     # set end of this object
         self.calcLen()
+        return(self)
 
     def updateP1(self, p):
         p = newPoint(p)
@@ -871,6 +880,7 @@ class Arc():
             self.a0 = a
         self.p1 = p     # set end of this object
         self.calcLen()
+        return(self)
 
     def setupEquation(self):
         self.yPlus = (self.p0.y + self.p1.y) / 2 - self.c.y >= 0

@@ -1920,7 +1920,7 @@ class MillPath():
 
     def cleanRamp(self):
         for l in reverseSeg(self.rampClean):
-            l.prt
+            l.prt()
             self.rampSeg(l, "rc0")
         if abs(self.currentDepth -
                (self.lastDepth - self.rampDepth)) > MIN_DIST:
