@@ -4,6 +4,7 @@ from math import degrees
 
 from dxfwrite import CENTER, MIDDLE
 from dxfwrite import DXFEngine as dxf
+from enum import Enum
 from svgwrite import Drawing
 from svgwrite.path import Path
 from svgwrite.shapes import Circle, Rect
@@ -18,6 +19,15 @@ PATH = 'PATH'
 HOLE = 'HOLE'
 TEXT = 'TEXT'
 DEBUG = 'DEBUG'
+
+class Color(Enum):
+    RED = 1
+    YELLOW = 2
+    GREEN = 3
+    CYAN = 4
+    BLUE = 5
+    MAGENTA = 6
+    WHITE = 7
 
 class Draw():
     def __init__(self, cfg, d=None, svg=None):
@@ -40,6 +50,8 @@ class Draw():
         self.lText = TEXT
         self.lDebug = DEBUG
         self.lCount = 0
+        self.definedLayers = {}
+        self.color = Color.WHITE.value
 
     def open(self, inFile, drawDxf=True, drawSvg=True):
         if drawSvg and self.svg is None:
@@ -57,6 +69,7 @@ class Draw():
             try:
                 self.d = dxf.drawing(dxfFile)
                 self.layerIndex = 0
+                self.d.add_layer('0', color=self.color, lineweight=0)
                 self.setupLayers()
             except IOError:
                 self.d = None
@@ -74,7 +87,8 @@ class Draw():
                        ['lText', i + TEXT], \
                        ['lDebug', i + DEBUG]]
         for (var, l) in self.layers:
-            self.d.add_layer(l)
+            self.definedLayers[l] = True
+            self.d.add_layer(l, color=self.color, lineweight=0)
             exec("self." + var + "='" + l + "'")
 
     def close(self):
@@ -203,6 +217,10 @@ class Draw():
             if self.d is not None:
                 if layer is None:
                     layer = self.lPath
+                else:
+                    if not layer in self.definedLayers:
+                        self.definedLayers[layer] = True
+                        self.d.add_layer(layer, color=self.color, lineweight=0)
                 self.d.add(dxf.line(self.last, end, layer=layer))
             # dprt("   line %7.4f %7.4f" % end)
             self.last = end
@@ -217,6 +235,10 @@ class Draw():
             if self.d is not None:
                 if layer is None:
                     layer = self.lPath
+                else:
+                    if not layer in self.definedLayers:
+                        self.definedLayers[layer] = True
+                        self.d.add_layer(layer, color=self.color, lineweight=0)
                 p0 = self.last
                 p1 = end
                 if xyDist(p0, p1) < MIN_DIST:
@@ -239,6 +261,10 @@ class Draw():
             if self.d is not None:
                 if layer is None:
                     layer = self.lHole
+                else:
+                    if not layer in self.definedLayers:
+                        self.definedLayers[layer] = True
+                        self.d.add_layer(layer, color=self.color, lineweight=0)
                 self.d.add(dxf.circle(r, end, layer=layer))
         self.last = end
 
@@ -261,6 +287,10 @@ class Draw():
             if self.d is not None:
                 if layer is None:
                     layer = self.lText
+                else:
+                    if not layer in self.definedLayers:
+                        self.definedLayers[layer] = True
+                        self.d.add_layer(layer, color=self.color, lineweight=0)
                 self.d.add(dxf.text(txt, p0, height, layer=layer))
 
     def add(self, entity):
@@ -271,6 +301,10 @@ class Draw():
     def drawCross(self, p, layer=None):
         if layer is None:
             layer = self.lDebug
+        else:
+            if not layer in self.definedLayers:
+                self.definedLayers[layer] = True
+                self.d.add_layer(layer, color=self.color, lineweight=0)
         (x, y) = p
         dprt("cross %2d %7.4f, %7.4f" % (self.lCount, x, y))
         labelP(p, "%d" % (self.lCount))
@@ -285,6 +319,10 @@ class Draw():
     def drawX(self, p, txt=None, swap=False, layer=None, h=0.010):
         if layer is None:
             layer = self.lDebug
+        else:
+            if not layer in self.definedLayers:
+                self.definedLayers[layer] = True
+                self.d.add_layer(layer, color=self.color, lineweight=0)
         (x, y) = p
         xOfs = 0.020
         yOfs = 0.010
@@ -303,6 +341,10 @@ class Draw():
     def drawCircle(self, p, d=0.010, layer=None, txt=None):
         if layer is None:
             layer = self.lDebug
+        else:
+            if not layer in self.definedLayers:
+                self.definedLayers[layer] = True
+                self.d.add_layer(layer, color=self.color, lineweight=0)
         last = self.last
         self.circle(p, d / 2.0, layer)
         if txt is not None:
