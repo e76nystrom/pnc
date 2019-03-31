@@ -492,19 +492,19 @@ class Offset():
                     l.label(layer=intersectLayer)
                     # cfg.draw.drawX(l.p0, str(n))
 
-            isectPolygon = False
-            if isectPolygon:
-                points = []
-                for l in oSeg:
-                    points.append(l.p0)
-                tmp = isect_polygon(points)
+            # isectPolygon = False
+            # if isectPolygon:
+            #     points = []
+            #     for l in oSeg:
+            #         points.append(l.p0)
+            #     tmp = isect_polygon(points)
 
             self.findIntersections(oSeg, dbgIntersect)
 
-            if isectPolygon:
-                dprt("\nisect_polygon intersections")
-                for n, (x, y) in enumerate(tmp):
-                    dprt("%2d (%7.4f %7.4f)" % (n, x, y))
+            # if isectPolygon:
+            #     dprt("\nisect_polygon intersections")
+            #     for n, (x, y) in enumerate(tmp):
+            #         dprt("%2d (%7.4f %7.4f)" % (n, x, y))
 
             if dbgIntersect:
                 dprt("\npass %d intersections" % (self.passNum))
