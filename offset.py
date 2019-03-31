@@ -10,8 +10,8 @@ from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc,
                       Line, Point, calcAngle, combineArcs, degAtan2, eqnLine,
                       fix, newPoint, orientation, oStr, reverseSeg, splitArcs,
                       xyDist)
-from poly_point_isect import isect_polygon
-from sortedlist import SortedList
+# from poly_point_isect import isect_polygon
+from sortedcontainers import SortedList
 
 RIGHT     = 0                   # priority order of events
 INTERSECT = 1
@@ -492,19 +492,19 @@ class Offset():
                     l.label(layer=intersectLayer)
                     # cfg.draw.drawX(l.p0, str(n))
 
-            isectPolygon = False
-            if isectPolygon:
-                points = []
-                for l in oSeg:
-                    points.append(l.p0)
-                tmp = isect_polygon(points)
+            # isectPolygon = False
+            # if isectPolygon:
+            #     points = []
+            #     for l in oSeg:
+            #         points.append(l.p0)
+            #     tmp = isect_polygon(points)
 
             self.findIntersections(oSeg, dbgIntersect)
 
-            if isectPolygon:
-                dprt("\nisect_polygon intersections")
-                for n, (x, y) in enumerate(tmp):
-                    dprt("%2d (%7.4f %7.4f)" % (n, x, y))
+            # if isectPolygon:
+            #     dprt("\nisect_polygon intersections")
+            #     for n, (x, y) in enumerate(tmp):
+            #         dprt("%2d (%7.4f %7.4f)" % (n, x, y))
 
             if dbgIntersect:
                 dprt("\npass %d intersections" % (self.passNum))
