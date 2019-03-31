@@ -4,6 +4,7 @@ import sys
 from math import acos, ceil, cos, degrees, pi, radians, sin
 
 import pyclipper
+from pyclipper import PyclipperOffset
 from dbgprt import dprt, dprtSet
 from geometry import (ARC, LINE, MAX_VALUE, Arc, Line, calcAngle, degAtan2,
                       fix, orientation, oStr, pathDir, xyDist)
@@ -78,7 +79,7 @@ class pocket():
         stepOver = cfg.endMillSize * self.stepOver
         cfg.ncInit()
         segments = cfg.dxfInput.getPath(layer)
-        pco = pyclipper.PyclipperOffset()
+        pco = PyclipperOffset()
         mp = cfg.getMillPath()
         self.last = cfg.mill.last
         for seg in segments:
@@ -476,7 +477,7 @@ class pocket():
             while j < numPoints - 1:
                 pj = points[j]
                 dist = xyDist(pa, pj)
-                if abs(dist - d0) > 001:
+                if abs(dist - d0) > 0.001:
                     if dbg:
                         dprt("dist %9.6f d0 %9.6f" % (dist, d0))
                     break

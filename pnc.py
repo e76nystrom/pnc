@@ -590,7 +590,7 @@ class Config():
         if not os.path.isfile(probeData):
             fileDir = os.path.dirname(probeData)
             if len(fileDir) == 0:
-                probeData = os.path.join(cfg.dirPath, probeData)
+                probeData = os.path.join(self.dirPath, probeData)
         try:
             inp = open(probeData, 'r')
             return(inp)
@@ -609,14 +609,14 @@ class Config():
     def setX(self, args):
         coordinate = self.evalIntArg(args[1])
         xVal = self.evalFloatArg(args[2])
-        mill = cfg.mill
+        mill = self.mill
         if mill is not None:
             mill.setX(coordinate, xVal)
 
     def setY(self, args):
         coordinate = self.evalIntArg(args[1])
         yVal = self.evalFloatArg(args[2])
-        mill = cfg.mill
+        mill = self.mill
         if mill is not None:
             mill.setY(coordinate, yVal)
         
@@ -962,10 +962,10 @@ class Config():
             mill.retract()
         elif op == TAP:
             out.write("m0 (pause insert tap)\n")
-            if cfg.variables:
+            if self.variables:
                 z = "[#%s + #%s]" % (self.topVar, self.depthVar)
             else:
-                z = "%7.4f" % (cfg.top + cfg.depth)
+                z = "%7.4f" % (self.top + self.depth)
             out.write("g0 z %s\t(%s)\n" % (z, comment))
             out.write("m0 (pause tap hole)\n")
             mill.retract()
@@ -1488,7 +1488,7 @@ class Config():
             # print(dir(module))
             # for m in inspect.getmembers(module, inspect.isclass):
             #     print(m)
-            self.engraveModule = module.Engrave(cfg)
+            self.engraveModule = module.Engrave(self)
             self.engraveModule.setup()
         else:
             if self.engraveModule is not None:
@@ -2490,11 +2490,13 @@ class Dxf():
                     if size is not None:
                         if abs(size - drillSize) > MIN_DIST:
                             continue
+                    found = False
                     for h in holes:
                         if abs(drillSize - h.size) < MIN_DIST:
                             h.addLoc(p)
+                            found = True
                             break
-                    else:       # if holeSize not found
+                    if not found: # if holeSize not found
                         d = Drill(drillSize)
                         holes.append(d)
                         d.addLoc(p)

@@ -10,8 +10,8 @@ from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc,
                       Line, Point, calcAngle, combineArcs, degAtan2, eqnLine,
                       fix, newPoint, orientation, oStr, reverseSeg, splitArcs,
                       xyDist)
-from poly_point_isect import isect_polygon
-from sortedlist import SortedList
+from pyclipper import isect_polygon
+from sortedcontainers import SortedList
 
 RIGHT     = 0                   # priority order of events
 INTERSECT = 1
@@ -2044,7 +2044,8 @@ def windingNumDir(wN):
     return  None
 
 def windingNumber(p, poly, scale, dbg=False):
-    (x, y) = pInt = newPoint(p, scale)
+    pInt = newPoint(p, scale)
+    (x, y) = pInt
     if dbg:
         dprt("\npolygon input to windingNumber")
         for l in poly:

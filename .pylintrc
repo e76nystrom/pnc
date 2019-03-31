@@ -1,0 +1,1 @@
+extension-pkg-whitelist = importlib.abc.Loader, pyclipper, math, sys
