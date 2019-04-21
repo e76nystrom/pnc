@@ -650,9 +650,9 @@ class Config():
     def getLocation(self, args, result=None):
         if result is None:
             result = [0.0, 0.0, 0.0]
-        self.reLoc = (r"^.*? +([xyzXYZ]) *([a-zA-Z0-9\.\-]+) " \
-                      r"*([xyzXYZ]*) *([a-zA-Z0-9\.\-]*)" \
-                      r" *([xyzXYZ]*) *([a-zA-Z0-9\.\-]*)")
+        self.reLoc = (r"^.*? +([xyzXYZ]) *([a-zA-Z0-9\(\)\.\-]+) " \
+                      r"*([xyzXYZ]*) *([a-zA-Z0-9\(\)\.\-]*)" \
+                      r" *([xyzXYZ]*) *([a-zA-Z0-9\(\)\.\-]*)")
         match = re.match(self.reLoc, args[0])
         if match is not None:
             groups = len(match.groups())

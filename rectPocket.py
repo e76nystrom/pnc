@@ -220,24 +220,24 @@ class RectPocket():
         self.index = 0
         if h < w:
             r = h / 2.0
-            r -= cfg.endMillSize / 2.0 + cfg.finishAllowance
-            c0 = (x, y)
-            c1 = (x + w, y)
-            p0 = (x    , y - r)
-            p1 = (x + w, y - r)
-            p2 = (x + w, y + r)
-            p3 = (x    , y + r)
-            self.addArcSeg(c0, r, 90, 270)
+            w0 = w / 2.0 - r
+            c0 = (x - w0, y)
+            c1 = (x + w0, y)
+            r0 = r - cfg.endMillSize / 2.0 + cfg.finishAllowance
+            p0 = (x - w0, y - r0)
+            p1 = (x + w0, y - r0)
+            p2 = (x + w0, y + r0)
+            p3 = (x - w0, y + r0)
+            self.addArcSeg(c0, r0, 90, 270)
             self.addLineSeg(p0, p1)
-            self.addArcSeg(c1, r, 270, 90)
+            self.addArcSeg(c1, r0, 270, 90)
             self.addLineSeg(p2, p3)
             draw = cfg.draw
             if draw is not None:
-                r = h / 2.0
-                p0 = (x    , y - r)
-                p1 = (x + w, y - r)
-                p2 = (x + w, y + r)
-                p3 = (x    , y + r)
+                p0 = (x - w0, y - r)
+                p1 = (x + w0, y - r)
+                p2 = (x + w0, y + r)
+                p3 = (x - w0, y + r)
                 draw.move(p3)
                 draw.arc(p0, c0)
                 draw.line(p1)
@@ -245,24 +245,24 @@ class RectPocket():
                 draw.line(p3)
         else:
             r = w / 2.0
-            r -= cfg.endMillSize / 2.0 + cfg.finishAllowance
-            c0 = (x, y)
-            c1 = (x, y + h)
-            p0 = (x + r, y)
-            p1 = (x + r, y + h)
-            p2 = (x - r, y + h)
-            p3 = (x - r, y)
+            h0 = h / 2.0 - r
+            c0 = (x, y - h0)
+            c1 = (x, y + h0)
+            r0 = r - cfg.endMillSize / 2.0 + cfg.finishAllowance
+            p0 = (x + r, y - h0)
+            p1 = (x + r, y + h0)
+            p2 = (x - r, y + h0)
+            p3 = (x - r, y - h0)
             self.addArcSeg(c0, r, 180, 0)
             self.addLineSeg(p0, p1)
             self.addArcSeg(c1, r, 0, 180)
             self.addLineSeg(p2, p3)
             draw = cfg.draw
             if draw is not None:
-                r = w / 2.0
-                p0 = (x + r, y)
-                p1 = (x + r, y + h)
-                p2 = (x - r, y + h)
-                p3 = (x - r, y)
+                p0 = (x + r, y - h0)
+                p1 = (x + r, y + h0)
+                p2 = (x - r, y + h0)
+                p3 = (x - r, y - h0)
                 draw.move(p3)
                 draw.arc(p0, c0)
                 draw.line(p1)
