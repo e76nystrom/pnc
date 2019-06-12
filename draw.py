@@ -177,7 +177,7 @@ class Draw():
             self.d.add(dxf.line(p2, p3, layer=self.lBorder))
             self.d.add(dxf.line(p3, p0, layer=self.lBorder))
 
-    def materialOutline(self, lines):
+    def materialOutline(self, lines, layer=None):
         cfg = self.cfg
         if self.svg is not None:
             self.xOffset = 0.0
@@ -196,10 +196,12 @@ class Draw():
                 path.push('L', (self.scaleOffset(end)))
 
         if self.d is not None:
+            if layer is None:
+                layer = self.lBorder
             for l in lines:
                 (start, end) = l
                 self.d.add(dxf.line(cfg.dxfInput.fix(start), \
-                                    cfg.dxfInput.fix(end), layer=self.lBorder))
+                                    cfg.dxfInput.fix(end), layer=layer))
 
     def move(self, end):
         if self.enable:

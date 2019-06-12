@@ -3,8 +3,15 @@ import os
 from dbgprt import dprt, ePrint
 from draw import Draw
 from geometry import MIN_DIST
-from pnc import O_LOWER_LEFT, O_UPPER_LEFT, Drill
+from orientation import O_LOWER_LEFT, O_UPPER_LEFT
 
+class Drill():
+    def __init__(self, size):
+        self.size = size
+        self.loc = []
+
+    def addLoc(self, p):
+        self.loc.append(p)
 
 class DrillHolder():
     def __init__(self, cfg):
@@ -357,7 +364,7 @@ class DrillHolder():
         self.baseThickness = 0.0625
         self.mountHole = 0.125
         self.mountSpacer = 0.3125
-        self.mountHeight = 0.875
+        self.mountHeight = 0.4375
         self.mountRecess = 0.250
         self.mountRecessHeight = 0.125
 

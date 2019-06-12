@@ -10,7 +10,7 @@ from geometry import (ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc,
                       Line, Point, calcAngle, combineArcs, degAtan2, eqnLine,
                       fix, newPoint, orientation, oStr, reverseSeg, splitArcs,
                       xyDist)
-from pyclipper import isect_polygon
+# from pyclipper import isect_polygon
 from sortedcontainers import SortedList
 
 RIGHT     = 0                   # priority order of events
@@ -121,8 +121,8 @@ class Offset():
             for i, seg in enumerate(segments):
                 dprt(" [%d] %d" % (i, len(seg)), end='')
             dprt()
-            finalPolygons = self.offsetSeg(segments, direction, \
-                                           distance, self.outside)
+            finalPolygons = self.offsetSegments(segments, direction, \
+                                                distance, self.outside)
             if finalPolygons is None:
                 break
             if len(finalPolygons) == 0:
@@ -139,7 +139,7 @@ class Offset():
                 dprt(" %2d" % (len(seg)), end='')
             dprt()
         millingPath = self.mPath1(Point(0, 0), finalPath)
-        self.roundCorners(millingPath, direction)
+        # self.roundCorners(millingPath, direction)
         millingPath = self.orderPath(Point(0, 0), millingPath)
         self.createPath(millingPath)
 
@@ -435,8 +435,7 @@ class Offset():
                         if dbg:
                             l.prt()
 
-    def offsetSeg(self, segments, direction, distance, outside):
-        cfg = self.cfg
+    def offsetSegments(self, segments, direction, distance, outside):
         initialLayer = "%02dInitial" % (self.passNum)
         self.segNum = 0
         finalPolygons = []
@@ -454,7 +453,7 @@ class Offset():
             for i, l in enumerate(newSeg):
                 l.index = i
                 l.prt()
-            
+
             (p, chkList) = self.insidePoint(newSeg, dbg=False)
             wNInitial = windingNumber(p, chkList, self.scale, dbg=False)
             wNDirection = windingNumDir(wNInitial)
@@ -466,7 +465,7 @@ class Offset():
                 dprt("\npass %d segments reversed" % (self.passNum))
                 for l in newSeg:
                     l.prt()
-                    
+
                 (p, chkList) = self.insidePoint(newSeg)
                 wNReversed = windingNumber(p, chkList, self.scale, dbg=False)
                 wNDirection =  windingNumDir(wNReversed)
@@ -474,57 +473,9 @@ class Offset():
                      (wNReversed, oStr(wNDirection), oStr(direction)))
                 wNInitial = wNReversed
 
-            oSeg = self.offsetPath(newSeg, direction, distance, outside)
-            if oSeg is None:
-                return
+            polygons = self.offsetSeg(newSeg, direction, distance, \
+                                      outside, wNInitial)
             
-            dbgIntersect = self.dbgIntersect # ++dbg++
-            if dbgIntersect:
-                intersectLayer = "%02dIntersect" % (self.passNum)
-                dprt("\npass %d lines for intersection pass" % (self.passNum))
-                self.cfg.draw.drawX(l.p0, "pass %d" % (self.passNum))
-
-            for n, l in enumerate(oSeg):
-                l.index = n
-                l.prt()
-                if dbgIntersect:
-                    l.draw(intersectLayer)
-                    l.label(layer=intersectLayer)
-                    # cfg.draw.drawX(l.p0, str(n))
-
-            # isectPolygon = False
-            # if isectPolygon:
-            #     points = []
-            #     for l in oSeg:
-            #         points.append(l.p0)
-            #     tmp = isect_polygon(points)
-
-            self.findIntersections(oSeg, dbgIntersect)
-
-            # if isectPolygon:
-            #     dprt("\nisect_polygon intersections")
-            #     for n, (x, y) in enumerate(tmp):
-            #         dprt("%2d (%7.4f %7.4f)" % (n, x, y))
-
-            if dbgIntersect:
-                dprt("\npass %d intersections" % (self.passNum))
-                for n, i in enumerate(self.intersections):
-                    dprt("%2d (%7.4f %7.4f) %2d %2d" %
-                         (n, i.loc.x, i.loc.y, i.l0.index, i.l1.index))
-                    cfg.draw.drawX(i.loc, "", layer=intersectLayer)
-                if self.intersectReturn:
-                    return
-
-            oSeg1 = self.splitLines(oSeg)
-            
-            dbgPolygons = self.dbgPolygons
-            polyLayer = "%02dPoly" % (self.passNum)
-
-            (pLine, oSeg2) = self.pointLine(oSeg1, dbgPolygons, polyLayer)
-
-            polygons = \
-                self.makePolygons(pLine, oSeg2, wNInitial, outside, \
-                                  dbgPolygons, polyLayer)
             finalPolygons += polygons
         self.segNum += 1
         if self.drawFinalPoly:
@@ -534,6 +485,66 @@ class Offset():
                     l.draw(layer=finalLayer)
                     l.label(layer=finalLayer)
         return finalPolygons
+
+    def offsetSeg(self, newSeg, direction, distance, outside, wNInitial=None):
+        cfg = self.cfg
+        if wNInitial is None:
+            (p, chkList) = self.insidePoint(newSeg, dbg=False)
+            wNInitial = windingNumber(p, chkList, self.scale, dbg=False)
+
+        oSeg = self.offsetPath(newSeg, direction, distance, outside)
+        if oSeg is None:
+            return
+
+        dbgIntersect = self.dbgIntersect # ++dbg++
+        if dbgIntersect:
+            intersectLayer = "%02dIntersect" % (self.passNum)
+            dprt("\npass %d lines for intersection pass" % (self.passNum))
+            cfg.draw.drawX(oSeg[0].p0, "pass %d" % (self.passNum),
+                           layer=intersectLayer)
+
+        for n, l in enumerate(oSeg):
+            l.index = n
+            if dbgIntersect:
+                l.prt()
+                l.draw(intersectLayer)
+                l.label(layer=intersectLayer)
+                # cfg.draw.drawX(l.p0, str(n))
+
+        # isectPolygon = False
+        # if isectPolygon:
+        #     points = []
+        #     for l in oSeg:
+        #         points.append(l.p0)
+        #     tmp = isect_polygon(points)
+
+        self.findIntersections(oSeg, dbgIntersect)
+
+        # if isectPolygon:
+        #     dprt("\nisect_polygon intersections")
+        #     for n, (x, y) in enumerate(tmp):
+        #         dprt("%2d (%7.4f %7.4f)" % (n, x, y))
+
+        if dbgIntersect:
+            dprt("\npass %d intersections" % (self.passNum))
+            for n, i in enumerate(self.intersections):
+                dprt("%2d (%7.4f %7.4f) %2d %2d" %
+                     (n, i.loc.x, i.loc.y, i.l0.index, i.l1.index))
+                cfg.draw.drawX(i.loc, "", layer=intersectLayer)
+            if self.intersectReturn:
+                return
+
+        oSeg1 = self.splitLines(oSeg)
+
+        dbgPolygons = self.dbgPolygons
+        polyLayer = "%02dPoly" % (self.passNum)
+
+        (pLine, oSeg2) = self.pointLine(oSeg1, dbgPolygons, polyLayer)
+
+        polygons = \
+            self.makePolygons(pLine, oSeg2, wNInitial, outside, \
+                              dbgPolygons, polyLayer)
+        return polygons
 
     def offsetPath(self, newSeg, direction, distance, outside):
         dbgOffset = self.dbgOffset
@@ -1300,6 +1311,8 @@ class Offset():
     def intersect(self, evt0, evt1, n):
         l0 = evt0.l
         l1 = evt1.l
+        #if l0.index == 19 and l1.index == 23:
+        #    print("break")
         if xyDist(l0.p0, l1.p1) < MIN_DIST:
             self.dbgIntersection.append((self.event, n, self.curX, l0.index, \
                                          l1.index, False))
@@ -1681,15 +1694,15 @@ class Offset():
                 segments.append((l.p0, l.p1))
                 points.append(l.p0)
             # tmp = isect_segments(segments)
-            try:
-                tmp = isect_polygon(points)
-            except AssertionError:
-                tmp = None
+            # try:
+            #     tmp = isect_polygon(points)
+            # except AssertionError:
+            #     tmp = None
 
-        if isectSegments and tmp is not None:
-            dprt("\nisect_segments")
-            for (x, y) in tmp:
-                dprt("%7.4f %7.4f" % (x, y))
+        # if isectSegments and tmp is not None:
+        #     dprt("\nisect_segments")
+        #     for (x, y) in tmp:
+        #         dprt("%7.4f %7.4f" % (x, y))
 
         self.intersections = []
         self.findIntersections(seg)

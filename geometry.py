@@ -1107,7 +1107,7 @@ class Arc():
             a1 += 360.0
         if self.a0 < a and a <= a1:
             y = r * sin(aRad)
-            p = (x + cX, y + cY)
+            p = Point(x + cX, y + cY)
             if xPlus:
                 p0 = self.p0.x > self.p1.x
             else:
@@ -1255,6 +1255,12 @@ class Arc():
         return(p1)
     
     def onSegment(self, p):
+        d0 = xyDist(p, self.p0)
+        if d0 < MIN_DIST:
+            return True
+        d1 = xyDist(p, self.p1)
+        if d1 < MIN_DIST:
+            return True
         a = degAtan2(p[1] - self.c.y, p[0] - self.c.x)
         if self.a0 < self.a1:
             return (self.a0-MIN_DIST) < a and a < (self.a1+MIN_DIST)
@@ -1772,11 +1778,14 @@ def pathLength(seg):
 
 def reverseSeg(seg, makeCopy=True):
     newSeg = []
-    for i, l in enumerate(reversed(seg)):
+    i = 0
+    for l in reversed(seg):
         if makeCopy:
             l = copy(l)
         l.swap()
-        l.index = i
+        if l.index != INDEX_MARKER:
+            l.index = i
+            i += 1
         newSeg.append(l)
     return(newSeg)
 
@@ -1985,33 +1994,44 @@ def createPath(seg, dist, outside, tabPoints=None, \
         segTabPoints = []
     else:
         segTabPoints = None
-    for (i, l) in enumerate(newSeg):
-        if dbg:
-            dprt("processing %d" % (l.index))
-            l.prt()
-            dprt()
-            l.draw()
-        pMid = l.midPoint(d, dbg)
-        if closed:
-            cross = inside(pMid, newSeg, False)
-            # if draw is not None
-            #     draw.drawX(pMid, "i%d-%d" % (cross, l.index))
-            if ((cross & 1) == 0) != outside:
-                ePrint("createPath - parallel line not on correct side")
-                dprt("choose distance negative %d" % (cross))
-                d = -d
-        if l.index != INDEX_MARKER:
-            l1 = l.parallel(d)
-        else:
-            l1 = copy(l)
-        if not keepIndex:
-            l1.index = i
-        if prev is not None:
-            # dprt("intersect %d %s and %d %s" % \
-            #       (prev.index, prev.str[0], l1.index, l1.str[0]))
-            if intersect:
-                p = prev.intersect(l1)
-        segPath.append(l1)
+
+    if False: #closed:
+        offset = cfg.offset
+        offset.passNum = 0
+        offset.dbgOffset = True
+        offset.drawOffset = True
+        offset.dbgIntersect = True
+        polygons = offset.offsetSeg(newSeg, direction, d, outside)
+        segPath = polygons[0]
+    else:
+        for (i, l) in enumerate(newSeg):
+            if dbg:
+                dprt("processing %d" % (l.index))
+                l.prt()
+                dprt()
+                l.draw()
+            pMid = l.midPoint(d, dbg)
+            if closed:
+                cross = inside(pMid, newSeg, False)
+                # if draw is not None
+                #     draw.drawX(pMid, "i%d-%d" % (cross, l.index))
+                if ((cross & 1) == 0) != outside:
+                    ePrint("createPath - parallel line not on correct side")
+                    dprt("choose distance negative %d" % (cross))
+                    d = -d
+            if l.index != INDEX_MARKER:
+                l1 = l.parallel(d)
+            else:
+                l1 = copy(l)
+            if not keepIndex:
+                l1.index = i
+            if prev is not None:
+                # dprt("intersect %d %s and %d %s" % \
+                #       (prev.index, prev.str[0], l1.index, l1.str[0]))
+                if intersect:
+                    p = prev.intersect(l1)
+            segPath.append(l1)
+
         if tabPoints is not None:
             for (n, p) in enumerate(tabPoints):
                 dp = l.pointDistance(p)
@@ -2029,10 +2049,10 @@ def createPath(seg, dist, outside, tabPoints=None, \
                             dprt("dp %7.4f p %7.4f, %7.4f" % (dp, p[0], p[1]))
         prev = l1
 
-    if intersect and closed:
-        l1 = segPath[0]
-        # dprt("intersect %d and %d" % (prev.index, l1.index))
-        prev.intersect(l1)
+        if intersect and closed:
+            l1 = segPath[0]
+            # dprt("intersect %d and %d" % (prev.index, l1.index))
+            prev.intersect(l1)
 
     if dbg:
         dprt("offset path")

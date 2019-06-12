@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from time import localtime, strftime
 
-from dbgprt import dprt
+from dbgprt import dflush, dprt
 from geometry import MIN_DIST
 
 
@@ -78,7 +78,8 @@ class Mill():
         self.out.write(string)
         self.blank = False
         if self.cfg.printGCode:
-            dprt(str.rstrip('\n'))
+            dprt(string.rstrip('\n'))
+            dflush()
 
     def blankLine(self):
         if not self.blank:
@@ -210,7 +211,8 @@ class Mill():
             else:
                 comment = "\t(top)"
             self.write("g0 z %s%s\n" % (z, comment))
-
+            self.out.flush()
+            
     def zDepth(self, zOffset=0.0, comment=""):
         cfg = self.cfg
         zDepth = cfg.top + cfg.depth + zOffset

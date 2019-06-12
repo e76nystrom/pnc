@@ -36,6 +36,7 @@ from geometry import (ARC, CCW, CW, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc, Line,
 from hershey import Font
 from mill import Mill
 from millLines import MillLine
+from offset import Offset
 from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_MAX, O_POINT,
                          O_UPPER_LEFT, O_UPPER_RIGHT)
 
@@ -68,6 +69,7 @@ class Config():
         self.line = None        # millLine class
         self.layers = []        # layers to use in dxf file
         self.materialLayer = 'Material' # material layer
+        self.fixtureLayer = 'Fixture'   # fixture layer
         self.dxfInput = None    # dxf input class
         self.init = False       # ncinit has been called
         self.output = True      # produce output in millPath
@@ -263,6 +265,7 @@ class Config():
             ('setlayers', self.setLayers), \
             ('clrlayers', self.clrLayers), \
             ('materiallayer', self.setMaterialLayer), \
+            ('fixturelayer', self.setFixtureLayer), \
             ('orientation', self.setOrientation), \
 
             ('dxflines', self.dxfLine), \
@@ -297,6 +300,7 @@ class Config():
 
             ('dbg', self.setDbg), \
             ('dbgfile', self.setDbgFile), \
+            ('printgcode', self.setPrintGCode), \
 
             ('if', self.cmdIf), \
             ('endif', self.cmdEndIf), \
@@ -312,6 +316,9 @@ class Config():
             ('runscript', self.runScript), \
         )
         self.addCommands(self.cmds)
+
+        self.offset = Offset(self)
+        self.addCommands(self.offset.cmds)
 
     def addCommands(self, cmds):
         for (cmd, action) in cmds:
@@ -558,6 +565,9 @@ class Config():
             else:
                 self.draw.material(dxfInput.xSize, dxfInput.ySize)
 
+            if len(dxfInput.fixture) != 0:
+                self.draw.materialOutline(dxfInput.fixture)
+
         draw.move((self.xInitial, self.yInitial))
 
         outFile = self.outFileName + ".ngc"
@@ -579,10 +589,10 @@ class Config():
         out.write("(PROBEOPEN %s.prb)\n" % (probeFile))
         tool = self.probeTool
         if tool is not None:
-            out.blankLine()
+            #out.blankLine()
             out.write("G30 (Go to preset G30 location)\n")
             out.write("T %d M6 G43 H %d\n" % (tool, tool))
-            out.blankLine()
+            #out.blankLine()
         return(prb)
 
     def probeOpen(self):
@@ -878,10 +888,13 @@ class Config():
 
     def setOneDxf(self, args):
         self.oneDxf = self.evalBoolArg(args[1])
+        if not self.oneDxf:
+            self.closeDxf(None)
 
     def closeDxf(self, _):
         if self.draw is not None:
             self.draw.close()
+            self.draw = None
 
     def setDbg(self, args):
         self.dbg = self.evalBoolArg(args[1])
@@ -891,6 +904,9 @@ class Config():
         self.dbgFile = os.path.join(self.dirPath, args[1])
         self.dbg = True
         dprtSet(self.dbg, dFile=self.dbgFile)
+
+    def setPrintGCode(self, args):
+        self.printGCode = self.evalBoolArg(args[1])
 
     def drill(self, args=None, op=DRILL, size=None):
         self.ncInit()
@@ -1069,7 +1085,10 @@ class Config():
         self.layers = []
 
     def setMaterialLayer(self, args):
-        self.materialLayer = args[1]
+        self.materialLayer = self.evalStringArg(args[1])
+
+    def setFixtureLayer(self, args):
+        self.fixtureLayer = self.evalStringArg(args[1])
 
     def setOrientation(self, args):
         o = ((O_UPPER_LEFT, "upperleft"), \
@@ -1133,8 +1152,10 @@ class Config():
         dprt("fileName %s" % fileName)
         dprt("baseName %s" % self.baseName)
 
-        self.dxfInput = Dxf()
-        self.dxfInput.open(fileName, self.layers, self.materialLayer)
+        self.dxfInput = Dxf(self)
+        self.materialLayer = "Material"
+        self.fixtureLayer = "Fixture"
+        self.dxfInput.open(fileName)
         self.dxfInput.setOrientation(self.orientation, self.orientationLayer)
 
     def dxfLine(self, args):
@@ -1269,8 +1290,13 @@ class Config():
     def dxfDrill(self, args, op=DRILL):
         dbg = False
         layer = self.getLayer(args)
-        size = None if layer is not None else self.drillSize
-        drill = self.dxfInput.getHoles(layer, size)
+        size = None
+        maxSize = None
+        if len(args) > 2:
+            size = self.evalFloatArg(args[2])
+        if len(args) > 3:
+            maxSize = self.evalFloatArg(args[3])
+        drill = self.dxfInput.getHoles(layer, size, maxSize)
         self.ncInit()
         last = self.mill.last
         for d in drill:
@@ -1310,7 +1336,8 @@ class Config():
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
-        millSize = self.evalFloatArg(args[2]) if len(args) > 2 else None
+        millSize = self.evalFloatArg(args[2]) \
+            if args is not None and len(args) > 2 else None
         for d in drill:
             if d.size < self.holeMin or \
                d.size >= self.holeMax:
@@ -1498,13 +1525,18 @@ class Config():
     def load(self, args, dbg=False):
         if len(args) >= 2:
             moduleName = args[1]
-            name = moduleName + ".py"
-            fileName = os.path.join(getcwd(),  name)
-            if not os.path.isfile(fileName):
-                fileName = os.path.join(self.runPath, name)
-            # module = load_source(moduleName, fileName)
-            loader = importlib.machinery.SourceFileLoader(moduleName, fileName)
-            module = loader.load_module()
+            self.loadModule(moduleName)
+
+    def loadModule(self, moduleName, dbg=True):
+        loaded =  moduleName in sys.modules
+        name = moduleName + ".py"
+        fileName = os.path.join(getcwd(),  name)
+        if not os.path.isfile(fileName):
+            fileName = os.path.join(self.runPath, name)
+        # module = load_source(moduleName, fileName)
+        loader = importlib.machinery.SourceFileLoader(moduleName, fileName)
+        module = loader.load_module()
+        if not loaded:
             if dbg:
                 dprt(dir(module))
             for (name, val) in inspect.getmembers(module, inspect.isclass):
@@ -1517,6 +1549,8 @@ class Config():
                     cmd = "self.%s = c" % (moduleName)
                     exec(cmd)
                     self.addCommands(c.cmds)
+                    break
+        return(module)
 
     def var(self, args):
         expr = r"var\s+(\w+)\s+(.+)"
@@ -1528,10 +1562,6 @@ class Config():
                 val = eval(expression)
                 globals()[var] = val
                 return
-            except NameError:
-                print("nameError in %s" % expression)
-            except SyntaxError:
-                print("syntaxError in %s" % expression)
             except:
                 traceback.print_exc()
             sys.exit()            
@@ -1557,6 +1587,21 @@ class Config():
                 return(None)
             val = int(eval(arg))
             dprt("evalIntArg %s %d" % (arg, val))
+            return(val)
+        except NameError:
+            print("nameError in %s" % arg)
+        except SyntaxError:
+            print("syntaxError in %s" % arg)
+        except:
+            traceback.print_exc()
+        sys.exit()            
+    
+    def evalStringArg(self, arg):
+        try:
+            if arg.lower() == "none":
+                return(None)
+            val = str(arg)
+            dprt("evalStrArg %s %s" % (arg, val))
             return(val)
         except NameError:
             print("nameError in %s" % arg)
@@ -2151,7 +2196,7 @@ class MillPath():
             if cfg.pause:
                 mill.moveZ(cfg.pauseHeight)
                 mill.pause()
-            mill.zTop()
+            # mill.zTop()
 
         while True:
             if self.passCount == 0:
@@ -2282,7 +2327,8 @@ class LinePoints():
              (self.index, self.pIndex[0], self.pIndex[1]))
 
 class Dxf():
-    def __init__(self):
+    def __init__(self, cfg):
+        self.cfg = cfg
         self.dwg = None
         self.modelspace = None
         self.xOffset = 0.0
@@ -2296,33 +2342,44 @@ class Dxf():
         self.xSize = 0.0
         self.ySize = 0.0
 
-    def open(self, inFile, layers, materialLayer):
+    def open(self, inFile):
         self.dwg = dwg = ReadFile(inFile)
         self.modelspace = modelspace = dwg.modelspace()
-        xMax = MIN_VALUE
-        xMin = MAX_VALUE
-        yMax = MIN_VALUE
-        yMin = MAX_VALUE
+        cfg = self.cfg
+        xMax = yMax =  MIN_VALUE
+        xMin = yMin = MAX_VALUE
         self.material = []
-        checkLayers = len(layers) != 0
+        fXMax = fYMax = MIN_VALUE
+        fXMin = fYMin = MAX_VALUE
+        self.fixture = []
+        checkLayers = len(cfg.layers) != 0
         for e in modelspace:
             dxfType = e.dxftype()
             layer = e.get_dxf_attrib("layer")
-            if layer == materialLayer:
+            if layer == cfg.materialLayer:
                 pass
             elif checkLayers:
-                if not layer in layers:
+                if not layer in cfg.layers:
                     continue
             if dxfType == 'LINE':
                 (x0, y0) = e.get_dxf_attrib("start")[:2]
                 (x1, y1) = e.get_dxf_attrib("end")[:2]
+                if layer == cfg.fixtureLayer:
+                    self.fixture.append(((x0, y0), (x1, y1)))
+                    fXMax = max(fXMax, x0, x1)
+                    fXMin = min(fXMin, x0, x1)
+                    fYMax = max(fYMax, y0, y1)
+                    fYMin = min(fYMin, y0, y1)
+                    continue
+                if layer == cfg.materialLayer:
+                    self.material.append(((x0, y0), (x1, y1)))
                 xMax = max(xMax, x0, x1)
                 xMin = min(xMin, x0, x1)
                 yMax = max(yMax, y0, y1)
                 yMin = min(yMin, y0, y1)
-                if layer == materialLayer:
-                    self.material.append(((x0, y0), (x1, y1)))
             elif dxfType == 'CIRCLE':
+                if layer == cfg.fixtureLayer:
+                    continue
                 (xCen, yCen) = e.get_dxf_attrib("center")[:2]
                 radius = e.get_dxf_attrib("radius")
                 xMax = max(xMax, xCen + radius)
@@ -2380,6 +2437,12 @@ class Dxf():
                     yMax = max(y0, yMax)
                     yMin = min(y0, yMin)
 
+        if len(self.fixture) != 0:
+            self.fXMin = fXMin
+            self.fXMax = fXMax
+            self.fYMin = fYMin
+            self.fYMax = fYMax
+
         self.xMin = xMin
         self.xMax = xMax
         self.yMin = yMin
@@ -2400,21 +2463,27 @@ class Dxf():
             
         self.xMul = 1
         self.yMul = 1
+        if len(self.fixture) != 0:
+            (xMin, yMin) = (self.fXMin, self.fYMin)
+            (xMax, yMax) = (self.fXMax, self.fYMax)
+        else:
+            (xMin, yMin) = (self.xMin, self.yMin)
+            (xMax, yMax) = (self.xMax, self.yMax)
         if orientation == O_UPPER_LEFT:
-            self.xOffset = -self.xMin
-            self.yOffset = -self.yMax
+            self.xOffset = -xMin
+            self.yOffset = -yMax
         elif orientation == O_LOWER_LEFT:
-            self.xOffset = -self.xMin
-            self.yOffset = -self.yMin
+            self.xOffset = -xMin
+            self.yOffset = -yMin
         elif orientation == O_UPPER_RIGHT:
-            self.xOffset = -self.xMax
-            self.yOffset = -self.yMax
+            self.xOffset = -xMax
+            self.yOffset = -yMax
         elif orientation == O_LOWER_RIGHT:
-            self.xOffset = -self.xMax
-            self.yOffset = -self.yMin
+            self.xOffset = -xMax
+            self.yOffset = -yMin
         elif orientation == O_CENTER:
-            self.xOffset = -(self.xMin + (self.xMax - self.xMin) / 2)
-            self.yOffset = -(self.yMin + (self.yMax - self.yMin) / 2)
+            self.xOffset = -(xMin + (xMax - xMin) / 2)
+            self.yOffset = -(yMin + (yMax - yMin) / 2)
         elif orientation == O_POINT:
             if layer is not None:
                 for e in self.modelspace:
@@ -2432,13 +2501,6 @@ class Dxf():
 
         dprt("%d xOffset %7.4f yOffset %7.4f\n" % \
                (orientation, self.xOffset, self.yOffset))
-
-        # for i, (start, end) in enumerate(self.material):
-        #     self.material[i] = (self.fix(start), self.fix(end))
-
-        # for (start, end) in self.material:
-        #     dprt("(%7.4f, y %7.4f) (%7.4f, y %7.4f))" % \
-        #         (start[0], start[1], end[0], end[1]))
             
     def fix(self, point):
         (x, y) = point
@@ -2477,8 +2539,14 @@ class Dxf():
                         points.append((xCen, yCen))
         return(points)
 
-    def getHoles(self, layer=None, size=None):
+    def getHoles(self, layer=None, size=None, maxSize=None):
         holes = []
+        if size is not None:
+            if maxSize is None:
+                maxSize = size + MIN_DIST
+                minSize = size - MIN_DIST
+            else:
+                minSize = size
         for e in self.modelspace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
@@ -2488,7 +2556,7 @@ class Dxf():
                     radius = e.get_dxf_attrib("radius")
                     drillSize = radius * 2.0
                     if size is not None:
-                        if abs(size - drillSize) > MIN_DIST:
+                        if drillSize < minSize or drillSize > maxSize:
                             continue
                     found = False
                     for h in holes:
