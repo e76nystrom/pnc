@@ -83,22 +83,23 @@ class MillLine():
             else:                   # oblique slot
                 slot = "oblique"
 
-            cfg.out.write("(millLines %s slot start %6.4f, %6.4f "\
-                          "end %6.4f, %6.4f)\n" % \
-                          (slot, start[0], start[1], end[0], end[1]))
+            mill = self.mill
+            mill.write("(millLines %s slot start %6.4f, %6.4f "\
+                       "end %6.4f, %6.4f)\n" % \
+                       (slot, start[0], start[1], end[0], end[1]))
 
-            self.mill.safeZ()
-            self.mill.move(start)
-            self.mill.moveZ(cfg.pauseHeight)
+            mill.safeZ()
+            mill.move(start)
+            mill.moveZ(cfg.pauseHeight)
             if cfg.pause:
-                self.mill.pause()
+                mill.pause()
             if cfg.test:
-                self.mill.move(end)
+                mill.move(end)
                 if cfg.pause:
-                    self.mill.pause()
+                    mill.pause()
                 continue
-            self.mill.plungeZ(0.0)
-            self.mill.setFeed(cfg.feed)
+            mill.plungeZ(0.0)
+            mill.setFeed(cfg.feed)
             self.passes = int(ceil(abs(cfg.depth / cfg.depthPass)))
 
             # dist = xyDist(start, end)
@@ -189,6 +190,7 @@ class MillLine():
         currentDepth = 0.0
         lastDepth = 0.0
         absDepth = abs(cfg.depth)
+        mill = self.mill
         for passNum in range(0, self.passes):
             if passNum & 1 == 0:
                 p0 = start
@@ -201,7 +203,7 @@ class MillLine():
                 currentDepth -= cfg.depthPass
             else:
                 currentDepth = cfg.depth
-            cfg.out.write("(pass %d depth %6.4f)\n" % (passNum, currentDepth))
+            mill.write("(pass %d depth %6.4f)\n" % (passNum, currentDepth))
 
             if cfg.rampAngle != 0.0:
                 passDepth = currentDepth - lastDepth
@@ -209,12 +211,12 @@ class MillLine():
                 d0 = self.rampDist / 2.0
                 if p1[1] < p0[1]:
                     d0 = -d0
-                self.mill.cut((x0, y0 + d0), lastDepth + passDepth / 2.0)
-                self.mill.cut(p0, currentDepth)
+                mill.cut((x0, y0 + d0), lastDepth + passDepth / 2.0)
+                mill.cut(p0, currentDepth)
             else:
-                self.mill.plungeZ(currentDepth)
+                mill.plungeZ(currentDepth)
 
-            self.mill.cut(p1)
+            mill.cut(p1)
 
             self.calcWidthPasses(currentDepth, lastDepth)
 
@@ -222,15 +224,15 @@ class MillLine():
                 w = 0.0
                 for widthPass in range(self.widthPasses):
                     w += self.widthPerPass
-                    cfg.out.write("(width pass %d width %6.4f)\n" % \
-                                  (widthPass, w))
+                    mill.write("(width pass %d width %6.4f)\n" % \
+                               (widthPass, w))
                     (x0, y0) = p1
                     y1 = p0[1]
-                    self.mill.cut((x0 + w, y0))
-                    self.mill.cut((x0 + w, y1))
-                    self.mill.cut((x0 - w, y1))
-                    self.mill.cut((x0 - w, y0))
-                    self.mill.cut(p1)
+                    mill.cut((x0 + w, y0))
+                    mill.cut((x0 + w, y1))
+                    mill.cut((x0 - w, y1))
+                    mill.cut((x0 - w, y0))
+                    mill.cut(p1)
 
                     if self.debug and self.draw1 is not None:
                         d = self.draw1.d
@@ -261,6 +263,7 @@ class MillLine():
         currentDepth = 0.0
         lastDepth = 0.0
         absDepth = abs(cfg.depth)
+        mill = self.mill
         for passNum in range(0, self.passes):
             if passNum & 1 == 0:
                 p0 = start
@@ -273,7 +276,7 @@ class MillLine():
                 currentDepth -= cfg.depthPass
             else:
                 currentDepth = cfg.depth
-            cfg.out.write("(pass %d depth %6.4f)\n" % (passNum, currentDepth))
+            mill.write("(pass %d depth %6.4f)\n" % (passNum, currentDepth))
 
             if cfg.rampAngle != 0.0:
                 passDepth = currentDepth - lastDepth
@@ -281,12 +284,12 @@ class MillLine():
                 d0 = self.rampDist / 2.0
                 if p1[0] < p0[0]:
                     d0 = -d0
-                self.mill.cut((x0 + d0, y0), lastDepth + passDepth / 2.0)
-                self.mill.cut(p0, currentDepth)
+                mill.cut((x0 + d0, y0), lastDepth + passDepth / 2.0)
+                mill.cut(p0, currentDepth)
             else:
-                self.mill.plungeZ(currentDepth)
+                mill.plungeZ(currentDepth)
 
-            self.mill.cut(p1)
+            mill.cut(p1)
 
             self.calcWidthPasses(currentDepth, lastDepth)
 
@@ -294,15 +297,15 @@ class MillLine():
                 w = 0.0
                 for widthPass in range(self.widthPasses):
                     w += self.widthPerPass
-                    cfg.out.write("(width pass %d width %6.4f)\n" % \
-                                  (widthPass, w))
+                    mill.write("(width pass %d width %6.4f)\n" % \
+                               (widthPass, w))
                     (x0, y0) = p1
                     y1 = p0[1]
-                    self.mill.cut((x0, y0 + w))
-                    self.mill.cut((x0, y1 + w))
-                    self.mill.cut((x0, y1 - w))
-                    self.mill.cut((x0, y0 - w))
-                    self.mill.cut(p1)
+                    mill.cut((x0, y0 + w))
+                    mill.cut((x0, y1 + w))
+                    mill.cut((x0, y1 - w))
+                    mill.cut((x0, y0 - w))
+                    mill.cut(p1)
             lastDepth = currentDepth
 
     def obliqueSlot(self, start, end):
@@ -310,6 +313,7 @@ class MillLine():
         currentDepth = 0.0
         lastDepth = 0.0
         absDepth = abs(cfg.depth)
+        mill = self.mill
         for passNum in range(0, self.passes):
             if passNum & 1 == 0:
                 p0 = start
@@ -323,7 +327,7 @@ class MillLine():
             else:
                 currentDepth = cfg.depth
 
-            cfg.out.write("(pass %d depth %6.4f)\n" % (passNum, currentDepth))
+            mill.write("(pass %d depth %6.4f)\n" % (passNum, currentDepth))
 
             # dprt("currentDepth %0.3f absDepth %0.3f" % \
             #        (currentDepth, absDepth))
@@ -331,12 +335,12 @@ class MillLine():
             if cfg.rampAngle != 0.0:
                 passDepth = currentDepth - lastDepth
                 rampPoint = linePoint(p0, p1, self.rampDist / 2)
-                self.mill.cut(rampPoint, lastDepth + passDepth / 2.0)
-                self.mill.cut(p0, currentDepth)
+                mill.cut(rampPoint, lastDepth + passDepth / 2.0)
+                mill.cut(p0, currentDepth)
             else:
-                self.mill.plungeZ(currentDepth)
+                mill.plungeZ(currentDepth)
 
-            self.mill.cut(p1)
+            mill.cut(p1)
 
             self.calcWidthPasses(currentDepth, lastDepth)
 
@@ -345,17 +349,17 @@ class MillLine():
                 for widthPass in range(self.widthPasses):
                     w += self.widthPerPass
                     (dx, dy) = point90(p0, p1, w)
-                    cfg.out.write("(width pass %d width %6.4f)\n" % \
-                                  (widthPass, w))
+                    mill.write("(width pass %d width %6.4f)\n" % \
+                               (widthPass, w))
                     # print "pass %d" % (widthPass)
                     # dprt("p0 (%7.3f, %7.3f) p1 (%7.3f, %7.3f)" % \
                     #        (p0[0], p0[1], p1[0], p1[1]))
                     # print "w %6.4f dx %7.4f dy %7.4f" % (w, dx, dy)
                     (x0, y0) = p1
                     (x1, y1) = p0
-                    self.mill.cut((x0 + dx, y0 + dy))
-                    self.mill.cut((x1 + dx, y1 + dy))
-                    self.mill.cut((x1 - dx, y1 - dy))
-                    self.mill.cut((x0 - dx, y0 - dy))
-                    self.mill.cut(p1)
+                    mill.cut((x0 + dx, y0 + dy))
+                    mill.cut((x1 + dx, y1 + dy))
+                    mill.cut((x1 - dx, y1 - dy))
+                    mill.cut((x0 - dx, y0 - dy))
+                    mill.cut(p1)
             lastDepth = currentDepth

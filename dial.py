@@ -122,14 +122,14 @@ class Engrave():
                 font.setZOffset(zOffset)
                 
             if xDir:
-                m.out.write("g0 x%7.4f a%7.4f (%d)\n" % (x0, angle, i))
+                m.write("g0 x%7.4f a%7.4f (%d)\n" % (x0, angle, i))
                 m.zDepth()
                 m.cut((x0, y0 + length), draw=False)
                 x = x0 + radians(angle) * radius
                 d.move((x, y0))
                 d.line((x, y0 + length))
             else:
-                m.out.write("g0 y%7.4f a%7.4f (%d)\n" % (y0, angle, i))
+                m.write("g0 y%7.4f a%7.4f (%d)\n" % (y0, angle, i))
                 m.zDepth()
                 m.cut((x0 + length, y0), draw=False)
                 y = y0 + radians(angle) * radius

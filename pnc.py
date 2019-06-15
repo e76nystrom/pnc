@@ -19,6 +19,7 @@ import sys
 # import wx
 # import wx.lib.colourdb
 import traceback
+from collections import namedtuple
 from math import ceil, cos, floor, radians, sin, tan
 from os import getcwd
 
@@ -44,8 +45,10 @@ DRILL = 0
 TAP = 1
 BORE = 2
 
+ToolDef = namedtuple('ToolDef', ['num', 'toolType', 'toolSize', 'comment'])
+
 # print("%s" % (os.environ['TZ'],))
-# os.environ['TZ'] = 'America/New_York'
+# os.environ['TZ'] = 'America/Naew_York'
 # print("%s" % (os.environ['TZ'],))
 
 # dxf arcs are always counter clockwise.
@@ -541,7 +544,7 @@ class Config():
         self.lastY = 0.0
         if self.probe:
             if self.prb is not None:
-                self.prb.out.write("(PROBECLOSE)\n")
+                self.prb.write("(PROBECLOSE)\n")
                 self.prb.close()
                 self.prb = None
             self.probe = False
@@ -585,13 +588,12 @@ class Config():
     def probeInit(self):
         probeFile = self.outFileName + "-prb.ngc"
         self.prb = prb = Mill(self, probeFile, False)
-        out = prb.out
-        out.write("(PROBEOPEN %s.prb)\n" % (probeFile))
+        prb.write("(PROBEOPEN %s.prb)\n" % (probeFile))
         tool = self.probeTool
         if tool is not None:
             #out.blankLine()
-            out.write("G30 (Go to preset G30 location)\n")
-            out.write("T %d M6 G43 H %d\n" % (tool, tool))
+            prb.write("G30 (Go to preset G30 location)\n")
+            prb.write("T %d M6 G43 H %d\n" % (tool, tool))
             #out.blankLine()
         return(prb)
 
@@ -691,12 +693,12 @@ class Config():
         if len(args) >= 4:
             self.zSize = self.evalFloatArg(args[3])
 
-        out = self.mill.out
-        out.write("(material size x %0.3f y %0.3f" % \
-                            (self.xSize, self.ySize))
+        mill = self.mill
+        mill.write("(material size x %0.3f y %0.3f" % \
+                   (self.xSize, self.ySize))
         if self.zSize != 0:
-            out.write(" z %0.3f" % (self.zSize))
-        out.write(")\n")
+            mill.write(" z %0.3f" % (self.zSize))
+        mill.write(")\n")
         self.draw.material(self.xSize, self.ySize)
 
     def setDrillSize(self, args):
@@ -745,10 +747,27 @@ class Config():
 
     def setTool(self, args):
         if len(args) >= 2:
-            self.tool = self.evalIntArg(args[1])
-            match = re.match(r"^[a-zA-z]+ +[0-9]+ +(.*)$", args[0])
+            # match = re.match(r"^[a-zA-z]+ +[0-9]+ +(.*)$", args[0])
+            match = re.match(r"^\w+ +(\w*[\d\w]+)+ *(.*)$", args[0])
+            comment = ""
             if match is not None:
-                self.toolComment = match.group(1)
+                tool = match.group(1)
+                comment = match.group(2)
+                if tool[0].isalpha():
+                    toolDef = eval(tool)
+                    self.tool = int(toolDef.num)
+                    toolType = toolDef.toolType
+                    if toolType == 'm':
+                        self.endMillSize = toolDef.toolSize
+                    elif toolType == 'd':
+                        self.drillSize = toolDef.toolSize
+                    else:
+                        ePrint("invalid tool type")
+                    if len(comment) == 0: 
+                        self.toolComment = toolDef.comment
+                else:
+                    self.tool = int(tool)
+                    self.toolComment = comment
             else:
                 self.toolComment = ""
             if self.mill is not None:
@@ -919,30 +938,29 @@ class Config():
             size = self.drillSize
         self.count += 1
         mill = self.mill
-        out = mill.out
         gMove = "0"
         if abs(mill.last[1] - self.y) < MIN_DIST:
             if self.xOffset != 0:
-                out.write("g0 x %7.4f\n" % (self.x - self.xOffset))
+                mill.write("g0 x %7.4f\n" % (self.x - self.xOffset))
                 gMove = "1"
                 mill.setFeed(self.feed)
-            out.write("g%s x %7.4f\n" % (gMove, self.x))
+            mill.write("g%s x %7.4f\n" % (gMove, self.x))
             mill.last = (self.x, self.y)
         elif abs(mill.last[0] - self.x) < MIN_DIST:
             if self.yOffset != 0:
-                out.write("g0 y %7.4f\n" % (self.y - self.yOffset))
+                mill.write("g0 y %7.4f\n" % (self.y - self.yOffset))
                 gMove = "1"
                 mill.setFeed(self.feed)
-            out.write("g%s y %7.4f\n" % (gMove, self.y))
+            mill.write("g%s y %7.4f\n" % (gMove, self.y))
             mill.last = (self.x, self.y)
         else:
             if mill.last[0] != self.x and mill.last[1] != self.y:
                 if self.xOffset != 0 or self.yOffset != 0:
-                    out.write("g0 x %7.4f y %7.4f\n" % \
-                              (self.x - self.xOffset, self.y - self.yOffset))
+                    mill.write("g0 x %7.4f y %7.4f\n" % \
+                               (self.x - self.xOffset, self.y - self.yOffset))
                     gMove = "1"
                     mill.setFeed(self.feed)
-                out.write("g%s x %7.4f y %7.4f\n" % (gMove, self.x, self.y))
+                mill.write("g%s x %7.4f y %7.4f\n" % (gMove, self.x, self.y))
                 mill.last = (self.x, self.y)
         self.draw.hole((self.x, self.y), size)
         holeCount = "/%d" % (self.holeCount) if self.holeCount is not None \
@@ -959,7 +977,7 @@ class Config():
                 dprt("drill z offset %7.4f" % (offset))
             if self.pause:
                 mill.moveZ(self.pauseHeight)
-                out.write("m0 (pause)\n")
+                mill.write("m0 (pause)\n")
             mill.zTop()
             if self.peckDepth == 0 or self.peckDepth <= self.depth :
                 mill.zDepth(offset, comment=comment)
@@ -977,15 +995,15 @@ class Config():
                         d = self.depth
             mill.retract()
         elif op == TAP:
-            out.write("m0 (pause insert tap)\n")
+            mill.write("m0 (pause insert tap)\n")
             if self.variables:
                 z = "[#%s + #%s]" % (self.topVar, self.depthVar)
             else:
                 z = "%7.4f" % (self.top + self.depth)
-            out.write("g0 z %s\t(%s)\n" % (z, comment))
-            out.write("m0 (pause tap hole)\n")
+            mill.write("g0 z %s\t(%s)\n" % (z, comment))
+            mill.write("m0 (pause tap hole)\n")
             mill.retract()
-            out.write("m0 (pause remove tap)\n")
+            mill.write("m0 (pause remove tap)\n")
         elif op == BORE:
             mill.setSpeed(self.speed)
             mill.zTop()
@@ -1006,12 +1024,12 @@ class Config():
 
     def millSlot(self, p, width, length, comment):
         self.slotNum + 1
-        self.mill.out.write("(%s %2d width %0.3f length %0.3f "\
-                            "at x %0.3f y %0.3f)\n" % \
-                            (comment, self.slotNum, width, length, \
-                             self.x, self.y))
-        self.mill.out.write("(endMill %0.3f depth %0.3f depthPass %0.3f)\n" % \
-                            (self.endMillSize, self.depth, self.depthPass))
+        self.mill.write("(%s %2d width %0.3f length %0.3f "\
+                        "at x %0.3f y %0.3f)\n" % \
+                        (comment, self.slotNum, width, length, \
+                         self.x, self.y))
+        self.mill.write("(endMill %0.3f depth %0.3f depthPass %0.3f)\n" % \
+                        (self.endMillSize, self.depth, self.depthPass))
         seg = []
         seg.append(Line(p[0], p[1]))
         closed = len(p) > 2
@@ -1031,10 +1049,10 @@ class Config():
         width = self.evalFloatArg(args[1])
         length = self.evalFloatArg(args[2])
         # self.slotNum += 1
-        # self.out.write("(xSlot %2d width %0.3f length %0.3f "\
+        # self.mill.write("(xSlot %2d width %0.3f length %0.3f "\
         #               "at x %0.3f y %0.3f)\n" % \
         #               (slotNum, width, length, self.x, self.y))
-        # self.out.write("(endMill %0.3f depth %0.3f depthPass %0.3f)\n" % \
+        # self.mill.write("(endMill %0.3f depth %0.3f depthPass %0.3f)\n" % \
         #           (self.endMillSize, self.depth, self.depthPass))
         if abs(width - self.endMillSize) < MIN_DIST:
             points = ( \
@@ -1056,7 +1074,7 @@ class Config():
         width = self.evalFloatArg(args[1])
         length = self.evalFloatArg(args[2])
         # self.slotNum += 1
-        # self.out.write("(ySlot %2d width %0.3f length %0.3f "\
+        # self.mill.write("(ySlot %2d width %0.3f length %0.3f "\
         #               "at x %0.3f y %0.3f)\n" % \
         #               (self.slotNum, width, length, self.x, self.y))
         if abs(width - self.endMillSize) < MIN_DIST:
@@ -1070,7 +1088,7 @@ class Config():
                        (self.x + width, self.y + length), \
                        (self.x + width, self.y))
         self.millSlot(points, width, length, 'ySlot')
-        # self.out.write("(endMill %0.3f depth %0.3f depthPass %0.3f)\n" % \
+        # self.mill.write("(endMill %0.3f depth %0.3f depthPass %0.3f)\n" % \
         #           (self.endMillSize, self.depth, self.depthPass))
         # ncInit()
         # if self.slot is None:
@@ -1302,11 +1320,11 @@ class Config():
         for d in drill:
             self.holeCount = len(d.loc)
             if op == DRILL:
-                self.mill.out.write("(drill size %6.3f holes %d)\n" % \
-                                    (d.size, self.holeCount))
+                self.mill.write("(drill size %6.3f holes %d)\n" % \
+                                (d.size, self.holeCount))
             elif op == BORE:
-                self.mill.out.write("(bore size %6.3f holes %d)\n" % \
-                                    (d.size, self.holeCount))
+                self.mill.write("(bore size %6.3f holes %d)\n" % \
+                                (d.size, self.holeCount))
             self.count = 0
             dLoc = d.loc
             while len(dLoc) != 0:
@@ -1349,10 +1367,10 @@ class Config():
                        "finishAllowace %6.4f" % \
                        (self.endMillSize, hSize, self.finishAllowance))
                 sys.exit()
-            self.mill.out.write("(drill size %6.3f hole size %6.3f "\
-                                "holes %d)\n" % \
-                                (hSize, size * 2 + self.endMillSize, \
-                                 len(d.loc)))
+            self.mill.write("(drill size %6.3f hole size %6.3f "\
+                            "holes %d)\n" % \
+                            (hSize, size * 2 + self.endMillSize, \
+                             len(d.loc)))
             dLoc = d.loc
             n = 1
             while len(dLoc) != 0:
@@ -1365,8 +1383,8 @@ class Config():
                         index = i
                 loc = dLoc.pop(index)
                 self.draw.hole((loc[0], loc[1]), hSize)
-                self.mill.out.write("(hole %d at %7.4f, %7.4f)\n" % \
-                               (n, loc[0], loc[1]))
+                self.mill.write("(hole %d at %7.4f, %7.4f)\n" % \
+                                (n, loc[0], loc[1]))
                 last = loc
                 # hSize = d.size if millSize is None else millSize
                 # if size <= 0:
@@ -1411,7 +1429,7 @@ class Config():
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
-        ncWrite = self.mill.out.write
+        ncWrite = self.mill.write
         for d in drill:
             dLoc = d.loc
             n = 1
@@ -1884,8 +1902,8 @@ class MillPath():
                 self.currentDepth = self.depth
 
         self.mill.blankLine()
-        self.mill.out.write("(pass %2d depth %7.4f" % \
-                           (self.passNum, self.currentDepth))
+        self.mill.write("(pass %2d depth %7.4f" % \
+                        (self.passNum, self.currentDepth))
 
         dprt("passNum %d lastDepth %6.4f currentDepth %6.4f" % \
               (self.passNum, self.lastDepth, self.currentDepth))
@@ -1909,9 +1927,9 @@ class MillPath():
                     self.lastRamp = self.rampDist
             self.rampDepth = 0.0
 
-            self.mill.out.write(" passDepth %7.4f rampDist %6.4f " \
-                                "millRamp %s" % \
-                                (passDepth, self.rampDist, self.millRamp))
+            self.mill.write(" passDepth %7.4f rampDist %6.4f " \
+                            "millRamp %s" % \
+                            (passDepth, self.rampDist, self.millRamp))
 
             dprt("passDepth %6.4f rampDist %6.4f millRamp %s" % \
                     (passDepth, self.rampDist, self.millRamp))
@@ -2147,11 +2165,10 @@ class MillPath():
                    xyDist(mill.last, path0[0].p0):
                     path0 = reverseSeg(path0)
 
-        out = self.mill.out
         for l in path0:
-            out.write("(")
-            l.prt(out, ")\n")
-        out.write("\n")
+            mill.write("(")
+            l.prt(mill, ")\n")
+        mill.blankLine()
 
         self.calcTabPos(path0, tabPoints)
 
@@ -2196,7 +2213,7 @@ class MillPath():
             if cfg.pause:
                 mill.moveZ(cfg.pauseHeight)
                 mill.pause()
-            # mill.zTop()
+            mill.zTop()
 
         while True:
             if self.passCount == 0:
@@ -2225,10 +2242,10 @@ class MillPath():
             self.calcPassDepth()
             self.calcPassRamp()
             if self.tab:
-                out.write(" tabs %d w %5.3f d %5.3f r %5.3f" % \
+                mill.write(" tabs %d w %5.3f d %5.3f r %5.3f" % \
                           (self.tabs, self.tabWidth, \
                            self.tabDepth, self.tabRamp))
-            out.write(")\n")
+            mill.write(")\n")
 
             if not self.tab and not self.ramp:
                 mill.plungeZ(self.currentDepth)
@@ -2253,7 +2270,7 @@ class MillPath():
                 path0 = reverseSeg(path0)
             self.lastDepth = self.currentDepth
             self.passNum += 1
-        out.write("\n")
+        mill.blankLine()
         # for var, _ in inspect.getmembers(self):
         #     if var.startswith("__"):
         #         continue

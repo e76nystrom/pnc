@@ -294,17 +294,16 @@ class DrillHolder():
         zOffset = 0.0
 
         if cfg.level:
-            out = m.out
-            out.write("\nm5	(stop spindle to probe)\n")
-            out.write("g4 p3\n")
-            out.write("g0 x %7.4f y %7.4f\n" % (x0, y0))
+            m.write("\nm5	(stop spindle to probe)\n")
+            m.write("g4 p3\n")
+            m.write("g0 x %7.4f y %7.4f\n" % (x0, y0))
             m.retract()
-            out.write("g38.2 z%6.4f f%3.1f (probe reference point)\n" %
+            m.write("g38.2 z%6.4f f%3.1f (probe reference point)\n" %
                       (cfg.probeDepth, cfg.probeFeed))
-            out.write("g10 L20 P0 z0.000 (zero z)\n")
+            m.write("g10 L20 P0 z0.000 (zero z)\n")
             m.retract()
-            out.write("m3	(start spindle)\n")
-            out.write("g4 p3\n")
+            m.write("m3	(start spindle)\n")
+            m.write("g4 p3\n")
             
         for (x, y, _, text) in self.holeInfo:
             if len(text) != 0:
@@ -336,7 +335,7 @@ class DrillHolder():
                         ePrint("level data not found")
                     font.setZOffset(zOffset)
 
-                m.out.write("\n(x %7.4f y %7.4f zOffset %6.4f %s)\n" % \
+                m.write("\n(x %7.4f y %7.4f zOffset %6.4f %s)\n" % \
                             (x, y, zOffset, text))
                 font.mill((x, y), text, center=True)
 

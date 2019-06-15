@@ -39,29 +39,29 @@ class Mill():
             #                  os.environ['TZ']))
 
             # self.out = out = open(outFile, 'w', newline='\n')
-            self.out = out = open(outFile, 'w')
+            self.out = open(outFile, 'w')
 
-            out.write("(%s created %s)\n" % \
-                      (outFile, strftime("%m-%d-%Y %H:%M:%S", localtime())))
+            self.write("(%s created %s)\n" % \
+                       (outFile, strftime("%m-%d-%Y %H:%M:%S", localtime())))
 
             if cfg.variables:
-                out.write("#%s = %s	(depth)\n" % (cfg.depthVar, cfg.depth))
-                out.write("#%s = %s	(retract between holes)\n" % \
-                          (cfg.retractVar, cfg.retract))
-                out.write("#%s = %s	(safe z)\n" % \
-                          (cfg.safeZVar, cfg.safeZ))
-                out.write("#%s = %s	(top)\n" % (cfg.topVar, cfg.top))
+                self.write("#%s = %s	(depth)\n" % (cfg.depthVar, cfg.depth))
+                self.write("#%s = %s	(retract between holes)\n" % \
+                           (cfg.retractVar, cfg.retract))
+                self.write("#%s = %s	(safe z)\n" % \
+                           (cfg.safeZVar, cfg.safeZ))
+                self.write("#%s = %s	(top)\n" % (cfg.topVar, cfg.top))
             else:
-                out.write("(%7.4f	depth)\n" % (cfg.depth))
-                out.write("(%7.4f	retract between holes)\n" % \
-                          (cfg.retract))
-                out.write("(%7.4f	safe z)\n" % (cfg.safeZ))
-                out.write("(%7.4f	top)\n" % (cfg.top))
-            out.write("\ng90		(absolute coordinates)\n")
-            out.write("g20		(inch units)\n")
-            out.write("g61		(exact path mode)\n")
-            out.write("g%d		(coordinate system)\n" % \
-                      (cfg.coordinate))
+                self.write("(%7.4f	depth)\n" % (cfg.depth))
+                self.write("(%7.4f	retract between holes)\n" % \
+                           (cfg.retract))
+                self.write("(%7.4f	safe z)\n" % (cfg.safeZ))
+                self.write("(%7.4f	top)\n" % (cfg.top))
+            self.write("\ng90		(absolute coordinates)\n")
+            self.write("g20		(inch units)\n")
+            self.write("g61		(exact path mode)\n")
+            self.write("g%d		(coordinate system)\n" % \
+                       (cfg.coordinate))
             self.setFeed(cfg.feed)
             if cfg.tool is not None:
                 self.toolChange(cfg.tool, cfg.toolComment)
@@ -70,7 +70,7 @@ class Mill():
                 self.move((cfg.xInitial, cfg.yInitial))
                 self.pause()
             else:
-                out.write("\n")
+                self.blankLine()
         else:
             self.toolChange(cfg.tool, cfg.toolComment)
 
@@ -83,11 +83,11 @@ class Mill():
 
     def blankLine(self):
         if not self.blank:
+            self.out.write("\n")
             self.blank = True
-            self.write("\n")
 
     def pause(self):
-        self.out.write("m0 (pause)\n")
+        self.write("m0 (pause)\n")
         self.blankLine()
 
     def toolChange(self, tool, toolComment=""):
@@ -95,11 +95,12 @@ class Mill():
             self.tool = tool
             self.setSpeed(0)
             self.lastZ = 999    # set to invalid z
-            self.out.write("\nG30 (Go to preset G30 location)\n")
+            self.blankLine()
+            self.write("G30 (Go to preset G30 location)\n")
             if len(toolComment) != 0:
                 toolComment = " (" + toolComment + ")"
-            self.out.write("T %d M6 G43 H %d%s\n" % \
-                           (tool, tool, toolComment))
+            self.write("T %d M6 G43 H %d%s\n" % \
+                       (tool, tool, toolComment))
             self.blankLine()
             self.safeZ()
             self.setSpeed(self.speed)
@@ -109,34 +110,33 @@ class Mill():
         self.arcCmd = ('g3', 'g2')[cw]
 
     def setSpeed(self, speed):
-        out = self.out
         cfg = self.cfg
         if speed != 0:
             if speed != self.speed:
                 self.speed = speed
-                out.write("s %0.0f		(set spindle speed)\n" % \
-                          (speed))
+                self.write("s %0.0f		(set spindle speed)\n" % \
+                           (speed))
             if not self.spindleActive:
                 self.spindleActive = True
-                out.write("m3		(start spindle)\n")
+                self.write("m3		(start spindle)\n")
                 if cfg.delay != 0:
-                    out.write("g4 p %0.1f	" \
-                              "(wait for spindle to start)\n\n" % \
-                              (cfg.delay))
+                    self.write("g4 p %0.1f	" \
+                               "(wait for spindle to start)\n\n" % \
+                               (cfg.delay))
         else:
             if self.spindleActive:
                 self.spindleActive = False
                 self.speed = 0
-                out.write("m5	(stop spindle)\n")
+                self.write("m5	(stop spindle)\n")
                 if cfg.delay != 0:
-                    out.write("g4 p %0.1f	" \
-                              "(wait for spindle to stop)\n" % \
-                              (cfg.delay))
+                    self.write("g4 p %0.1f	" \
+                               "(wait for spindle to stop)\n" % \
+                               (cfg.delay))
 
     def setFeed(self, newFeed):
         if newFeed != self.curFeed:
             self.curFeed = newFeed
-            self.out.write("f %s		(set feed rate)\n" % (newFeed))
+            self.write("f %s		(set feed rate)\n" % (newFeed))
 
     def move(self, end, comment=""):
         if self.draw is not None:
@@ -211,7 +211,6 @@ class Mill():
             else:
                 comment = "\t(top)"
             self.write("g0 z %s%s\n" % (z, comment))
-            self.out.flush()
             
     def zDepth(self, zOffset=0.0, comment=""):
         cfg = self.cfg
@@ -275,52 +274,46 @@ class Mill():
         self.last = end
 
     def probe(self, end, feed=1.0, comment=None):
-        out = self.out
         cfg = self.cfg
         string = " (%s)" % comment if comment is not None else ""
             
-        out.write("g0 x%7.4f y%7.4f\n" % end)
-        out.write("g38.2 z%6.4f f%0.1f%s\n" % (cfg.probeDepth, feed, string))
-        out.write("g0 z%6.4f\n" % (cfg.retract))
+        self.write("g0 x%7.4f y%7.4f\n" % end)
+        self.write("g38.2 z%6.4f f%0.1f%s\n" % (cfg.probeDepth, feed, string))
+        self.write("g0 z%6.4f\n" % (cfg.retract))
         self.blankLine()
         self.last = end
 
     def probeSetZ(self, feed=1.0, z=0.00):
-        out = self.out
-        out.write("g38.2 z%6.4f f%0.1f\n" % (self.cfg.probeDepth, feed))
-        out.write("g10 L20 P0 z%7.4f (set z)\n" % (z))
+        self.write("g38.2 z%6.4f f%0.1f\n" % (self.cfg.probeDepth, feed))
+        self.write("g10 L20 P0 z%7.4f (set z)\n" % (z))
         self.curFeed = feed
         self.retract()
 
     def setCoordinate(self, val):
-        out = self.out
-        if out is not None:
-            out.write("g%d\n" % (val))
+        if self.out is not None:
+            self.write("g%d\n" % (val))
 
     def setX(self, coordinate, val):
-        out = self.out
-        if out is not None:
+        if self.out is not None:
             coordinate -= 54
             coordinate += 1
-            out.write("g10 L20 P%d x%7.4f (set x)\n" % (coordinate, val))
+            self.write("g10 L20 P%d x%7.4f (set x)\n" % (coordinate, val))
 
     def setY(self, coordinate, val):
-        out = self.out
-        if out is not None:
+        if self.out is not None:
             coordinate -= 54
             coordinate += 1
-            out.write("g10 L20 P%d y%7.4f (set y)\n" % (coordinate, val))
+            self.write("g10 L20 P%d y%7.4f (set y)\n" % (coordinate, val))
             
     def close(self):
-        out = self.out
-        if out is not None:
+        if self.out is not None:
             if self.spindleActive:
                 self.spindleActive = False
                 self.speed = 0
-                out.write("m5	(stop spindle)\n")
+                self.write("m5	(stop spindle)\n")
             self.parkZ()
             self.move((self.cfg.xPark, self.cfg.yPark))
-            out.write("m2\n")
-            out.close()
+            self.write("m2\n")
+            self.out.close()
             self.out = None
             self.outFile = None

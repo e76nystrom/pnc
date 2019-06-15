@@ -173,7 +173,7 @@ class Font():
             else:
                 a0 -= degrees(atan2(w, radius))
         self.m.retract()
-        self.m.out.write("g0 a%7.4f\n" % (a0))
+        self.m.write("g0 a%7.4f\n" % (a0))
         for b in list(string):
             letter = self.letter[ord(b) - ord(' ')]
             letter.millOnCylinder(self, pt, a0, radius, xDir)
@@ -182,7 +182,7 @@ class Font():
             else:
                 a0 += degrees(atan2(letter.width() * self.scale, radius))
             self.m.retract()
-            self.m.out.write("g0 a%7.4f\n" % (a0))
+            self.m.write("g0 a%7.4f\n" % (a0))
 
 class Letter():
     def __init__(self, r, l, chArray):
