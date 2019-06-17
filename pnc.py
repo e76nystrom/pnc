@@ -100,9 +100,6 @@ class Config():
         self.addArcs = False    # add arcs between line segments
         self.closeOpen = False  # close open path
 
-        self.holeMin = 0.0      # hole milling >= size
-        self.holeMax = MAX_VALUE # hole milling < size
-
         self.xSize = 0.0        # material x size
         self.ySize = 0.0        # material y size
         self.zSize = 0.0
@@ -124,6 +121,9 @@ class Config():
         self.drillExtra = 0.0   # extra drill Depth
         self.peckDepth = 0.0    # peck depth
         self.stepProfile = None # step profile
+        self.millHoleSize = None # size to mill hole
+        self.holeMin = 0.0      # dxf select hole >= size
+        self.holeMax = MAX_VALUE # dxf select hole < size
 
         self.pause = False       # enable pause
         self.pauseCenter = False # pause at center of hole
@@ -201,6 +201,10 @@ class Config():
             ('drillangle', self.setDrillAngle), \
             ('drillextra', self.setDrillExtra), \
             ('peckdepth', self.setPeckDepth), \
+            ('millHolesize', self.setMillHoleSize), \
+            ('holemin', self.setHoleMin), \
+            ('holemax', self.setHoleMax), \
+            ('holerange', self.setHoleRange), \
 
             ('coordinate', self.setCoord), \
             ('variables', self.setVariables), \
@@ -250,9 +254,6 @@ class Config():
             ('endmillsize', self.setEndMillSize), \
             ('finish', self.setFinish), \
             ('finishallowance', self.setFinish), \
-
-            ('holemin', self.setHoleMin), \
-            ('holemax', self.setHoleMax), \
 
             ('tabs', self.setTabs), \
             ('tabwidth', self.setTabWidth), \
@@ -798,6 +799,9 @@ class Config():
     def setEndMillSize(self, args):
         self.endMillSize = self.evalFloatArg(args[1])
 
+    def setMillHoleSize(self, args):
+        self.millHoleSize = self.evalFloatArgs(args[1])
+
     def setHoleMin(self, args):
         if len(args) >= 2:
             self.holeMin = self.evalFloatArg(args[1])
@@ -808,6 +812,18 @@ class Config():
         if len(args) >= 2:
             self.holeMax = self.evalFloatArg(args[1])
         else:
+            self.holeMax = MAX_VALUE
+
+    def setHoleRange(self, args):
+        if len(args) >= 2:
+            self.holeMin = self.evalFloatArg(args[1])
+            if len(args) >= 3:
+                self.holeMax = self.evalFloatArg(args[2])
+            else:
+                self.holeMax = self.holeMin + MIN_DIST
+                self.holeMin -= MIN_DIST
+        else:
+            self.holeMin = 0.0
             self.holeMax = MAX_VALUE
             
     def setDepthPass(self, args):
@@ -1305,16 +1321,15 @@ class Config():
             mp.millPath(path, tabPoints, False)
         self.tabPoints = []
 
+    def resetHoleVars(self):
+        self.holeMin = 0.0
+        self.holeMax = MAX_VALUE
+        self.millHoleSize = None
+
     def dxfDrill(self, args, op=DRILL):
         dbg = False
-        layer = self.getLayer(args)
-        size = None
-        maxSize = None
-        if len(args) > 2:
-            size = self.evalFloatArg(args[2])
-        if len(args) > 3:
-            maxSize = self.evalFloatArg(args[3])
-        drill = self.dxfInput.getHoles(layer, size, maxSize)
+        layer = cfg.getLayer(args)
+        drill = self.dxfInput.getHoles(layer, self.holeMin, self.holeMax)
         self.ncInit()
         last = self.mill.last
         for d in drill:
@@ -1345,22 +1360,20 @@ class Config():
                 last = loc
                 (self.x, self.y) = loc
                 self.drill(None, op, d.size)
+        self.resetHoleVars()
 
     def dxfMillHole(self, args, drill=None):
         if drill is None:
-            layer = self.getLayer(args)
-            size = None if layer is not None else self.drillSize
-            drill = self.dxfInput.getHoles(layer, size)
+            layer = cfg.getLayer(args)
+            drill = self.dxfInput.getHoles(layer, cfg.holeMin, cfg.holeMax)
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
-        millSize = self.evalFloatArg(args[2]) \
-            if args is not None and len(args) > 2 else None
         for d in drill:
             if d.size < self.holeMin or \
                d.size >= self.holeMax:
                 continue
-            hSize = d.size if millSize is None else millSize
+            hSize = d.size if self.millHoleSize is None else self.millHoleSize
             size = (hSize - self.endMillSize - self.finishAllowance) / 2.0
             if size <= 0:
                 ePrint("endmill %6.4f to big for hole %6.4f with "\
@@ -1413,6 +1426,7 @@ class Config():
                 mp.millPath(path, self.tabPoints)
                 n += 1
         self.tabPoints = []
+        self.resetHoleVars()
 
     def getStepProfile(self, args):
         expr = r"^\w+\s+(.*)"
@@ -1425,7 +1439,7 @@ class Config():
     def dxfSteppedHole(self, args, drill=None):
         if drill is None:
             layer = self.getLayer(args)
-            drill = self.dxfInput.getHoles(layer)
+            drill = self.dxfInput.getHoles(layer, cfg.holeMin, cfg.holeMax)
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
@@ -1471,6 +1485,7 @@ class Config():
                     self.mill.move(loc)
                     self.mill.zTop()
                 n += 1
+        self.resetHoleVars()
 
     def dxfTap(self, args):
         self.dxfDrill(args, TAP)
@@ -2556,7 +2571,10 @@ class Dxf():
                         points.append((xCen, yCen))
         return(points)
 
-    def getHoles(self, layer=None, size=None, maxSize=None):
+    def getHoles(self, layer, holeMin, holeMax):
+        cfg = self.cfg
+        size = None
+        maxSize = None
         holes = []
         if size is not None:
             if maxSize is None:
@@ -2572,9 +2590,8 @@ class Dxf():
                     p = self.fix(e.get_dxf_attrib("center")[:2])
                     radius = e.get_dxf_attrib("radius")
                     drillSize = radius * 2.0
-                    if size is not None:
-                        if drillSize < minSize or drillSize > maxSize:
-                            continue
+                    if drillSize < holeMin or drillSize > holeMax:
+                        continue
                     found = False
                     for h in holes:
                         if abs(drillSize - h.size) < MIN_DIST:
