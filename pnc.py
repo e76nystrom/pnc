@@ -551,6 +551,9 @@ class Config():
             self.probe = False
 
     def ncInit(self):
+        mill = self.mill
+        if mill is not None:
+            mill.setCoordinate(self.coordinate)
         if self.init:
             return
         self.init = True
@@ -575,7 +578,6 @@ class Config():
         draw.move((self.xInitial, self.yInitial))
 
         outFile = self.outFileName + ".ngc"
-        mill = self.mill
         if mill is None:
             self.mill = mill = Mill(self, outFile)
         else:
@@ -800,7 +802,7 @@ class Config():
         self.endMillSize = self.evalFloatArg(args[1])
 
     def setMillHoleSize(self, args):
-        self.millHoleSize = self.evalFloatArgs(args[1])
+        self.millHoleSize = self.evalFloatArg(args[1])
 
     def setHoleMin(self, args):
         if len(args) >= 2:
@@ -2180,6 +2182,8 @@ class MillPath():
                    xyDist(mill.last, path0[0].p0):
                     path0 = reverseSeg(path0)
 
+        mill.write("(endMillSize %5.3f finishAllowance %5.3f)\n" % \
+                   (cfg.endMillSize, cfg.finishAllowance))
         for l in path0:
             mill.write("(")
             l.prt(mill, ")\n")
@@ -2216,14 +2220,19 @@ class MillPath():
             if l.type == ARC:
                 dist = xyDist(l.c, mill.last)
                 if dist > (l.r + cfg.endMillSize / 2.0):
-                    mill.retract()
+                    mill.safeZ()
+                    # mill.retract(comment="r1")
+                else:
+                    mill.zTop()
             else:
                 dist = xyDist(p, mill.last)
                 # dprt("millPath dist %7.4f last (%7.4f, %7.4f) "\
                 #      "p (%7.4f, %7.4f)" %\
                 #      (dist, mill.last[0], mill.last[1], p[0], p[1]))
                 if dist > cfg.endMillSize:
-                    mill.retract()
+                    mill.retract(comment="r2")
+                else:
+                    mill.zTop()
             mill.move(p)
             if cfg.pause:
                 mill.moveZ(cfg.pauseHeight)
@@ -2238,7 +2247,7 @@ class MillPath():
             dist = xyDist(p, mill.last)
             if dist > MIN_DIST:
                 if dist > cfg.endMillSize:
-                    mill.retract()
+                    mill.retract(comment="r3")
                 mill.move(p)
                 mill.moveZ(self.lastDepth + cfg.pauseHeight, "moveZ 1")
                 mill.plungeZ(self.lastDepth)

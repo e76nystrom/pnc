@@ -13,6 +13,7 @@ class Mill():
         self.spindleActive = False
         self.speed = 0
         self.tool = None
+        self.coordinate = None
         if outFile is not None:
             self.init(outFile, draw)
 
@@ -62,6 +63,7 @@ class Mill():
             self.write("g61		(exact path mode)\n")
             self.write("g%d		(coordinate system)\n" % \
                        (cfg.coordinate))
+            self.coordinate = cfg.coordinate
             self.setFeed(cfg.feed)
             if cfg.tool is not None:
                 self.toolChange(cfg.tool, cfg.toolComment)
@@ -73,6 +75,16 @@ class Mill():
                 self.blankLine()
         else:
             self.toolChange(cfg.tool, cfg.toolComment)
+
+    def setCoordinate(self, coordinate):
+        if self.coordinate != coordinate:
+            self.coordinate = coordinate
+            self.write("g%d		(coordinate system)\n" % \
+                       (coordinate))
+            self.safeZ()
+            cfg = self.cfg
+            self.move((cfg.xInitial, cfg.yInitial))
+            self.pause()
 
     def write(self, string):
         self.out.write(string)
@@ -162,19 +174,24 @@ class Mill():
                 comment = "\t(%s)" % (comment)
             self.write("g1 z %7.4f%s\n" % (zEnd, comment))
 
-    def retract(self, fast=True):
+    def retract(self, fast=True, comment=None):
         cfg = self.cfg
         retractZ = cfg.top + cfg.retract
         if abs(retractZ - self.lastZ) > MIN_DIST:
             self.lastZ = retractZ
+            if comment is None:
+                comment = "(retract)"
+            else:
+                comment = "(retract %s)" % comment
             if cfg.variables:
                 z = "[#%s + #%s]" % (cfg.topVar, cfg.retractVar)
             else:
                 z = "%7.4f" % (cfg.top + cfg.retract)
-                if fast:
-                    self.write("g0 z %s (retract)\n" % (z))
-                else:
-                    self.write("g1 z %s f %1.1f(retract)\n" % (z, cfg.zFeed))
+            if fast:
+                self.write("g0 z %s %s\n" % (z, comment))
+            else:
+                self.write("g1 z %s f %1.1f (retract)\n" % \
+                           (z, cfg.zFeed, comment))
 
     def safeZ(self):
         cfg = self.cfg
@@ -289,9 +306,9 @@ class Mill():
         self.curFeed = feed
         self.retract()
 
-    def setCoordinate(self, val):
-        if self.out is not None:
-            self.write("g%d\n" % (val))
+    # def setCoordinate(self, val):
+    #     if self.out is not None:
+    #         self.write("g%d\n" % (val))
 
     def setX(self, coordinate, val):
         if self.out is not None:

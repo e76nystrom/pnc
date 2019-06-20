@@ -237,7 +237,7 @@ class corner():
             for i in range(passes):
                 dprt("\npass %2d offset %7.4f\n" % (i, offset))
                 seg2 = createPath(seg1, offset, outside=True, keepIndex=True,
-                                  split=False, dbg=False)[0]
+                                  split=False, dbg=True)[0]
 
                 pathLayer = "%02d-%02d-c-path" % (self.layerNum, i)
                 for l in seg2:
@@ -270,6 +270,8 @@ class corner():
 
                 offset += self.passOffset
 
+            cfg.mill.write("(corner %s)\n" % \
+                           (self.quadrantValues[self.quadrant][0]))
             if self.alternate:
                 finalPath = []
                 lastPoint = None
