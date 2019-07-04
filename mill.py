@@ -104,18 +104,24 @@ class Mill():
 
     def toolChange(self, tool, toolComment=""):
         if tool != self.tool:
+            cfg = self.cfg
             self.tool = tool
             self.setSpeed(0)
             self.lastZ = 999    # set to invalid z
             self.blankLine()
-            self.write("G30 (Go to preset G30 location)\n")
+            self.write("(debug, current tool #<_current_tool>)\n")
+            oVal = cfg.nextOVal()
+            self.write("o%d if [#<_current_tool> ne %d]\n" % (oVal, tool))
+            self.write("G30 z %7.4f (Go to preset G30 location)\n" %\
+                       (cfg.safeZ))
             if len(toolComment) != 0:
                 toolComment = " (" + toolComment + ")"
             self.write("T %d M6 G43 H %d%s\n" % \
                        (tool, tool, toolComment))
+            self.write("o%d endif\n" % (oVal))
             self.blankLine()
             self.safeZ()
-            self.setSpeed(self.speed)
+            self.setSpeed(self.cfg.speed)
 
     def setArcCW(self, cw):
         self.cw = not cw
@@ -140,10 +146,10 @@ class Mill():
                 self.spindleActive = False
                 self.speed = 0
                 self.write("m5	(stop spindle)\n")
-                if cfg.delay != 0:
-                    self.write("g4 p %0.1f	" \
-                               "(wait for spindle to stop)\n" % \
-                               (cfg.delay))
+                # if cfg.delay != 0:
+                #     self.write("g4 p %0.1f	" \
+                #                "(wait for spindle to stop)\n" % \
+                #                (cfg.delay))
 
     def setFeed(self, newFeed):
         if newFeed != self.curFeed:

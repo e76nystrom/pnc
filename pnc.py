@@ -58,6 +58,7 @@ dprt("version %s" % (sys.version))
 class Config():
     def __init__(self):
         geometry.cfg = self     # set config for geometry module
+        self.reSeq = False      # resequence input file
         self.gui = False        # start in gui
         self.error = False      # initialize error flag
         self.mill = None        # Mill class
@@ -182,6 +183,9 @@ class Config():
         self.runPath = os.path.dirname(sys.argv[0])
 
         self.tabInit()
+
+        self.oVal = 100
+        self.oValStack = []
 
         self.cmdAction = {}
         self.cmds = \
@@ -318,6 +322,13 @@ class Config():
             ('rm',  self.remove), \
             ('run', self.runCmd), \
             ('runscript', self.runScript), \
+
+            ('repeat', self.repeat), \
+            ('endr', self.endRepeat), \
+
+            ('component', self.component), \
+            ('operation', self.operation), \
+
         )
         self.addCommands(self.cmds)
 
@@ -394,6 +405,8 @@ class Config():
                         self.linuxCNC = True
                     elif tmp == "g":
                         cfg.gui = True
+                    elif tmp == 'r':
+                        self.reSeq = True
                     elif tmp == 's':
                         self.drawSvg = True
                     elif tmp == 'x':
@@ -428,6 +441,7 @@ class Config():
               " -d           debug\n" \
               " -h           help\n" \
               " -c           linuxcnc format\n" \
+              " -r	     resequenc input file\n" \
               " -s           output svf file\n" \
               " -x           output dxf file\n" \
               " --dbg file   debug output file\n" \
@@ -455,9 +469,46 @@ class Config():
             print("return code %d\n%s\n%s" % (e.returncode, e.cmd, e.output))
             return(pncFile)
 
+    def reSequence(self, file):
+        f = open(file, 'r')
+        outFile = file.replace(".pnc", ".tmp")
+        backupFile = file.replace(".pnc", ".bak")
+        fOut = open(outFile, 'wb')
+        component = 0
+        for line in f:
+            l = line.strip()
+            command = l.split(" ")[0].lower()
+            if command == "component":
+                match = re.match(r"^\w+\s+(\*|\d+)\s+-?\s*(.*)$", l)
+                result = match.groups()
+                compComment = ""
+                if match is not None:
+                    if len(result) >= 2:
+                        compComment = " - " + match.group(2)
+                component += 1
+                line = "component %d%s\n" % (component, compComment)
+                section = 1
+            elif command == "operation":
+                match = re.match(r"^\w+\s+(\*|[\d\.]+)\s+-?\s*(.*)$", l)
+                result = match.groups()
+                opComment = ""
+                if match is not None:
+                    if len(result) >= 2:
+                        opComment = " - " + match.group(2)
+                line = "operation %d.%d%s\n" % \
+                           (component, section, opComment)
+                section += 1
+            fOut.write(str.encode(line))
+        f.close()
+        fOut.close()
+        os.rename(file, backupFile)
+        os.rename(outFile, file)
+
     def open(self):
         self.setupVars()
         for inFile in self.inFile:
+            if self.reSeq:
+                self.reSequence(inFile)
             gppFile = self.gpp(inFile)
             inp = open(gppFile, 'r')
             self.dirPath = os.path.dirname(inFile)
@@ -541,6 +592,7 @@ class Config():
             self.mill.close()
             self.mill = None
             self.mp = None
+            self.oVal = 100
         self.lastX = 0.0
         self.lastY = 0.0
         if self.probe:
@@ -1331,7 +1383,8 @@ class Config():
     def dxfDrill(self, args, op=DRILL):
         dbg = False
         layer = cfg.getLayer(args)
-        drill = self.dxfInput.getHoles(layer, self.holeMin, self.holeMax)
+        drill = self.dxfInput.getHoles(layer, self.holeMin, self.holeMax, \
+                                       dbg=False)
         self.ncInit()
         last = self.mill.last
         for d in drill:
@@ -1505,6 +1558,7 @@ class Config():
         if self.mill is not None:
             self.mill.close()
             self.mill = None
+            self.oVal = 100
         self.mp = None
         self.init = False
 
@@ -1740,6 +1794,72 @@ class Config():
                 ePrint("return code %d\n%s\n%s" % \
                        (e.returncode, e.cmd, e.output))
         os.chdir(currentDir)
+
+    def nextOVal(self):
+        val = self.oVal
+        self.oVal += 10
+        return(val)
+
+    def pushOVal(self, oVal):
+        self.oValStack.append(oVal)
+
+    def popOVal(self):
+        return(self.oValStack.pop())
+
+    def repeat(self, args):
+        self.ncInit()
+        mill = self.mill
+        mill.blankLine()
+        mill.write("#<count> = %d\n" % self.evalIntArg(args[1]))
+        oVal = self.nextOVal()
+        self.pushOVal(oVal)
+        mill.write("o%d repeat [#<count>]\n" % (oVal))
+        mill.blankLine()
+
+    def endRepeat(self, args):
+        mill = self.mill
+        mill.blankLine()
+        mill.safeZ()
+        mill.blankLine()
+        mill.write("#<count> = [#<count> - 1]\n")
+        oVal = self.nextOVal()
+        rptOVal = self.popOVal()
+        mill.write("o%d if [#<count> gt 0]\n" % (oVal))
+        # mill.write(" o%d break\n" % (rptOVal))
+        mill.setSpeed(0)
+        mill.pause()
+        mill.setSpeed(cfg.speed)
+        mill.write("o%d endif\n" % (oVal))
+        mill.write("o%d endrepeat\n" % (rptOVal))
+
+        mill.blankLine()
+
+    def component(self, args):
+        # ^\w+\s+(\*|[\d\.]+)\s+-?\s*([\w ]*)\s*,?\s*(.*)$
+        match = re.match(r"^\w+\s+(\*|\d+)\s+(.*)$", args[0])
+        if match is not None:
+            result = match.groups()
+            self.compNumber = None
+            self.compComment = None
+            if len(result) >= 1:
+                self.compNumber = match.group(1)
+                if self.compNumber == '*':
+                    self.compNumber = None
+                if len(result) >= 2:
+                    self.compComment = match.group(2)
+
+    def operation(self, args):
+        match = re.match(r"^\w+\s+(\*|[\d\.]+)\s+(.*)$", args[0])
+        if match is not None:
+            result = match.groups()
+            self.opNumber = None
+            self.opComment = None
+            if len(result) >= 1:
+                self.opNumber = match.group(1)
+                if self.opNumber == '*':
+                    self.opNumber = None
+                if len(result) >= 2:
+                    self.opComment = match.group(2)
 
 class Drill():
     def __init__(self, size):
@@ -2580,7 +2700,9 @@ class Dxf():
                         points.append((xCen, yCen))
         return(points)
 
-    def getHoles(self, layer, holeMin, holeMax):
+    def getHoles(self, layer, holeMin, holeMax, dbg=False):
+        if dbg:
+            dprt("getHoles holeMin %6.4f holeMax %6.4f" % (holeMin, holeMax))
         cfg = self.cfg
         size = None
         maxSize = None
@@ -2592,13 +2714,18 @@ class Dxf():
             else:
                 minSize = size
         for e in self.modelspace:
-            # dprt("layer %s" % (e.get_dxf_attrib("layer")))
+            dxfType = e.dxftype()
+            if dbg:
+                dprt("layer %s type %s" % \
+                     (e.get_dxf_attrib("layer"), type))
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
-                dxfType = e.dxftype()
                 if dxfType == 'CIRCLE' or dxfType == 'ARC':
                     p = self.fix(e.get_dxf_attrib("center")[:2])
                     radius = e.get_dxf_attrib("radius")
                     drillSize = radius * 2.0
+                    if dbg:
+                        dprt("diameter %6.4f x %7.4f y %7.4f" % \
+                             (drillSize, p[0], p[1]))
                     if drillSize < holeMin or drillSize > holeMax:
                         continue
                     found = False
@@ -2611,6 +2738,9 @@ class Dxf():
                         d = Drill(drillSize)
                         holes.append(d)
                         d.addLoc(p)
+        if dbg:
+            for d in holes:
+                dprt("size %7.4f holes %d" % (d.size, len(d.loc)))
         return(holes)
 
     def getCircles(self, layer=None):
