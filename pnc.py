@@ -45,6 +45,10 @@ DRILL = 0
 TAP = 1
 BORE = 2
 
+IF_DISABLE =        (1 << 0)
+COMPONENT_DISABLE = (1 << 1)
+OPERATION_DISABLE = (1 << 2)
+
 ToolDef = namedtuple('ToolDef', ['num', 'toolType', 'toolSize', 'comment'])
 
 # print("%s" % (os.environ['TZ'],))
@@ -90,6 +94,15 @@ class Config():
         self.orientationLayer = None # layer for orientation point
         self.layer = None       # layer from command line
           
+        self.orientationValues = (\
+            (O_UPPER_LEFT, "upperleft"), \
+            (O_LOWER_LEFT, "lowerleft"), \
+            (O_UPPER_RIGHT, "upperright"), \
+            (O_LOWER_RIGHT, "lowerright"), \
+            (O_CENTER, "center"), \
+            (O_POINT, "point"), \
+        )
+
         self.dbg = False        # debugging output
         self.dbgFile = ""       # debug file
 
@@ -178,6 +191,9 @@ class Config():
         self.outFile = None     # output file from command line
 
         self.ifDisable = False  # if flag
+        self.componentDisable = False
+        self.operationDisable = False
+        self.cmdDisable = 0
         # self.ifStack = []       # stack for nested if
 
         self.runPath = os.path.dirname(sys.argv[0])
@@ -310,9 +326,6 @@ class Config():
             ('dbgfile', self.setDbgFile), \
             ('printgcode', self.setPrintGCode), \
 
-            ('if', self.cmdIf), \
-            ('endif', self.cmdEndIf), \
-
             ('setx', self.setX), \
             ('sety', self.setY), \
 
@@ -326,14 +339,22 @@ class Config():
             ('repeat', self.repeat), \
             ('endr', self.endRepeat), \
 
-            ('component', self.component), \
-            ('operation', self.operation), \
-
         )
         self.addCommands(self.cmds)
 
         self.offset = Offset(self)
         self.addCommands(self.offset.cmds)
+
+        self.specialAction = {}
+        self.specialCmds = \
+        ( \
+            ('if', self.cmdIf), \
+            ('endif', self.cmdEndIf), \
+
+            ('component', self.component), \
+            ('operation', self.operation), \
+        )
+        self.addSpecialCmds(self.specialCmds)
 
     def addCommands(self, cmds):
         for (cmd, action) in cmds:
@@ -342,6 +363,10 @@ class Config():
     def removeCommands(self, cmds):
         for (cmd, _) in cmds:
             del self.cmdAction[cmd.lower()]
+
+    def addSpecialCmds(self, cmds):
+        for (cmd, action) in cmds:
+            self.specialAction[cmd.lower()] = action
 
     def tabInit(self):
         self.tabPoints = []   # tab points
@@ -501,6 +526,7 @@ class Config():
             fOut.write(str.encode(line))
         f.close()
         fOut.close()
+        os.remove(backupFile)
         os.rename(file, backupFile)
         os.rename(outFile, file)
 
@@ -549,9 +575,11 @@ class Config():
                 if len(arg) >= 1:
                     cmd = arg[0].lower()
                     arg[0] = line
-                    if cmd == 'endif':
-                        self.cmdEndIf(arg)
-                    if not self.ifDisable:
+                    if cmd in self.specialAction:
+                        action = self.specialAction[cmd]
+                        action(arg)
+                        continue
+                    if self.cmdDisable == 0:
                         if cmd in self.cmdAction:
                             action = self.cmdAction[cmd]
                             try:
@@ -667,10 +695,11 @@ class Config():
         
     def cmdIf(self, args):
         # self.ifStack.append(self.ifDisable)
-        self.ifDisable = not self.evalBoolArg(args[1])
+        if not self.evalBoolArg(args[1]):
+            self.cmdDisable |= IF_DISABLE
 
     def cmdEndIf(self, _):
-        self.ifDisable = False
+        self.cmdDisable &= ~IF_DISABLE
         # self.ifDisable = ifStack.pop()
 
     def setX(self, args):
@@ -1179,15 +1208,8 @@ class Config():
         self.fixtureLayer = self.evalStringArg(args[1])
 
     def setOrientation(self, args):
-        o = ((O_UPPER_LEFT, "upperleft"), \
-             (O_LOWER_LEFT, "lowerleft"), \
-             (O_UPPER_RIGHT, "upperright"), \
-             (O_LOWER_RIGHT, "lowerright"), \
-             (O_CENTER, "center"), \
-             (O_POINT, "point"), \
-        )
         val = args[1].lower()
-        for (i, x) in o:
+        for (i, x) in self.orientationValues:
             if val == x:
                 self.orientation = i
                 val = None
@@ -1835,8 +1857,9 @@ class Config():
         mill.blankLine()
 
     def component(self, args):
-        # ^\w+\s+(\*|[\d\.]+)\s+-?\s*([\w ]*)\s*,?\s*(.*)$
-        match = re.match(r"^\w+\s+(\*|\d+)\s+(.*)$", args[0])
+        # exp = r"^\w+\s+(\*|\d+)\s+(.*)$"
+        exp = r"^\w+\s+(\*|[\d\.]+)\s+-?\s*([\w \.-]*)\s*,?\s*(.*)$"
+        match = re.match(exp, args[0])
         if match is not None:
             result = match.groups()
             self.compNumber = None
@@ -1847,9 +1870,17 @@ class Config():
                     self.compNumber = None
                 if len(result) >= 2:
                     self.compComment = match.group(2)
+                self.cmdDisable &= ~COMPONENT_DISABLE
+                if len(result) >= 3:
+                    val = match.group(3)
+                    if len(val) > 0:
+                        if not self.evalBoolArg(val):
+                            self.cmdDisable |= COMPONENT_DISABLE
 
     def operation(self, args):
-        match = re.match(r"^\w+\s+(\*|[\d\.]+)\s+(.*)$", args[0])
+        # exp = r"^\w+\s+(\*|[\d\.]+)\s+(.*)$"
+        exp = r"^\w+\s+(\*|[\d\.]+)\s+-?\s*([\w \.-]*)\s*,?\s*(.*)$"
+        match = re.match(exp, args[0])
         if match is not None:
             result = match.groups()
             self.opNumber = None
@@ -1860,6 +1891,12 @@ class Config():
                     self.opNumber = None
                 if len(result) >= 2:
                     self.opComment = match.group(2)
+                self.cmdDisable &= ~OPERATION_DISABLE
+                if len(result) >= 3:
+                    val = match.group(3)
+                    if len(val) > 0:
+                        if not self.evalBoolArg(val):
+                            self.cmdDisable |= OPERATION_DISABLE
 
 class Drill():
     def __init__(self, size):
@@ -2502,8 +2539,13 @@ class Dxf():
         self.yMin = 0.0
         self.xSize = 0.0
         self.ySize = 0.0
+        self.fXMin = MAX_VALUE
+        self.fXMax = MIN_VALUE
+        self.fYMin = MAX_VALUE
+        self.fYMax = MIN_VALUE
 
     def open(self, inFile):
+        self.inFile = inFile
         self.dwg = dwg = ReadFile(inFile)
         self.modelspace = modelspace = dwg.modelspace()
         cfg = self.cfg
@@ -2660,7 +2702,7 @@ class Dxf():
         self.yMin += self.yOffset
         self.yMax += self.yOffset
 
-        dprt("%d xOffset %7.4f yOffset %7.4f\n" % \
+        dprt("%d xOffset %7.4f yOffset %7.4f" % \
                (orientation, self.xOffset, self.yOffset))
             
     def fix(self, point):

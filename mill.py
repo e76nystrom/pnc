@@ -3,7 +3,7 @@ from __future__ import print_function
 from time import localtime, strftime
 
 from dbgprt import dflush, dprt
-from geometry import MIN_DIST
+from geometry import MIN_DIST, MIN_VALUE
 
 
 class Mill():
@@ -44,6 +44,18 @@ class Mill():
 
             self.write("(%s created %s)\n" % \
                        (outFile, strftime("%m-%d-%Y %H:%M:%S", localtime())))
+            self.write("(orientation %s" % \
+                       (cfg.orientationValues[cfg.orientation][1]))
+            dxf = cfg.dxfInput
+            if dxf is not None:
+                x = dxf.xMax - dxf.xMin
+                y = dxf.yMax - dxf.yMin
+                self.write(" %s material %7.4f %7.4f" % (dxf.inFile, x, y))
+                if dxf.fXMax != MIN_VALUE:
+                    x = dxf.fXMax - dxf.fXMin
+                    y = dxf.fYMax - dxf.fYMin
+                    self.write(" fixture %7.4f %7.4f" % (x, y))
+            self.write(")\n")
 
             if cfg.variables:
                 self.write("#%s = %s	(depth)\n" % (cfg.depthVar, cfg.depth))
