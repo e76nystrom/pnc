@@ -18,6 +18,7 @@ class Engrave():
     def setup(self):
         cmds = \
         ( \
+            ('engraveDial', self.engraveDial, True),
             ('letterheight', self.setLetterHeight),
             ('angle', self.setAngle),
             ('ticks', self.setTicks),
@@ -46,7 +47,7 @@ class Engrave():
     def setXDir(self, args):
         self.xDir = self.cfg.evalBoolArg(args[1])
 
-    def engrave(self):
+    def engraveDial(self):
         cfg = self.cfg
         x0 = cfg.x
         y0 = cfg.y

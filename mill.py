@@ -1,10 +1,11 @@
 from __future__ import print_function
 
+import os
+
 from time import localtime, strftime
 
 from dbgprt import dflush, dprt
 from geometry import MIN_DIST, MIN_VALUE
-
 
 class Mill():
     def __init__(self, cfg, outFile, draw=True):
@@ -42,8 +43,14 @@ class Mill():
             # self.out = out = open(outFile, 'w', newline='\n')
             self.out = open(outFile, 'w')
 
+            timeString = "%m-%d-%Y %H:%M:%S"
+            t = strftime(timeString,
+                         localtime(os.path.getmtime(cfg.curInFile)))
+            inFile = os.path.realpath(cfg.curInFile)
+            self.write("(%s modified %s\n" %  (inFile, t))
+
             self.write("(%s created %s)\n" % \
-                       (outFile, strftime("%m-%d-%Y %H:%M:%S", localtime())))
+                       (outFile, strftime(timeString, localtime())))
             self.write("(orientation %s" % \
                        (cfg.orientationValues[cfg.orientation][1]))
             dxf = cfg.dxfInput
@@ -56,6 +63,9 @@ class Mill():
                     y = dxf.fYMax - dxf.fYMin
                     self.write(" fixture %7.4f %7.4f" % (x, y))
             self.write(")\n")
+            if cfg.compNumber is not None:
+                self.write("(component %s%s)\n" % \
+                           (cfg.compNumber, cfg.compComment))
 
             if cfg.variables:
                 self.write("#%s = %s	(depth)\n" % (cfg.depthVar, cfg.depth))
@@ -77,8 +87,7 @@ class Mill():
                        (cfg.coordinate))
             self.coordinate = cfg.coordinate
             self.setFeed(cfg.feed)
-            if cfg.tool is not None:
-                self.toolChange(cfg.tool, cfg.toolComment)
+            self.toolChange(cfg.tool, cfg.toolComment)
             self.safeZ()
             if cfg.homePause:
                 self.move((cfg.xInitial, cfg.yInitial))
@@ -115,8 +124,13 @@ class Mill():
         self.blankLine()
 
     def toolChange(self, tool, toolComment=""):
-        if tool != self.tool:
-            cfg = self.cfg
+        cfg = self.cfg
+        if cfg.opNumber != None:
+            self.blankLine()
+            self.write("(operation %s%s)\n" % \
+                       (cfg.opNumber, cfg.opComment))
+            self.blankLine()
+        if tool is not None and tool != self.tool:
             self.tool = tool
             self.setSpeed(0)
             self.lastZ = 999    # set to invalid z

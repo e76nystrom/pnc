@@ -19,7 +19,7 @@ class Broach():
         self.step = 0.0
         self.cmds = \
         ( \
-          ('broach', self.broach), \
+          ('broach', self.broach, True), \
           ('broachdepth', self.setDepth), \
           ('broachtop', self.setTop), \
           ('broachstart', self.setStart), \

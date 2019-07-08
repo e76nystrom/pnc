@@ -19,7 +19,7 @@ class CircularPocket():
         self.finishPasses = 0
         self.cmds = \
         ( \
-          ('circpocket', self.pocket), \
+          ('circpocket', self.pocket, True), \
           ('circstepover', self.setStepOver), \
           ('circspiral', self.setSpiral), \
           ('circenlarge', self.enlargeHole), \
