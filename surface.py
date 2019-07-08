@@ -17,7 +17,7 @@ class Surface():
         self.yOffset = 0.0
         self.cmds = \
         ( \
-          ('surface', self.surface), \
+          ('surface', self.surface, True), \
           ('surfsize', self.setSurfSize), \
           ('surfoffset', self.setSurfOffset), \
           ('surfstepover', self.setStepOver), \

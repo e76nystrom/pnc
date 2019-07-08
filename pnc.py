@@ -57,6 +57,7 @@ ToolDef = namedtuple('ToolDef', ['num', 'toolType', 'toolSize', 'comment'])
 
 # dxf arcs are always counter clockwise.
 
+dprtSet(True)
 dprt("version %s" % (sys.version))
 
 class Config():
@@ -200,10 +201,16 @@ class Config():
 
         self.tabInit()
 
+        self.compNumber = None
+        self.compCommment = ""
+        self.opNumber = None
+        self.opComment = ""
+
         self.oVal = 100
         self.oValStack = []
 
         self.cmdAction = {}
+        self.gCodeAction = {}
         self.cmds = \
         ( \
             ('xpark', self.parkX), \
@@ -248,10 +255,10 @@ class Config():
             ('loc', self.setLoc), \
             ('xoffset', self.setXOffset), \
             ('yoffset', self.setYOffset), \
-            ('drill', self.drill), \
-            ('bore', self.bore), \
+            ('drill', self.drill, True), \
+            ('bore', self.bore, True), \
 
-            ('pause', self.setPause), \
+            ('pause', self.setPause, True), \
             ('pausecenter', self.setPauseCenter), \
             ('pauseheight', self.setPauseHeight), \
             ('homepause', self.setHomePause), \
@@ -265,8 +272,8 @@ class Config():
             ('width', self.setWidth), \
             ('vbit', self.setVBit), \
 
-            ('xslot', self.xSlot), \
-            ('yslot', self.ySlot), \
+            ('xslot', self.xSlot, True), \
+            ('yslot', self.ySlot, True), \
 
             ('test', self.setTest), \
 
@@ -292,18 +299,18 @@ class Config():
             ('fixturelayer', self.setFixtureLayer), \
             ('orientation', self.setOrientation), \
 
-            ('dxflines', self.dxfLine), \
+            ('dxflines', self.dxfLine, True), \
             ('dxfgetpath', self.dxfPath), \
-            ('dxftab', self.dxfTab), \
+            ('dxftab', self.dxfTab, True), \
             ('dxfpoint', self.dxfPoint), \
-            ('dxfoutside', self.dxfOutside), \
-            ('dxfinside', self.dxfInside), \
-            ('dxfopen', self.dxfOpen), \
-            ('dxfdrill', self.dxfDrill), \
-            ('dxfbore', self.dxfBore), \
-            ('dxfmillhole', self.dxfMillHole), \
-            ('dxfsteppedhole', self.dxfSteppedHole), \
-            ('dxftap', self.dxfTap), \
+            ('dxfoutside', self.dxfOutside, True), \
+            ('dxfinside', self.dxfInside, True), \
+            ('dxfopen', self.dxfOpen, True), \
+            ('dxfdrill', self.dxfDrill, True), \
+            ('dxfbore', self.dxfBore, True), \
+            ('dxfmillhole', self.dxfMillHole, True), \
+            ('dxfsteppedhole', self.dxfSteppedHole, True), \
+            ('dxftap', self.dxfTap, True), \
             ('stepprofile', self.getStepProfile), \
   
             ('close', self.closeFiles), \
@@ -336,37 +343,44 @@ class Config():
             ('run', self.runCmd), \
             ('runscript', self.runScript), \
 
-            ('repeat', self.repeat), \
-            ('endr', self.endRepeat), \
+            ('repeat', self.repeat, True), \
+            ('endr', self.endRepeat, True), \
 
-        )
-        self.addCommands(self.cmds)
-
-        self.offset = Offset(self)
-        self.addCommands(self.offset.cmds)
-
-        self.specialAction = {}
-        self.specialCmds = \
-        ( \
             ('if', self.cmdIf), \
             ('endif', self.cmdEndIf), \
 
             ('component', self.component), \
             ('operation', self.operation), \
         )
-        self.addSpecialCmds(self.specialCmds)
+        self.addCommands(self.cmds)
+
+        self.offset = Offset(self)
+        self.addCommands(self.offset.cmds)
+
 
     def addCommands(self, cmds):
-        for (cmd, action) in cmds:
-            self.cmdAction[cmd.lower()] = action
-
+        for val in cmds:
+            cmd = val[0].lower()
+            action = val[1]
+            gCode = False
+            if len(val) >= 3:
+                gCode = val[2]
+            dprt("cmd %16s gCode %s" % (cmd, gCode))
+            if gCode:
+                self.gCodeAction[cmd] = action
+            else:
+                self.cmdAction[cmd] = action
+                
     def removeCommands(self, cmds):
-        for (cmd, _) in cmds:
-            del self.cmdAction[cmd.lower()]
-
-    def addSpecialCmds(self, cmds):
-        for (cmd, action) in cmds:
-            self.specialAction[cmd.lower()] = action
+        for val in cmds:
+            cmd = val[0].lower()
+            gCode = False
+            if len(val) >= 3:
+                gCode = val[2]
+            if gCode:
+               del  self.gCodeAction[cmd]
+            else:
+               del self.cmdAction[cmd]
 
     def tabInit(self):
         self.tabPoints = []   # tab points
@@ -533,6 +547,7 @@ class Config():
     def open(self):
         self.setupVars()
         for inFile in self.inFile:
+            self.curInFile = inFile
             if self.reSeq:
                 self.reSequence(inFile)
             gppFile = self.gpp(inFile)
@@ -575,35 +590,34 @@ class Config():
                 if len(arg) >= 1:
                     cmd = arg[0].lower()
                     arg[0] = line
-                    if cmd in self.specialAction:
-                        action = self.specialAction[cmd]
-                        action(arg)
-                        continue
-                    if self.cmdDisable == 0:
+                    try:
                         if cmd in self.cmdAction:
                             action = self.cmdAction[cmd]
-                            try:
+                            action(arg)
+                            continue
+                        if self.cmdDisable == 0:
+                            if cmd in self.gCodeAction:
+                                action = self.gCodeAction[cmd]
                                 action(arg)
                                 dflush()
                                 if self.error:
                                     break
-                            # except ValueError:
-                            #     ePrint("Invalid argument line %d %s" % \
-                            #           (self.lineNum, line))
-                            # except IndexError:
-                            #     ePrint("Missing argument line %d %s" % \
-                            #           (self.lineNum, line))
-                            except:
-                                dflush()
-                                dclose()
-                                traceback.print_exc()
-                                inp.close()
-                                break
-                        else:
-                            ePrint("%2d %s" % (self.lineNum, l))
-                            ePrint("invalid cmd %s" % cmd)
-                            sys.exit()
-
+                            else:
+                                ePrint("%2d %s" % (self.lineNum, l))
+                                ePrint("invalid cmd %s" % cmd)
+                                sys.exit()
+                    # except ValueError:
+                    #     ePrint("Invalid argument line %d %s" % \
+                    #           (self.lineNum, line))
+                    # except IndexError:
+                    #     ePrint("Missing argument line %d %s" % \
+                    #           (self.lineNum, line))
+                    except:
+                        dflush()
+                        dclose()
+                        traceback.print_exc()
+                        inp.close()
+                        break
             inp.close()         # close input file
             if gppFile.endswith(".gpp_pnc"):
                 os.remove(gppFile)
@@ -1863,13 +1877,13 @@ class Config():
         if match is not None:
             result = match.groups()
             self.compNumber = None
-            self.compComment = None
+            self.compComment = ""
             if len(result) >= 1:
                 self.compNumber = match.group(1)
                 if self.compNumber == '*':
                     self.compNumber = None
                 if len(result) >= 2:
-                    self.compComment = match.group(2)
+                    self.compComment = " - " + match.group(2)
                 self.cmdDisable &= ~COMPONENT_DISABLE
                 if len(result) >= 3:
                     val = match.group(3)
@@ -1879,7 +1893,7 @@ class Config():
 
     def operation(self, args):
         # exp = r"^\w+\s+(\*|[\d\.]+)\s+(.*)$"
-        exp = r"^\w+\s+(\*|[\d\.]+)\s+-?\s*([\w \.-]*)\s*,?\s*(.*)$"
+        exp = r"^\w+\s+(\*|[\d\.]+)\s+-?\s*([/\w \.-]*)\s*,?\s*(.*)$"
         match = re.match(exp, args[0])
         if match is not None:
             result = match.groups()
@@ -1890,7 +1904,7 @@ class Config():
                 if self.opNumber == '*':
                     self.opNumber = None
                 if len(result) >= 2:
-                    self.opComment = match.group(2)
+                    self.opComment = " - " + match.group(2)
                 self.cmdDisable &= ~OPERATION_DISABLE
                 if len(result) >= 3:
                     val = match.group(3)

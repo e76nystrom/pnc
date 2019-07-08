@@ -14,7 +14,7 @@ class RectPocket():
         self.spiral = True
         self.cmds = \
         ( \
-          ('rectpocket', self.rectPocket), \
+          ('rectpocket', self.rectPocket, True), \
           ('rectstepover', self.setStepOver), \
           ('rectspiral', self.setSpiral), \
           ('roundedpocket', self.roundedPocket), \

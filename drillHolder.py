@@ -38,11 +38,11 @@ class DrillHolder():
 
         self.cmds = \
         ( \
-          ('dhdrillholes', self.millHoles),
-          ('dhlabelholes', self.labelHoles),
+          ('dhdrillholes', self.millHoles, True),
+          ('dhlabelholes', self.labelHoles, True),
           ('dhletterheight', self.setLetterHeight),
           ('dhdxf', self.dxfHolder),
-          ('dhscad', self.scadHolderBase),
+          ('dhscad', self.scadHolderBase, True),
           ('dhmountretract', self.setMountRetract),
           ('dhretract', self.setRetract),
           ('dhgrid', self.setGrid),

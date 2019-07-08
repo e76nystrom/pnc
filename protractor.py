@@ -1,6 +1,5 @@
 from math import cos, radians, sin
 
-
 class Engrave():
     def __init__(self, cfg):
         self.cfg = cfg
@@ -15,11 +14,12 @@ class Engrave():
     def setup(self):
         cmds = \
         (
-            ('letterheight', self.setLetterHeight),
-            ('angle', self.setAngle),
-            ('ticks', self.setTicks),
-            ('startangle', self.setStartAngle),
-            ('radius', self.setRadius),
+            ('prEngrave', self.engrave, True)
+            ('prLetterheight', self.setLetterHeight),
+            ('prAngle', self.setAngle),
+            ('prTicks', self.setTicks),
+            ('prStartangle', self.setStartAngle),
+            ('prRadius', self.setRadius),
         )
         cfg = self.cfg
         for (cmd, action) in cmds:

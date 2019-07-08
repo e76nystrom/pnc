@@ -21,16 +21,18 @@ class Engrave():
             ('lineend', self.setLineEnd), \
             ('offset', self.setOffset), \
             ('probedist', self.setProbeDist), \
-            ('scribelines', self.scribeLines), \
-            ('scribe', self.scribe), \
+            ('scribelines', self.scribeLines, True), \
+            ('scribe', self.scribe, True), \
         )
         dprtSet(True)
 
     def setLineStart(self, args):
-        self.p0 = (self.cfg.evalFloatArg(args[1]), self.cfg.evalFloatArg(args[2]))
+        self.p0 = (self.cfg.evalFloatArg(args[1]), \
+                   self.cfg.evalFloatArg(args[2]))
 
     def setLineEnd(self, args):
-        self.p1 = (self.cfg.evalFloatArg(args[1]), self.cfg.evalFloatArg(args[2]))
+        self.p1 = (self.cfg.evalFloatArg(args[1]), \
+                   self.cfg.evalFloatArg(args[2]))
 
     def setOffset(self, args):
         self.offset = self.cfg.evalFloatArg(args[1])

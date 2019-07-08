@@ -41,7 +41,7 @@ class corner():
         )
         self.cmds = \
         ( \
-          ('corner', self.corner), \
+          ('corner', self.corner, True), \
           ('quadrant', self.setQuadrant), \
           ('corpasscut', self.setPassCut), \
           ('corleadradius' , self.setLead), \

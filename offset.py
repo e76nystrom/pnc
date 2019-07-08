@@ -45,7 +45,7 @@ class Offset():
         self.passNum = 0
         self.cmds = \
         (
-            ('dxfoffset', self.offset), \
+            ('dxfoffset', self.offset, True), \
             ('offsetdist', self.setOffsetDist), \
             ('offsetdir', self.setOffsetDir), \
             ('offsetoutside', self.setOffsetOutside), \

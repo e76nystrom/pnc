@@ -41,7 +41,7 @@ class pocket():
         )
         self.cmds = \
         ( \
-          ('pocket', self.pocket), \
+          ('pocket', self.pocket, True), \
           ('stepover', self.setStepOver), \
           ('pocketarcs', self.pocketArcs), \
           ('pocketdbg', self.pocketDbg), \
