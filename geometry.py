@@ -42,6 +42,20 @@ def newPoint(p, scale=None):
     else:
         return Point(int(round(p[0] * scale)), int(round(p[1] * scale)))
 
+Polar = namedtuple('Polar', ['r', 'theta'])
+
+def polar(p0, p1):
+    dx = p1.x - p0.x
+    dy = p1.y - p0.y
+    theta = atan2(dy, dx)
+    r = hypot(dy, dx)
+    return Polar(r, theta)
+
+def rect(p, angle=0.0):
+    theta = p.theta + angle
+    r = p.r
+    return Point(r * cos(theta), r * sin(theta))
+
 def quadrant(p):
     (x, y) = p
     if x >= 0:
@@ -79,6 +93,10 @@ def fix(a):
     if a >= 360:
         a -= 360
     return(a)
+
+def prtSeg(seg):
+    for l in seg:
+        l.prt()
 
 def translate(p0, p1):
     return((p0[0] - p1[0], p0[1] - p1[1]))
@@ -775,13 +793,21 @@ class Line():
     def colinear(self, l):
         if l.type == ARC:       # if other is an arc
             return False
-
         return orientation(self.p0, self.p1, l.p1) == LINEAR
 
     def onSegment(self, p):
         d0 = xyDist(p, self.p0)
         d1 = xyDist(p, self.p1)
         return abs(self.length - (d0 + d1)) < MIN_DIST
+
+    def offset(self, offset):
+        (x, y) = offset
+        self.p0 = Point(self.p0.x + x, self.p0.y + y)
+        self.p1 = Point(self.p1.x + x, self.p1.y + y)
+
+    def rotate(self, p, theta):
+        self.p0 = rect(polar(p, self.p0), theta)
+        self.p1 = rect(polar(p, self.p1), theta)
 
     def mill(self, mill, zEnd=None, comment=None):
         mill.cut(self.p1, zEnd, comment)
@@ -1268,6 +1294,27 @@ class Arc():
         else:
             return self.a0 > (a-MIN_DIST) or (a+MIN_DIST) > self.a1
     
+    def offset(self, offset):
+        (x, y) = offset
+        self.c = Point(self.c.x + x, self.c.y + y)
+        self.p0 = Point(self.p0.x + x, self.p0.y + y)
+        self.p1 = Point(self.p1.x + x, self.p1.y + y)
+
+    def rotate(self, p, theta):
+        self.c = c = rect(polar(p, self.c), theta)
+        self.p0 = rect(polar(p, self.p0), theta)
+        a0 = degAtan2(self.p0.y - c.y, self.p0.x - c.x)
+
+        self.p1 = rect(polar(p, self.p1), theta)
+        a1 = degAtan2(self.p1.y - c.y, self.p1.x - c.x)
+
+        if not self.swapped:
+            self.a0 = a0
+            self.a1 = a1
+        else:
+            self.a0 = a1
+            self.a1 = a0
+
     def mill(self, mill, zEnd=None, comment=None):
         mill.setArcCW(self.swapped)
         mill.arc(self.p1, self.c, zEnd, comment)
@@ -1975,14 +2022,21 @@ def createPath(seg, dist, outside, tabPoints=None, \
     else:                           # open path
         pFirst = newSeg[0].p0
         pLast = newSeg[-1].p1
-        if xyDist(ref, pLast) < xyDist(ref, pFirst):
-            if dbg:
-                dprt("reverse direction")
-            newSeg = reverseSeg(newSeg)
-        l = newSeg[0]
-        direction = orientation(l.p0, l.p1, ref)
-        if direction == CW:
-            d = -d
+        if ref is not None:
+            if xyDist(ref, pLast) < xyDist(ref, pFirst):
+                if dbg:
+                    dprt("reverse direction")
+                newSeg = reverseSeg(newSeg)
+            l = newSeg[0]
+            direction = orientation(l.p0, l.p1, ref)
+            if direction == CW:
+                d = -d
+        else:
+            l = newSeg[1]       # segment past leadin
+            pMid = l.midPoint(d, True)
+            cross = inside(pMid, newSeg, False)
+            if (cross & 1) != 0:
+                d = -d
 
     if dbg:
         for l in newSeg:

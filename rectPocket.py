@@ -3,14 +3,19 @@ from __future__ import print_function
 from math import ceil, sqrt
 
 from dbgprt import dprt, ePrint
-from geometry import CW, LINE, MIN_DIST, Arc, Line
+from geometry import ARC, CCW, CW, LINE, MIN_DIST, Arc, Line, Point, \
+    newPoint, prtSeg
+from math import asin, atan2, degrees, pi, sqrt
 
+HORIZONTAL = 0
+VERTICAL = 1
 
 class RectPocket():
     def __init__(self, cfg):
         self.cfg = cfg
         dprt("Rect loaded")
         self.stepOver = 0.85
+        self.stepOverPercent = True
         self.spiral = True
         self.cmds = \
         ( \
@@ -18,11 +23,23 @@ class RectPocket():
           ('rectstepover', self.setStepOver), \
           ('rectspiral', self.setSpiral), \
           ('roundedpocket', self.roundedPocket), \
+          ('rectslot', self.rectSlot,), \
+          ('openSlot', self.openSlot,), \
           # ('', self.), \
         )
 
     def setStepOver(self, args):
-        self.stepOver = self.cfg.evalFloatArg(args[1]) / 100.0
+        tmp = args[1].strip()
+        self.stepOverPercent = tmp.endswith('%')
+        if self.stepOverPercent:
+            tmp = tmp[:-1]
+            self.stepOver = self.cfg.evalFloatArg(tmp) / 100.0
+        else:
+            self.stepOver = self.cfg.evalFloatArg(tmp)
+
+    def getStepOver(self):
+        return self.stepOver * self.cfg.endMillSize if self.stepOverPercent \
+            else self.stepOver
 
     def setSpiral(self, args):
         self.spiral = self.cfg.evalBoolArg(args[1])
@@ -60,7 +77,7 @@ class RectPocket():
             x = min(hl0.p0[0], hl0.p1[0])
             y = min(vl0.p0[1], vl0.p1[1])
             self.drawRect(x, y, w, h)
-            stepOver = self.stepOver * cfg.endMillSize
+            stepOver = self.getStepOver()
             self.path = []
             self.index = 0
             prev = None
@@ -92,7 +109,7 @@ class RectPocket():
                 if min(h, w) < cfg.endMillSize + cfg.finishAllowance * 2.0:
                     ePrint("rectPocket rectangle too small for end mill")
                     continue
-                dist = h - 4 * offset + (1 - self.stepOver) * cfg.endMillSize
+                dist = h - 4 * offset + (1 - self.getStepOver())
                 passes = int(ceil(dist / stepOver))
                 stepOver = dist / passes
                 r = cfg.endMillSize / 2.0
@@ -269,3 +286,231 @@ class RectPocket():
                 draw.arc(p2, c1)
                 draw.line(p3)
         self.millPath()
+
+    def rectSlot(self, args):
+        layer = args[1]
+        cfg = self.cfg
+        cfg.ncInit()
+        segments = cfg.dxfInput.getPath(layer)
+        for seg in segments:
+            if len(seg) != 4:
+                ePrint("rectPocket wrong number if sides")
+                continue
+            vert = []
+            horiz = []
+            arc = []
+            for l in seg:
+                if l.type == LINE:
+                    if abs(l.p0[0] - l.p1[0]) < MIN_DIST:
+                        vert.append(l)
+                    elif abs(l.p0[1] - l.p1[1]) < MIN_DIST:
+                        horiz.append(l)
+                elif l.type == ARC:
+                    arc.append(l)
+            if (len(arc) == 2 and \
+                abs(arc[0].r - cfg.endMillSize / 2.0) < MIN_DIST):
+                path = []
+                path.append(Line(arc[0].c, arc[1].c))
+                cfg.mill.last = path[0].p0 # start at beginning
+                mp = cfg.getMillPath()
+                mp.millPath(path, closed=False)
+
+    def openSlot(self, args):
+        layer = args[1]
+        cfg = self.cfg
+        cfg.ncInit()
+        segments = cfg.dxfInput.getPath(layer)
+        for seg in segments:
+            vert = []
+            horiz = []
+            for l in seg:
+                if l.type == LINE:
+                    if abs(l.p0.x - l.p1.x) < MIN_DIST:
+                        vert.append(l)
+                    elif abs(l.p0.y - l.p1.y) < MIN_DIST:
+                        horiz.append(l)
+                    else:
+                        pass
+                else:
+                    pass
+            if (len(horiz) == 2) and (len(vert) == 2):
+                dxf = cfg.dxfInput
+                xMin = dxf.xMin
+                xMax = dxf.xMax
+                direction = None
+                match = 0
+                ySum = 0.0
+                for l in horiz:
+                    p0 = l.p0
+                    p1 = l.p1
+                    ySum += p0.y
+                    if p0.x > p1.x:
+                        (p0, p1) = (p1, p0)
+                    if abs(p0.x - xMin) < MIN_DIST and \
+                       abs(p1.x - xMax) < MIN_DIST:
+                        match += 1
+                if match == 2:
+                    direction = HORIZONTAL
+                    l = horiz[0]
+                    slotLen = abs(l.p1.x - l.p0.x)
+                    slotWidth = abs(horiz[1].p0.y - l.p0.y)
+                    offset = (xMin, ySum / 2)
+                    rotateAngle = 0
+                else:
+                    yMin = dxf.yMin
+                    yMax = dxf.yMax
+                    xSum = 0.0
+                    for l in vert:
+                        p0 = l.p0
+                        p1 = l.p1
+                        xSum += p0.x
+                        if p0.y > p1.y:
+                            (p0, p1) = (p1.y, p0.y)
+                        if abs(p0.y - yMin) < MIN_DIST and \
+                           abs(p1.y - yMax) < MIN_DIST:
+                            match += 1
+                    if match == 2:
+                        direction = VERTICAL
+                        l = vert[0]
+                        slotLen = abs(l.p1.x - l.p0.x)
+                        slotWidth = abs(vert[1].p0.y - l.p0.y)
+                        offset = (xSum / 2, yMin)
+                        rotateAngle = pi / 2.0
+                    else:
+                        continue
+            else:
+                continue
+
+            r = cfg.endMillSize / 2.0
+            h = slotWidth / 2.0 - r - cfg.finishAllowance
+            stepOver = self.getStepOver()
+            millDist = slotLen + r
+            passes = int(ceil(millDist / stepOver))
+            stepOver = millDist / passes
+
+            path = self.path2(r, h, stepOver, passes, CCW)
+
+            for l in path:
+                if rotateAngle != 0:
+                    l.rotate(Point(0, 0), rotateAngle)
+                l.offset(offset)
+            cfg.mill.last = path[0].p0 # start at beginning
+            mp = cfg.getMillPath()
+            mp.millPath(path, closed=False)
+
+    def path0(self, r, h, stepOver, passes, direction=None):
+        x = -r
+        y = h
+        path = []
+        for i in range(passes):
+            if (i & 1) == 0:
+                c = Point(x, y - stepOver)
+                l = Arc(c, stepOver, 0, 90, direction=CW)
+                path.append(l)
+                p1 = l.p1
+                x = p1.x
+                y = -h
+                l = Line(p1, Point(x, y))
+                path.append(l)
+            else:
+                c = Point(x, y + stepOver)
+                l = Arc(c, stepOver, 270, 0, direction=CCW)
+                path.append(l)
+                p1 = l.p1
+                x = p1.x
+                y = h
+                l = Line(p1, Point(x, y))
+                path.append(l)
+        return path
+
+    def path1(self, r, h, stepOver, passes, direction=CW):
+        r0 = stepOver       # milling arc radius
+        r1 = r0 / 3         # return radius
+        a = degrees(pi / 2 + 2 * atan2(r0 - r1, r0))
+        x = -r
+        y = 0
+        c0 = Point(x, y)
+        path = []
+        if direction == CW:
+            arc0 = Arc(c0, r0, 270, 90, direction=CW)
+            for i in range(passes):
+                path.append(arc0)
+                c1 = Point(x, arc0.p1.y + r1)
+                arc1 = Arc(c1, r1, a, 270, direction=CW)
+                path.append(arc1)
+                x += r0
+                c0 = Point(x, y)
+                arc0 = Arc(c0, r0, 270, a, direction=CW)
+                l = Line(arc1.p1, arc0.p0)
+                path.append(l)
+        else:
+            a = 360 - a
+            arc0 = Arc(c0, r0, 270, 90, direction=CCW)
+            for i in range(passes):
+                path.append(arc0)
+                c1 = Point(x, arc0.p1.y - r1)
+                arc1 = Arc(c1, r1, 90, a, direction=CCW)
+                path.append(arc1)
+                x += r0
+                c0 = Point(x, y)
+                arc0 = Arc(c0, r0, a, 90, direction=CCW)
+                l = Line(arc1.p1, arc0.p0)
+                path.append(l)         
+        return path
+
+    def path2(self, r, h, stepOver, passes, direction=CW):
+        r0 = stepOver       # milling arc radius
+        r1 = r0 / 3         # return radius
+        centerVDist = 2 * h - (r0 + r1)
+        centerDist = sqrt(centerVDist * centerVDist + r0 * r0)
+        a0 = atan2(centerVDist, r0)
+        a1 = asin((r0 - r1) / centerDist)
+        a = degrees(pi / 2 + a0 + a1)
+        h0 = h - r0
+        path = []
+        x = -r
+        y = 0
+        if direction == CW:
+            c0 = Point(x, h0)
+            arc0 = Arc(c0, r0, 0, 90, direction=CW)
+            for i in range(passes):
+                path.append(arc0)
+                p0 = arc0.p1
+                l = Line(p0, Point(p0.x, -h0))
+                path.append(l)
+                c1 = Point(x, -h0)
+                l = Arc(c1, r0, 270, 0, direction=CW)
+                path.append(l)
+                c2 = Point(x, -h0 - r0 + r1)
+                arc1 = Arc(c2, r1, a, 270, direction=CW)
+                path.append(arc1)
+                x += r0
+                c0 = Point(x, h0)
+                arc0 = Arc(c0, r0, 0, a, direction=CW)
+                l = Line(arc1.p1, arc0.p0)
+                path.append(l)
+        else:
+            a = 360 - a
+            c0 = Point(x, -h0)
+            arc0 = Arc(c0, r0, 270, 0, direction=CCW)
+            for i in range(passes):
+                path.append(arc0)
+                p0 = arc0.p1
+                l = Line(p0, Point(p0.x, h0))
+                path.append(l)
+                c1 = Point(x, h0)
+                l = Arc(c1, r0, 0, 90, direction=CCW)
+                path.append(l)
+                c2 = Point(x, h0 + r0 - r1)
+                arc1 = Arc(c2, r1, 90, a, direction=CCW)
+                path.append(arc1)
+                x += r0
+                c0 = Point(x, -h0)
+                arc0 = Arc(c0, r0, a, 0, direction=CCW)
+                l = Line(arc1.p1, arc0.p0)
+                path.append(l)
+        return path
+                     
+            
+            
+            

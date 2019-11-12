@@ -365,7 +365,7 @@ class Config():
             gCode = False
             if len(val) >= 3:
                 gCode = val[2]
-            dprt("cmd %16s gCode %s" % (cmd, gCode))
+            # dprt("cmd %16s gCode %s" % (cmd, gCode))
             if gCode:
                 self.gCodeAction[cmd] = action
             else:
@@ -662,12 +662,12 @@ class Config():
         dxfInput = self.dxfInput
         if dxfInput is not None:
             if len(dxfInput.material) != 0:
-                self.draw.materialOutline(dxfInput.material)
+                draw.materialOutline(dxfInput.material)
             else:
-                self.draw.material(dxfInput.xSize, dxfInput.ySize)
+                draw.material(dxfInput.xSize, dxfInput.ySize)
 
             if len(dxfInput.fixture) != 0:
-                self.draw.materialOutline(dxfInput.fixture)
+                draw.materialOutline(dxfInput.fixture)
 
         draw.move((self.xInitial, self.yInitial))
 
@@ -1395,17 +1395,18 @@ class Config():
             if xyDist(seg[0].p0, seg[-1].p1) < MIN_DIST:
                 ePrint("dxfOpen - segment is closed skipping")
                 continue
+            dprt()
             l = seg[0].extend(d, True)
             seg.insert(0, l)
             l = seg[-1].extend(d, False)
             seg.append(l)
-            if len(self.points) > 0:
-                (path, tabPoints) \
-                    = createPath(seg, dist, False, self.tabPoints, False, \
-                                 self.points[0], addArcs=self.addArcs)
-            else:
-                path = seg
-                tabPoints = None
+            points = self.points[0] if len(self.points) > 0 else None
+            (path, tabPoints) \
+                = createPath(seg, dist, False, self.tabPoints, False, \
+                             points, addArcs=self.addArcs)
+            # else:
+            #     path = seg
+            #     tabPoints = None
             for l in path:
                 l.prt()
             mp.millPath(path, tabPoints, False)
@@ -2750,10 +2751,10 @@ class Dxf():
             #     continue
             dxfType = e.dxftype()
             if dxfType == 'MTEXT':
-                with e.edit_data() as string:
-                    if layer in string.text:
-                        (xCen, yCen) = self.fix(e.get_dxf_attrib("insert")[:2])
-                        points.append((xCen, yCen))
+                tmp = e.text
+                if layer in tmp:
+                    (xCen, yCen) = self.fix(e.get_dxf_attrib("insert")[:2])
+                    points.append((xCen, yCen))
         return(points)
 
     def getHoles(self, layer, holeMin, holeMax, dbg=False):

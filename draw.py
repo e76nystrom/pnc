@@ -346,7 +346,8 @@ class Draw():
         else:
             if not layer in self.definedLayers:
                 self.definedLayers[layer] = True
-                self.d.add_layer(layer, color=self.color, lineweight=0)
+                if self.d is not None:
+                    self.d.add_layer(layer, color=self.color, lineweight=0)
         last = self.last
         self.circle(p, d / 2.0, layer)
         if txt is not None:
