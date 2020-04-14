@@ -3,8 +3,8 @@ from __future__ import print_function
 from math import ceil, sqrt
 
 from dbgprt import dprt, ePrint
-from geometry import ARC, CCW, CW, LINE, MIN_DIST, Arc, Line, Point, \
-    newPoint, prtSeg
+from geometry import ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, \
+    Arc, Line, Point, newPoint, prtSeg, reverseSeg, xyDist
 from math import asin, atan2, degrees, pi, sqrt
 
 HORIZONTAL = 0
@@ -292,9 +292,10 @@ class RectPocket():
         cfg = self.cfg
         cfg.ncInit()
         segments = cfg.dxfInput.getPath(layer)
+        millSeg = []
         for seg in segments:
             if len(seg) != 4:
-                ePrint("rectPocket wrong number if sides")
+                ePrint("rectPocket wrong number of sides")
                 continue
             vert = []
             horiz = []
@@ -311,9 +312,31 @@ class RectPocket():
                 abs(arc[0].r - cfg.endMillSize / 2.0) < MIN_DIST):
                 path = []
                 path.append(Line(arc[0].c, arc[1].c))
-                cfg.mill.last = path[0].p0 # start at beginning
-                mp = cfg.getMillPath()
-                mp.millPath(path, closed=False)
+                millSeg.append(path)
+                
+        last = cfg.mill.last
+        mp = cfg.getMillPath()
+        while len(millSeg):
+            minDist = MAX_VALUE
+            index = None
+            for i, path in enumerate(millSeg):
+                dist0 = xyDist(last, path[0].p0)
+                dist1 = xyDist(last, path[-1].p1)
+                if dist0 < dist1:
+                    dist = dist0
+                    swap = False
+                else:
+                    dist = dist1
+                    swap = True
+                if dist < minDist:
+                    minDist = dist
+                    minSwap = swap
+                    index = i
+
+            path = millSeg.pop(index)
+            if swap:
+                path = reverseSeg(path, False)
+            mp.millPath(path, closed=False)
 
     def openSlot(self, args):
         layer = args[1]

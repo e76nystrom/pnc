@@ -47,7 +47,7 @@ class Mill():
             t = strftime(timeString,
                          localtime(os.path.getmtime(cfg.curInFile)))
             inFile = os.path.realpath(cfg.curInFile)
-            self.write("(%s modified %s\n" %  (inFile, t))
+            self.write("(%s modified %s)\n" %  (inFile, t))
 
             self.write("(%s created %s)\n" % \
                        (outFile, strftime(timeString, localtime())))

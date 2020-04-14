@@ -27,7 +27,7 @@ lCount = 0
 
 # lineIndex = 0
 
-Point = namedtuple('Point', ['x', 'y'])
+#Point = namedtuple('Point', ['x', 'y'])
 
 # class Point:
 #     def __init__(self, x, y):

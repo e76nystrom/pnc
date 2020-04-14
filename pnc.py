@@ -32,6 +32,7 @@ import geometry
 from dbgprt import dclose, dflush, dprt, dprtSet, ePrint
 from draw import Draw
 from geometry import (ARC, CCW, CW, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc, Line,
+                      newPoint,
                       combineArcs, createPath, inside, offset, oStr, pathDir,
                       pathLength, reverseSeg, rotateMinDist, xyDist)
 from hershey import Font
@@ -48,6 +49,16 @@ BORE = 2
 IF_DISABLE =        (1 << 0)
 COMPONENT_DISABLE = (1 << 1)
 OPERATION_DISABLE = (1 << 2)
+
+ST_XMIN = 0
+ST_XMAX = 1
+ST_YMIN = 2
+ST_YMAX = 3
+
+DIR_XLT = 0
+DIR_XGT = 1
+DIR_YLT = 2
+DIR_YGT = 3
 
 ToolDef = namedtuple('ToolDef', ['num', 'toolType', 'toolSize', 'comment'])
 
@@ -344,6 +355,7 @@ class Config():
             ('runscript', self.runScript), \
 
             ('repeat', self.repeat, True), \
+            ('repeatcheck', self.repeatCheck, True), \
             ('endr', self.endRepeat, True), \
 
             ('if', self.cmdIf), \
@@ -351,6 +363,9 @@ class Config():
 
             ('component', self.component), \
             ('operation', self.operation), \
+
+            ('***component', self.component), \
+            ('+++operation', self.operation), \
         )
         self.addCommands(self.cmds)
 
@@ -505,7 +520,8 @@ class Config():
                 dprt(result)
             return(gppFile)
         except subprocess.CalledProcessError as e:
-            print("return code %d\n%s\n%s" % (e.returncode, e.cmd, e.output))
+            print("return code %d\n%s\n%s" % \
+                  (e.returncode, e.cmd, e.output))
             return(pncFile)
 
     def reSequence(self, file):
@@ -517,30 +533,33 @@ class Config():
         for line in f:
             l = line.strip()
             command = l.split(" ")[0].lower()
-            if command == "component":
-                match = re.match(r"^\w+\s+(\*|\d+)\s+-?\s*(.*)$", l)
+            if command == "***component":
+                match = re.match(r"^\**\w+\s+(\*|\d+)\s+-?\s*(.*)$", l)
                 result = match.groups()
                 compComment = ""
                 if match is not None:
                     if len(result) >= 2:
                         compComment = " - " + match.group(2)
                 component += 1
-                line = "component %d%s\n" % (component, compComment)
+                line = "***component %d%s\n" % (component, compComment)
                 section = 1
-            elif command == "operation":
-                match = re.match(r"^\w+\s+(\*|[\d\.]+)\s+-?\s*(.*)$", l)
+            elif command == "+++operation":
+                match = re.match(r"\+*\w+\s+(\*|[\d\.]+)\s+-?\s*(.*)$", l)
                 result = match.groups()
                 opComment = ""
                 if match is not None:
                     if len(result) >= 2:
                         opComment = " - " + match.group(2)
-                line = "operation %d.%d%s\n" % \
+                line = "+++operation %d.%d%s\n" % \
                            (component, section, opComment)
                 section += 1
             fOut.write(str.encode(line))
         f.close()
         fOut.close()
-        os.remove(backupFile)
+        try:
+            os.remove(backupFile)
+        except FileNotFoundError:
+            pass
         os.rename(file, backupFile)
         os.rename(outFile, file)
 
@@ -760,9 +779,9 @@ class Config():
     def getLocation(self, args, result=None):
         if result is None:
             result = [0.0, 0.0, 0.0]
-        self.reLoc = (r"^.*? +([xyzXYZ]) *([a-zA-Z0-9\(\)\.\-]+) " \
-                      r"*([xyzXYZ]*) *([a-zA-Z0-9\(\)\.\-]*)" \
-                      r" *([xyzXYZ]*) *([a-zA-Z0-9\(\)\.\-]*)")
+        self.reLoc = (r"^.*? +([xyzXYZ])\s*([a-zA-Z0-9\(\)\.\-]+)\s*" \
+                      r"([xyzXYZ]*)\s*([a-zA-Z0-9\(\)\.\-]*)\s*" \
+                      r"([xyzXYZ]*)\s*([a-zA-Z0-9\(\)\.\-]*)")
         match = re.match(self.reLoc, args[0])
         if match is not None:
             groups = len(match.groups())
@@ -774,7 +793,15 @@ class Config():
                     break
                 if i > groups:
                     break
-                val = self.evalFloatArg(match.group(i))
+                if match.group(i) == 'cur':
+                    if axis == 'x':
+                        val = self.mill.last[0]
+                    elif axis == 'y':
+                        val = self.mill.last[1]
+                    elif axis == 'z':
+                        val = self.mill.lastZ
+                else:
+                    val = self.evalFloatArg(match.group(i))
                 i += 1
                 if axis == 'x':
                     result[0] = val
@@ -1377,14 +1404,66 @@ class Config():
             mp.millPath(path, tabPoints)
         self.tabPoints = []
 
+    def openSetup(self, args):
+        startList = ("xmin", "xmax", "ymin", "ymax")
+        dirList = ("xlt", "xgt", "ylt", "ygt")
+        if len(args) < 4:
+            return False
+        start = args[2].lower()
+        self.startType = None
+        for i, val in enumerate(startList):
+            if start == val:
+                self.startType = i
+                break
+        direction = args[3].lower()
+        self.dirType = None
+        for i, val in enumerate(dirList):
+            if direction == val:
+                self.dirType = i
+                break
+        return True
+
+    def openPoint(self, seg, dist):
+        startType = self.startType
+        p0 = seg[0].p0
+        p1 = seg[-1].p1
+        reverse = False
+        if startType == ST_XMIN:
+            if p0.x > p1.x:
+                reverse = True
+        elif startType == ST_XMAX:
+            if p0.x < p1.x:
+                reverse = True
+        elif startType == ST_YMIN:
+            if p0.y > p1.y:
+                reverse = True
+        elif startType == ST_YMAX:
+            if p0.y < p1.Y:
+                reverse = True
+        if reverse:
+            seg = reverseSeg(seg)
+        p = seg[0].p0
+        dirType = self.dirType
+        if dirType == DIR_XLT:
+            p = newPoint((p.x - dist, p.y))
+        elif dirType == DIR_XGT:
+            p = newPoint((p.x + dist, p.y))
+        elif dirType == DIR_YLT:
+            p = newPoint((p.x, p.y - dist))
+        elif dirType == DIR_YGT:
+            p = newPoint((p.x, p.y + dist))
+        return p
+
     def dxfOpen(self, args):
         layer = self.getLayer(args)
         dist = self.endMillSize / 2.0 + self.finishAllowance
         d = self.endMillSize / 2.0 + 0.125
         self.segments = self.dxfInput.getPath(layer)
-        # self.points = self.dxfInput.getPoints(layer)
-        self.points = self.dxfInput.getLabel(layer)
         if len(self.segments) == 0:
+            return
+        # self.points = self.dxfInput.getPoints(layer)
+        # self.points = self.dxfInput.getLabel(layer)
+        if not self.openSetup(args):
             return
         self.ncInit()
         mp = self.getMillPath()
@@ -1400,10 +1479,12 @@ class Config():
             seg.insert(0, l)
             l = seg[-1].extend(d, False)
             seg.append(l)
-            points = self.points[0] if len(self.points) > 0 else None
+            # points = self.points[0] if len(self.points) > 0 else None
+            point = self.openPoint(seg, dist)
+            self.draw.drawX(point)
             (path, tabPoints) \
                 = createPath(seg, dist, False, self.tabPoints, False, \
-                             points, addArcs=self.addArcs)
+                             point, addArcs=self.addArcs)
             # else:
             #     path = seg
             #     tabPoints = None
@@ -1426,6 +1507,7 @@ class Config():
         last = self.mill.last
         for d in drill:
             self.holeCount = len(d.loc)
+            print("holes %d" % (self.holeCount))
             if op == DRILL:
                 self.mill.write("(drill size %6.3f holes %d)\n" % \
                                 (d.size, self.holeCount))
@@ -1843,6 +1925,9 @@ class Config():
     def popOVal(self):
         return(self.oValStack.pop())
 
+    def curOVal(self):
+        return(self.oValStack[-1])
+    
     def repeat(self, args):
         self.ncInit()
         mill = self.mill
@@ -1850,25 +1935,57 @@ class Config():
         mill.write("#<count> = %d\n" % self.evalIntArg(args[1]))
         oVal = self.nextOVal()
         self.pushOVal(oVal)
-        mill.write("o%d repeat [#<count>]\n" % (oVal))
+        mill.write("o%d while [#<count> gt 0]\n" % (oVal))
         mill.blankLine()
 
-    def endRepeat(self, args):
+    def repeatCheck(self, args):
         mill = self.mill
         mill.blankLine()
         mill.safeZ()
         mill.blankLine()
-        mill.write("#<count> = [#<count> - 1]\n")
         oVal = self.nextOVal()
-        rptOVal = self.popOVal()
-        mill.write("o%d if [#<count> gt 0]\n" % (oVal))
-        # mill.write(" o%d break\n" % (rptOVal))
+        rptOVal = self.curOVal()
+        # mill.write("o%d if [#<count> gt 0]\n" % (oVal))
         mill.setSpeed(0)
+        mill.blankLine()
+        mill.write("#<count> = [#<count> - 1]\n")
+        mill.write("o%d if [#<count> le 0]\n" % (oVal))
+        mill.write(" o%d break\n" % (rptOVal))
+        mill.write("o%d endif\n" % (oVal))
+        mill.blankLine()
         mill.pause()
         mill.setSpeed(cfg.speed)
-        mill.write("o%d endif\n" % (oVal))
-        mill.write("o%d endrepeat\n" % (rptOVal))
+        mill.blankLine()
 
+    def endRepeat(self, args):
+        mill = self.mill
+        # mill.blankLine()
+        # mill.safeZ()
+        # mill.blankLine()
+        # mill.write("#<count> = [#<count> - 1]\n")
+        # oVal = self.nextOVal()
+        # rptOVal = self.popOVal()
+        # mill.write("o%d if [#<count> gt 0]\n" % (oVal))
+        # mill.setSpeed(0)
+        # mill.pause()
+        # mill.setSpeed(cfg.speed)
+        # mill.write("o%d endif\n" % (oVal))
+        mill.blankLine()
+        mill.safeZ()
+        mill.blankLine()
+        oVal = self.nextOVal()
+        rptOVal = self.curOVal()
+        # mill.write("o%d if [#<count> gt 0]\n" % (oVal))
+        mill.setSpeed(0)
+        mill.blankLine()
+        mill.write("#<count> = [#<count> - 1]\n")
+        mill.write("o%d if [#<count> le 0]\n" % (oVal))
+        mill.write(" o%d break\n" % (rptOVal))
+        mill.write("o%d endif\n" % (oVal))
+        mill.blankLine()
+        mill.pause()
+        mill.setSpeed(cfg.speed)
+        mill.write("o%d endwhile\n" % (rptOVal))
         mill.blankLine()
 
     def component(self, args):
@@ -2855,7 +2972,7 @@ class Dxf():
             linNum += 1
         return(objects)
     
-    def getPath(self, layer, circle=False, dbg=False, rand=False):
+    def getPath(self, layer, circle=False, dbg=True, rand=False):
         if dbg:
             dprt("getPath %s" % (layer))
         # find everything that matches layer
@@ -2863,7 +2980,7 @@ class Dxf():
         entities = []
         for e in self.modelspace:
             dxfType = e.dxftype()
-            if False and dbg:
+            if True and dbg:
                 dprt("dxfType %-10s layer %s" % \
                      (dxfType, e.get_dxf_attrib("layer")))
             if layer != e.get_dxf_attrib("layer"):
