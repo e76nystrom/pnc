@@ -16,7 +16,7 @@ import random
 import re
 import subprocess
 import sys
-# import wx
+import wx
 # import wx.lib.colourdb
 import traceback
 from collections import namedtuple
@@ -1990,7 +1990,7 @@ class Config():
 
     def component(self, args):
         # exp = r"^\w+\s+(\*|\d+)\s+(.*)$"
-        exp = r"^\w+\s+(\*|[\d\.]+)\s+-?\s*([\w \.-]*)\s*,?\s*(.*)$"
+        exp = r"^\**\w+\s+(\*|[\d\.]+)\s+-?\s*([\w \.-]*)\s*,?\s*(.*)$"
         match = re.match(exp, args[0])
         if match is not None:
             result = match.groups()
@@ -2011,7 +2011,7 @@ class Config():
 
     def operation(self, args):
         # exp = r"^\w+\s+(\*|[\d\.]+)\s+(.*)$"
-        exp = r"^\w+\s+(\*|[\d\.]+)\s+-?\s*([/\w \.-]*)\s*,?\s*(.*)$"
+        exp = r"^\+*\w+\s+(\*|[\d\.]+)\s+-?\s*([/\w \.-]*)\s*,?\s*(.*)$"
         match = re.match(exp, args[0])
         if match is not None:
             result = match.groups()
@@ -3466,17 +3466,37 @@ class Dxf():
     #     #            (start[0], start[1], end[0], end[1]))
     #     return line
 
-# class MainFrame(wx.Frame): 
-#     def __init__(self, parent, title): 
-#         super(MainFrame, self).__init__(parent, title = title)
-#         self.Maximize(True)
-#         self.InitUI() 
-#         # colors = wx.lib.colourdb.getColourList()
-#         # for line in colors:
-#         #     print line
-#         # dflush()
+class MainFrame(wx.Frame): 
+    def __init__(self, parent, title): 
+        super(MainFrame, self).__init__(parent, title = title)
+        # self.Maximize(True)
+        self.Bind(wx.EVT_CLOSE, self.onClose)
+        self.InitUI() 
+
+    def onClose(self, event):
+        self.Destroy()
+
+        # colors = wx.lib.colourdb.getColourList()
+        # for line in colors:
+        #     print line
+        # dflush()
          
-#     def InitUI(self): 
+    def InitUI(self): 
+        panel = wx.Panel(self)
+
+        self.sizerV = sizerV = wx.BoxSizer(wx.VERTICAL)
+
+        panel.SetSizer(sizerV)
+
+        sizerH = wx.BoxSizer(wx.HORIZONTAL)
+
+        txt = wx.StaticText(panel, -1, "Test")
+        sizerH.Add(txt, flag=wx.ALL|wx.ALIGN_CENTER_VERTICAL, border=2)
+
+        sizerV.Add(sizerH, flag=wx.CENTER|wx.ALL, border=2)
+
+        self.sizerV.Fit(self)
+
 #         global cfg, inFile
 #         self.zoom = False
 #         self.left = None
@@ -3484,7 +3504,7 @@ class Dxf():
 #         self.Centre() 
 #         cfg.open(inFile)
 #         self.Bind(wx.EVT_LEFT_UP, self.OnMouseEvent)
-#         self.Show(True)
+        self.Show(True)
 
 #     def OnMouseEvent(self, e):
 #         x = e.GetX()
@@ -3518,9 +3538,17 @@ cfg = Config()
 cfg.parseCmdLine()
 
 if cfg.gui:
-    pass
-    # ex = wx.App() 
-    # MainFrame(None,'Drawing demo') 
-    # ex.MainLoop()
+
+    if False:
+        app = wx.App() 
+        window = wx.Frame(None, title = "wxPython Frame", size = (300,200)) 
+        panel = wx.Panel(window) 
+        label = wx.StaticText(panel, label = "Hello World", pos = (100,50)) 
+        window.Show(True) 
+        app.MainLoop()
+    else:
+        ex = wx.App() 
+        MainFrame(None,'Drawing demo') 
+        ex.MainLoop()
 else:
     cfg.open()
