@@ -115,7 +115,7 @@ class DrillHolder():
 
         self.mountSize = 0.125
         self.xMount = (0.1875, 2)
-        self.yMount = (0.1875, 3)
+        self.yMount = (0.25, 3)
 
         self.clearance = 0.001
 
@@ -218,7 +218,11 @@ class DrillHolder():
             cfg.retract = self.mountRetract
         else:
             cfg.retract = cfg.safeZ
+        holeMin = cfg.holeMin
+        holeMax = cfg.holeMax
         cfg.dxfMillHole(None, holes)
+        cfg.holeMin = holeMin
+        cfg.holeMax = holeMax
         
         holes = []
         i = 0

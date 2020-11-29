@@ -942,7 +942,13 @@ class Config():
         if len(args) >= 2:
             self.holeMin = self.evalFloatArg(args[1])
             if len(args) >= 3:
-                self.holeMax = self.evalFloatArg(args[2])
+                val = args[2]
+                if val.startswith("+-"):
+                    val = self.evalFloatArg(val[2:])
+                    self.holeMax = self.holeMin + val
+                    self.holeMin -= val
+                else:
+                    self.holeMax = self.evalFloatArg(args[2])
             else:
                 self.holeMax = self.holeMin + MIN_DIST
                 self.holeMin -= MIN_DIST
@@ -1599,6 +1605,7 @@ class Config():
                         a0 += step
                 mp.millPath(path, self.tabPoints)
                 n += 1
+            pass
         self.tabPoints = []
         self.resetHoleVars()
 
