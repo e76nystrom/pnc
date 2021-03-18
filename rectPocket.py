@@ -233,6 +233,11 @@ class RectPocket():
             w = float(cfg.evalFloatArg(args[1]))
         if len(args) >= 3:
             h = float(cfg.evalFloatArg(args[2]))
+        self.pocket(x, y, w, h)
+
+    def pocket(self, x, y, w, h):
+        cfg = self.cfg
+        draw = cfg.draw
         self.path = []
         self.index = 0
         if h < w:
@@ -249,7 +254,6 @@ class RectPocket():
             self.addLineSeg(p0, p1)
             self.addArcSeg(c1, r0, 270, 90)
             self.addLineSeg(p2, p3)
-            draw = cfg.draw
             if draw is not None:
                 p0 = (x - w0, y - r)
                 p1 = (x + w0, y - r)
@@ -274,7 +278,6 @@ class RectPocket():
             self.addLineSeg(p0, p1)
             self.addArcSeg(c1, r, 0, 180)
             self.addLineSeg(p2, p3)
-            draw = cfg.draw
             if draw is not None:
                 p0 = (x + r, y - h0)
                 p1 = (x + r, y + h0)
@@ -308,12 +311,32 @@ class RectPocket():
                         horiz.append(l)
                 elif l.type == ARC:
                     arc.append(l)
-            if (len(arc) == 2 and \
-                abs(arc[0].r - cfg.endMillSize / 2.0) < MIN_DIST):
-                path = []
-                path.append(Line(arc[0].c, arc[1].c))
-                millSeg.append(path)
-                
+                    
+            if len(arc) == 2:
+                if abs(arc[0].r - cfg.endMillSize / 2.0) < MIN_DIST:
+                    path = []
+                    path.append(Line(arc[0].c, arc[1].c))
+                    millSeg.append(path)
+                else:
+                    a0 = arc[0]
+                    a1 = arc[1]
+                    if len(vert) == 2:
+                        x = a0.p0.x
+                        if a0.c.y > a1.c.y:
+                            (a0, a1) = (a1, a0)
+                        y = a0.c.y + (a1.c.y - a0.c.y) / 2
+                        w = abs(a0.p0.x - a0.p1.x)
+                        h = abs(a0.c.y - a1.c.y)
+                        self.pocket(x, y, w, h)
+                    elif len(horiz) == 2:
+                        if a0.c.x > a1.c.y:
+                            (a0, a1) = (a1, a0)
+                        x = a0.c.x + (a1.c.x - a0.c.x) / 2
+                        y = a0.p0.y
+                        w = abs(a0.c.x - a1.c.x)
+                        h = abs(a0.p0.y - a1.p1.y)
+                        self.pocket(x, y, w, h)
+            
         last = cfg.mill.last
         mp = cfg.getMillPath()
         while len(millSeg):
