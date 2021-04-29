@@ -105,7 +105,7 @@ class Config():
         self.orientation = None # default orientation
         self.orientationLayer = None # layer for orientation point
         self.layer = None       # layer from command line
-          
+
         self.orientationValues = (\
             (O_UPPER_LEFT, "upperleft"), \
             (O_LOWER_LEFT, "lowerleft"), \
@@ -137,7 +137,7 @@ class Config():
         self.xInitial = 0.0     # x initial location
         self.yInitial = 0.0     # y initial location
         self.zInitial = 1.5     # z initial location
-        
+
         self.xOffset = 0.0      # drill x approach offset
         self.yOffset = 0.0      # drill y approach offset
         self.x = 0.0            # drill x location
@@ -323,7 +323,7 @@ class Config():
             ('dxfsteppedhole', self.dxfSteppedHole, True), \
             ('dxftap', self.dxfTap, True), \
             ('stepprofile', self.getStepProfile), \
-  
+
             ('close', self.closeFiles), \
             ('outputfile', self.outputFile), \
 
@@ -385,7 +385,7 @@ class Config():
                 self.gCodeAction[cmd] = action
             else:
                 self.cmdAction[cmd] = action
-                
+
     def removeCommands(self, cmds):
         for val in cmds:
             cmd = val[0].lower()
@@ -505,7 +505,7 @@ class Config():
               " --probe      generate probe data" \
         )
         sys.exit()
-        
+
     def gpp(self, pncFile):
         if platform.system() == 'Windows':
             runDir = os.path.dirname(os.path.abspath(__file__))
@@ -725,7 +725,7 @@ class Config():
         except IOError:
             ePrint("probe data file %s not found" % (self.probeData))
         return(None)
-        
+
     def cmdIf(self, args):
         # self.ifStack.append(self.ifDisable)
         if not self.evalBoolArg(args[1]):
@@ -748,7 +748,7 @@ class Config():
         mill = self.mill
         if mill is not None:
             mill.setY(coordinate, yVal)
-        
+
     def parkX(self, args):
         self.xPark = self.evalFloatArg(args[1])
 
@@ -775,7 +775,7 @@ class Config():
         result = self.getLocation(args, [self.xInitial, \
                                          self.yInitial, self.zInitial])
         (self.xInitial, self.yInitial, self.zInitial) = result
-        
+
     def getLocation(self, args, result=None):
         if result is None:
             result = [0.0, 0.0, 0.0]
@@ -810,7 +810,7 @@ class Config():
                 elif axis == 'z':
                     result[2] = val
         return(result)
-                    
+
     def setSize(self, args):
         self.ncInit()
         self.xSize = self.evalFloatArg(args[1])
@@ -834,7 +834,7 @@ class Config():
 
     def setDrillExtra(self, args):
         self.drillExtra = self.evalFloatArg(args[1])
-        
+
     def setPeckDepth(self, args):
         self.peckDepth = -abs(self.evalFloatArg(args[1]))
 
@@ -888,7 +888,7 @@ class Config():
                         self.drillSize = toolDef.toolSize
                     else:
                         ePrint("invalid tool type")
-                    if len(comment) == 0: 
+                    if len(comment) == 0:
                         self.toolComment = toolDef.comment
                 else:
                     self.tool = int(tool)
@@ -955,7 +955,7 @@ class Config():
         else:
             self.holeMin = 0.0
             self.holeMax = MAX_VALUE
-            
+
     def setDepthPass(self, args):
         self.depthPass = abs(self.evalFloatArg(args[1]))
 
@@ -1044,7 +1044,7 @@ class Config():
 
     def setPauseHeight(self, args):
         self.pauseHeight = self.evalFloatArg(args[1])
-        
+
     def setDrawDxf(self, args):
         self.drawDxf = self.evalBoolArg(args[1])
 
@@ -1156,7 +1156,7 @@ class Config():
             mill.zDepth()
             mill.setSpeed(0)
             mill.retract()
-            
+
         mill.blankLine()
 
     def bore(self, args):
@@ -1355,7 +1355,7 @@ class Config():
                 dprt("%2d p %7.4f, %7.4f" % (i, p[0], p[1]))
                 # cfg.draw.drawX(p, "t%d" % (i))
             dprt()
-        
+
     def dxfOutside(self, args):
         layer = self.getLayer(args)
         offset = self.endMillSize / 2 + self.finishAllowance
@@ -1779,7 +1779,7 @@ class Config():
                 return
             except:
                 traceback.print_exc()
-            sys.exit()            
+            sys.exit()
 
     def evalFloatArg(self, arg):
         try:
@@ -1794,7 +1794,7 @@ class Config():
             ePrint("syntaxError in %s" % arg)
         except:
             traceback.print_exc()
-        sys.exit()            
+        sys.exit()
 
     def evalIntArg(self, arg):
         try:
@@ -1809,8 +1809,8 @@ class Config():
             print("syntaxError in %s" % arg)
         except:
             traceback.print_exc()
-        sys.exit()            
-    
+        sys.exit()
+
     def evalStringArg(self, arg):
         try:
             if arg.lower() == "none":
@@ -1824,8 +1824,8 @@ class Config():
             print("syntaxError in %s" % arg)
         except:
             traceback.print_exc()
-        sys.exit()            
-    
+        sys.exit()
+
     def evalBoolArg(self, arg):
         try:
             if arg.lower() == "none":
@@ -1839,7 +1839,7 @@ class Config():
             print("syntaxError in %s" % arg)
         except:
             traceback.print_exc()
-        sys.exit()            
+        sys.exit()
 
     def evalListArg(self, arg):
         try:
@@ -1854,7 +1854,7 @@ class Config():
             print("syntaxError in %s" % arg)
         except:
             traceback.print_exc()
-        sys.exit()            
+        sys.exit()
 
     def setProbe(self, args):
         self.probe = self.evalBoolArg(args[1])
@@ -1871,7 +1871,7 @@ class Config():
     def setLevel(self, args):
         self.probeData = args[1]
         self.level = True
-        
+
     def remove(self, args):
         expr = r"^\w+\s+(.*)"
         m = re.match(expr, args[0])
@@ -1934,7 +1934,7 @@ class Config():
 
     def curOVal(self):
         return(self.oValStack[-1])
-    
+
     def repeat(self, args):
         self.ncInit()
         mill = self.mill
@@ -2114,7 +2114,7 @@ class MillPath():
         else:
             passes = int(ceil(tmp))
         self.passCount = passes
-        
+
         if self.cfg.evenDepth:
             self.depthPass = self.absDepth / passes
 
@@ -2143,7 +2143,7 @@ class MillPath():
         self.tabRampClean = []
         self.tabNum = 0
         self.tabState = T_START
-        
+
         tabPos = self.tabPos
         if self.tabs != 0 or tabPos is not None:
             if self.cfg.alternate:
@@ -2386,7 +2386,7 @@ class MillPath():
                     break
             if self.passLoc >= self.totalLength:
                 break
-        
+
         self.tabState = tabState
 
     def tabRampSeg(self, l, comment):
@@ -2404,7 +2404,7 @@ class MillPath():
         if abs(self.currentDepth -
                (self.lastDepth - self.tabRampDepth)) > MIN_DIST:
             self.mill.plungeZ(self.currentDepth)
-            
+
         for l in self.tabRampClean:
             l.prt()
             l.mill(self.mill, None, "trc1")
@@ -2440,7 +2440,7 @@ class MillPath():
                         # dprt("%d %d dp %7.4f dTab %7.4f p %7.4f, %7.4f" % \
                         #       (j, i, dp, dTab, p[0], p[1]))
                         i += 1
-                        
+
                 totalLength += l.length
             dprt("%d totalLength %7.4f" % (i, totalLength))
 
@@ -2634,7 +2634,7 @@ class LinePoints():
         self.pIndex = [-1, -1]
         self.l = l
         self.index = l.index
-        
+
     def add(self, p, end):
         self.p[end] = p
         self.pIndex[end] = p.index
@@ -2652,7 +2652,7 @@ class LinePoints():
              "to p1 %2d l0 %2d l1 %2d" % \
              (self.index, p0.index, p0.lIndex[0], p0.lIndex[1], \
               p1.index, p1.lIndex[0], p1.lIndex[1]))
-        
+
     def swap(self):
         self.l.swap()
         self.p = [self.p[1], self.p[0]]
@@ -2798,11 +2798,11 @@ class Dxf():
     def setOrientation(self, orientation=0, layer=None):
         # dprt("\nmin (%7.4f, y %7.4f) max (%7.4f, y %7.4f)\n" % \
         #       (self.xMin, self.yMin, self.xMax, self.yMax))
-              
+
         # for (start, end) in self.material:
         #     dprt("(%7.4f, y %7.4f) (%7.4f, y %7.4f))" % \
         #         (start[0], start[1], end[0], end[1]))
-            
+
         self.xMul = 1
         self.yMul = 1
         if len(self.fixture) != 0:
@@ -2843,7 +2843,7 @@ class Dxf():
 
         dprt("%d xOffset %7.4f yOffset %7.4f" % \
                (orientation, self.xOffset, self.yOffset))
-            
+
     def fix(self, point):
         (x, y) = point
         # x = int(x * 10000) / 10000.0
@@ -2935,7 +2935,7 @@ class Dxf():
                     radius = e.get_dxf_attrib("radius")
                     circles.append((p, 2*radius))
         return(circles)
-    
+
     def getObjects(self, layer=None):
         objects = []
         linNum = 0
@@ -2978,7 +2978,7 @@ class Dxf():
             objects.append(l0)
             linNum += 1
         return(objects)
-    
+
     def getPath(self, layer, circle=False, dbg=True, rand=False):
         if dbg:
             dprt("getPath %s" % (layer))
@@ -3033,7 +3033,7 @@ class Dxf():
             dprt()
 
         # remove duplicates
-        
+
         i = 0
         remove = False
         while i < len(entities):
@@ -3234,7 +3234,7 @@ class Dxf():
             for l0 in entities:
                 l0.prt()
             dprt()
-                            
+
             for p in points:
                 p.prt()
             dprt()
@@ -3242,7 +3242,7 @@ class Dxf():
             for lPt in linePoints:
                 lPt.prt()
             dprt()
-                            
+
         segments = []
 
         for index in range(len(entities)):
@@ -3312,7 +3312,7 @@ class Dxf():
             dflush()
 
         return(segments)
-            
+
     def getLines(self, layer, uniCode=False):
         line = []
         lineNum = 0
@@ -3473,12 +3473,12 @@ class Dxf():
     #     #            (start[0], start[1], end[0], end[1]))
     #     return line
 
-class MainFrame(wx.Frame): 
-    def __init__(self, parent, title): 
+class MainFrame(wx.Frame):
+    def __init__(self, parent, title):
         super(MainFrame, self).__init__(parent, title = title)
         # self.Maximize(True)
         self.Bind(wx.EVT_CLOSE, self.onClose)
-        self.InitUI() 
+        self.InitUI()
 
     def onClose(self, event):
         self.Destroy()
@@ -3487,8 +3487,8 @@ class MainFrame(wx.Frame):
         # for line in colors:
         #     print line
         # dflush()
-         
-    def InitUI(self): 
+
+    def InitUI(self):
         panel = wx.Panel(self)
 
         self.sizerV = sizerV = wx.BoxSizer(wx.VERTICAL)
@@ -3507,8 +3507,8 @@ class MainFrame(wx.Frame):
 #         global cfg, inFile
 #         self.zoom = False
 #         self.left = None
-#         self.Bind(wx.EVT_PAINT, self.OnPaint) 
-#         self.Centre() 
+#         self.Bind(wx.EVT_PAINT, self.OnPaint)
+#         self.Centre()
 #         cfg.open(inFile)
 #         self.Bind(wx.EVT_LEFT_UP, self.OnMouseEvent)
         self.Show(True)
@@ -3524,17 +3524,17 @@ class MainFrame(wx.Frame):
 #         # self.tc.setZoomOffset(self.zoom, self.offset)
 #         self.Refresh()
 
-#     def OnPaint(self, e): 
-#         dc = wx.PaintDC(self) 
+#     def OnPaint(self, e):
+#         dc = wx.PaintDC(self)
 #         dc.SetMapMode(wx.MM_TEXT)
 #         brush = wx.Brush("white")
-#         dc.SetBackground(brush)  
-#         dc.Clear() 
+#         dc.SetBackground(brush)
+#         dc.Clear()
 #         # self.tc.calcScale()
 #         # self.tc.draw(dc)
-        
+
 #         # color = wx.Colour(255,0,0)
-#         # dc.SetTextForeground(color) 
+#         # dc.SetTextForeground(color)
 #         # dc.DrawText("Hello wxPython",10,10)
 #         # dc.DrawLine(10,10, 100,10)
 
@@ -3547,15 +3547,15 @@ cfg.parseCmdLine()
 if cfg.gui:
 
     if False:
-        app = wx.App() 
-        window = wx.Frame(None, title = "wxPython Frame", size = (300,200)) 
-        panel = wx.Panel(window) 
-        label = wx.StaticText(panel, label = "Hello World", pos = (100,50)) 
-        window.Show(True) 
+        app = wx.App()
+        window = wx.Frame(None, title = "wxPython Frame", size = (300,200))
+        panel = wx.Panel(window)
+        label = wx.StaticText(panel, label = "Hello World", pos = (100,50))
+        window.Show(True)
         app.MainLoop()
     else:
-        ex = wx.App() 
-        MainFrame(None,'Drawing demo') 
+        ex = wx.App()
+        MainFrame(None,'Drawing demo')
         ex.MainLoop()
 else:
     cfg.open()
