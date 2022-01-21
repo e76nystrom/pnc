@@ -148,7 +148,7 @@ def eqnLine(p0, p1):
 #         return(CCW)
 #     else:
 #         return(CW)
-    
+
 # http://www.geeksforgeeks.org/orientation-3-ordered-points/
 #
 # // To find orientation of ordered triplet (p1, p2, p3).
@@ -346,7 +346,7 @@ class Line():
         else:
             self.m = dy / dx
             self.b = y0 - self.m * x0
-        
+
     def yValue(self, x):
         if self.vertical:
             return self.b
@@ -460,23 +460,24 @@ class Line():
         self.updateP0(p)
         return(l0)
 
-    def intersect(self, l):
+    def intersect(self, l, end=1, trim=True, dbg=False):
         if l.type == LINE:
-            p = lineLine(self, l)
+            p = lineLine(self, l, dbg)
         elif l.type == ARC:
-            p = lineArc(self, l, 1)
+            p = lineArc(self, l, end, dbg)
             # if p is None:
             #     dprt("l no intersection s %7.4f, %7.4f e %7.4f %7.4f" % \
             #           (self.p1[0], self.p1[1], l.p0[0], l.p1[1]))
         if p is not None:
             self.updateP1(p)    # set end of this one
-            l.updateP0(p)       # set start of next one
-            if l.type == ARC:
-                a = degAtan2(p[1] - l.c[1], p[0] - l.c[0])
-                if l.swapped:
-                    l.a1 = a
-                else:
-                    l.a0 = a
+            if trim:
+                l.updateP0(p)       # set start of next one
+                if l.type == ARC:
+                    a = degAtan2(p[1] - l.c[1], p[0] - l.c[0])
+                    if l.swapped:
+                        l.a1 = a
+                    else:
+                        l.a0 = a
         return(p)
 
     def point90(self, p, dist):
@@ -509,7 +510,7 @@ class Line():
         (x, y) = p
         (x0, y0) = self.p0
         (x1, y1) = self.p1
-                      
+
         dx = x1 - x0
         dy = y1 - y0
         magSqr = dx * dx + dy * dy
@@ -604,7 +605,7 @@ class Line():
     # x*(a + b*m) = t - b*by
     # x = (t - b*by) / (a + b*m)
     # x=(t-c-(b*b0))/(a+b*m)
-    
+
     # x = m*y + b
     # x^2 + y^2 = r^2
     # (m*y)^2 + 2*m*y*b + b^2 + y^2 = r^2
@@ -665,7 +666,7 @@ class Line():
         else:                   # x = m*y + bx
             m = -(bb/ab)
             bx = -(cb/ab)
-        
+
             t = d*sqrt(a0*a0 + b0*b0) - c0
             yp = (t - b0*bx) / (a0 + b0*m)
             xp = m * yp + bx
@@ -1046,17 +1047,18 @@ class Arc():
         self.updateP0(p)
         return(l)
 
-    def intersect(self, l):
+    def intersect(self, l, trim=True, dbg=False):
         p = None
         if l.type == LINE:
-            p = lineArc(l, self, 0)
+            p = lineArc(l, self, 0, dbg)
         elif l.type == ARC:
             c0 = self.c
             c1 = l.c
             if self.r != l.r or c0.x != c1.x or c0.y != c1.y:
                 p = arcArc(self, l)
         if p is not None:
-            self.updateP1(p)    # update end of this one
+            if trim:
+                self.updateP1(p) # update end of this one
             l.updateP0(p)       # and start of next one
         # if p is None:
         #     dprt("a no intersection s %7.4f, %7.4f e %7.4f %7.4f" % \
@@ -1108,7 +1110,7 @@ class Arc():
                 self.a1 = a
             self.calcLen()
         return(self)
-        
+
     def verticalTrim(self, xVal, xPlus):
         if xPlus:
             if self.p0.x >= xVal and self.p1.x >= xVal:
@@ -1260,7 +1262,7 @@ class Arc():
         # err = self.r - xyDist(pM, self.c)
         # if err < .002:
         #     return(self.p0 if start else self.p1)
-        
+
         if start:
             a = self.a1 - 90 if self.swapped else self.a0 + 90
             if a > 360:
@@ -1281,7 +1283,7 @@ class Arc():
             l0.draw(layer)
             l0.label(str(self.index), layer)
         return(p1)
-    
+
     def onSegment(self, p):
         d0 = xyDist(p, self.p0)
         if d0 < MIN_DIST:
@@ -1294,7 +1296,7 @@ class Arc():
             return (self.a0-MIN_DIST) < a and a < (self.a1+MIN_DIST)
         else:
             return self.a0 > (a-MIN_DIST) or (a+MIN_DIST) > self.a1
-    
+
     def offset(self, offset):
         (x, y) = offset
         self.c = Point(self.c.x + x, self.c.y + y)
@@ -1355,10 +1357,11 @@ class Arc():
             (x, y) = self.linePoint(self.length / 2)
             draw.text(text, (x, y - h), h, layer)
 
-def lineLine(l0, l1):
-    # dprt("intersect line line")
-    # l0.prt()
-    # l1.prt()
+def lineLine(l0, l1, dbg=False):
+    if dbg:
+        # dprt("intersect line line")
+        l0.prt()
+        l1.prt()
     (x0, y0) = l0.p0
     (x1, y1) = l0.p1
     (x2, y2) = l1.p0
@@ -1405,8 +1408,9 @@ def lineLine(l0, l1):
             else:
                 x = (b1 - b) / (m - m1)
                 y = m * x + b
-    # dprt("x %7.4f y %7.4f" % (x, y))
-    # dprt()
+    if dbg:
+        dprt("x %7.4f y %7.4f" % (x, y))
+        dprt()
     return((x, y))              # return intersection
 
 def lineCircle(l, c, r):
@@ -1550,6 +1554,8 @@ def lineArc(l0, l1, end, dbg=False):
         db = xyDist(l0.p0, pb)
     if dbg:
         dprt("da %7.4f db %7.4f " % (da, db))
+        dprt("pa (%7.4f, %7.4f) pb (%7.4f, %7.4f)" % \
+             (pa[0], pa[1], pb[0], pb[1]))
     if da < db:
         p = pa
     else:
@@ -1663,7 +1669,7 @@ def lineLineArc(seg, l0, l1, dist, direction):
             else:                   # loop ended without break
                 continue
             break                   # inner loop break, done, break outer loop
-    else:       
+    else:
         d = dist
         if direction == CW:
             d = -d
