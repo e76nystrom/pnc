@@ -6,7 +6,7 @@ from dbgprt import dprt, dprtSet
 from geometry import CCW, CW, MIN_DIST, Arc, Line, tangent, xyDist
 
 
-class CircularPocket():
+class CircPocket():
     def __init__(self, cfg):
         self.cfg = cfg
         print("CircularPocket loaded")

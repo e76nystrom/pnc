@@ -1,4 +1,4 @@
-#!/cygdrive/c/Python37/Python.exe
+#!/cygdrive/c/Python39/Python.exe
 #!/cygdrive/c/DevSoftware/Python/Python36-32/Python.exe
 #!/usr/local/bin/python2.7
 ################################################################################
@@ -372,9 +372,9 @@ class Config():
         self.offset = Offset(self)
         self.addCommands(self.offset.cmds)
 
-
     def addCommands(self, cmds):
         for val in cmds:
+            # print("cmd %s" % val[0])
             cmd = val[0].lower()
             action = val[1]
             gCode = False
@@ -940,7 +940,10 @@ class Config():
 
     def setHoleRange(self, args):
         if len(args) >= 2:
-            self.holeMin = self.evalFloatArg(args[1])
+            if args[1] == "*":
+                self.holeMin = self.drillSize
+            else:
+                self.holeMin = self.evalFloatArg(args[1])
             if len(args) >= 3:
                 val = args[2]
                 if val.startswith("+-"):
@@ -1783,9 +1786,15 @@ class Config():
 
     def evalFloatArg(self, arg):
         try:
-            if arg.lower() == "none":
+            argLC = arg.lower()
+            if argLC == "none":
                 return(None)
-            val = float(eval(arg))
+            metric = 1.0
+            pos = argLC.find("mm")
+            if  pos > 0:
+                metric = 25.4
+                arg = arg[:pos] + arg[pos + 2:]
+            val = float(eval(arg)) / metric
             dprt("evalFloatArg %s %7.4f" % (arg, val))
             return(val)
         except NameError:
@@ -2704,8 +2713,12 @@ class Dxf():
                 if not layer in cfg.layers:
                     continue
             if dxfType == 'LINE':
-                (x0, y0) = e.get_dxf_attrib("start")[:2]
-                (x1, y1) = e.get_dxf_attrib("end")[:2]
+                # (x0, y0) = e.get_dxf_attrib("start")[:2]
+
+                x0 = e.get_dxf_attrib("start")[0]
+                y0 = e.get_dxf_attrib("start")[1]
+                x1 = e.get_dxf_attrib("end")[0]
+                y1 = e.get_dxf_attrib("end")[1]
                 if layer == cfg.fixtureLayer:
                     self.fixture.append(((x0, y0), (x1, y1)))
                     fXMax = max(fXMax, x0, x1)
@@ -2722,14 +2735,16 @@ class Dxf():
             elif dxfType == 'CIRCLE':
                 if layer == cfg.fixtureLayer:
                     continue
-                (xCen, yCen) = e.get_dxf_attrib("center")[:2]
+                xCen = e.get_dxf_attrib("center")[0]
+                yCen = e.get_dxf_attrib("center")[1]
                 radius = e.get_dxf_attrib("radius")
                 xMax = max(xMax, xCen + radius)
                 xMin = min(xMin, xCen - radius)
                 yMax = max(yMax, yCen + radius)
                 yMin = min(yMin, yCen - radius)
             elif dxfType == 'ARC':
-                (xCen, yCen) = e.get_dxf_attrib("center")[:2]
+                xCen = e.get_dxf_attrib("center")[0]
+                yCen = e.get_dxf_attrib("center")[1]
                 radius = e.get_dxf_attrib("radius")
                 a0 = e.get_dxf_attrib("start_angle")
                 a1 = e.get_dxf_attrib("end_angle")
@@ -2832,7 +2847,8 @@ class Dxf():
                     if layer != e.get_dxf_attrib("layer"):
                         continue
                     if e.dxftype() == 'CIRCLE' or e.dxftype() == 'ARC':
-                        (x, y) = e.get_dxf_attrib("center")[:2]
+                        x = e.get_dxf_attrib("center")[0]
+                        y = e.get_dxf_attrib("center")[1]
                         self.xOffset = -x
                         self.yOffset = -y
 
@@ -2863,7 +2879,8 @@ class Dxf():
                 continue
             dxfType = e.dxftype()
             if dxfType == 'CIRCLE':
-                (xCen, yCen) = self.fix(e.get_dxf_attrib("center")[:2])
+                xCen = e.get_dxf_attrib("center")[0]
+                yCen = e.get_dxf_attrib("center")[1]
                 points.append((xCen, yCen))
         return(points)
 
@@ -2877,7 +2894,9 @@ class Dxf():
             if dxfType == 'MTEXT':
                 tmp = e.text
                 if layer in tmp:
-                    (xCen, yCen) = self.fix(e.get_dxf_attrib("insert")[:2])
+                    x = e.get_dxf_attrib("insert")[0]
+                    y = e.get_dxf_attrib("insert")[1]
+                    (xCen, yCen) = self.fix((x, y))
                     points.append((xCen, yCen))
         return(points)
 
@@ -2901,8 +2920,15 @@ class Dxf():
                      (e.get_dxf_attrib("layer"), type))
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
                 if dxfType == 'CIRCLE' or dxfType == 'ARC':
-                    p = self.fix(e.get_dxf_attrib("center")[:2])
+                    xCen = e.get_dxf_attrib("center")[0]
+                    yCen = e.get_dxf_attrib("center")[1]
+                    p = self.fix((xCen, yCen))
                     radius = e.get_dxf_attrib("radius")
+                    if dxfType == 'ARC':
+                        a0 = e.get_dxf_attrib("start_angle")
+                        a1 = e.get_dxf_attrib("end_angle")
+                        # print("a0 %6.2f a1 %6.2f r %6.4f" % (a0, a1, radius))
+                        continue
                     drillSize = radius * 2.0
                     if dbg:
                         dprt("diameter %6.4f x %7.4f y %7.4f" % \
@@ -2931,7 +2957,9 @@ class Dxf():
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
                 dxfType = e.dxftype()
                 if dxfType == 'CIRCLE' or dxfType == 'ARC':
-                    p = self.fix(e.get_dxf_attrib("center")[:2])
+                    xCen = e.get_dxf_attrib("center")[0]
+                    yCen = e.get_dxf_attrib("center")[1]
+                    p = self.fix((xCen, yCen))
                     radius = e.get_dxf_attrib("radius")
                     circles.append((p, 2*radius))
         return(circles)
@@ -2945,18 +2973,24 @@ class Dxf():
                 continue
             dxfType = e.dxftype()
             if dxfType == 'LINE':
-                l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
-                          self.fix(e.get_dxf_attrib("end")[:2]), \
-                          linNum, e)
+                p0 = self.fix((e.get_dxf_attrib("start")[0], \
+                               e.get_dxf_attrib("start")[1]))
+                p1 = self.fix((e.get_dxf_attrib("end")[0], \
+                               e.get_dxf_attrib("end")[1]))
+                l0 = Line(p0, p1, linNum, e)
             elif dxfType == 'ARC':
-                center = self.fix(e.get_dxf_attrib("center")[:2])
+                xCen = e.get_dxf_attrib("center")[0]
+                yCen = e.get_dxf_attrib("center")[1]
+                center = self.fix((xCen, yCen))
                 radius = e.get_dxf_attrib("radius")
                 startAngle = e.get_dxf_attrib("start_angle")
                 endAngle = e.get_dxf_attrib("end_angle")
                 l0 = Arc(center, radius, startAngle, endAngle, \
                          linNum, e)
             elif dxfType == 'CIRCLE':
-                p = self.fix(e.get_dxf_attrib("center")[:2])
+                xCen = e.get_dxf_attrib("center")[0]
+                yCen = e.get_dxf_attrib("center")[1]
+                p = self.fix((xCen, yCen))
                 radius = e.get_dxf_attrib("radius")
                 l0 = Arc(p, radius, 0.0, 360.0, linNum, e)
                 linNum += 1
@@ -2993,11 +3027,15 @@ class Dxf():
             if layer != e.get_dxf_attrib("layer"):
                 continue
             if dxfType == 'LINE':
-                l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
-                          self.fix(e.get_dxf_attrib("end")[:2]), \
-                          linNum, e)
+                p0 = self.fix((e.get_dxf_attrib("start")[0], \
+                               e.get_dxf_attrib("start")[1]))
+                p1 = self.fix((e.get_dxf_attrib("end")[0], \
+                               e.get_dxf_attrib("end")[1]))
+                l0 = Line(p0, p1, linNum, e)
             elif dxfType == 'ARC':
-                center = self.fix(e.get_dxf_attrib("center")[:2])
+                xCen = e.get_dxf_attrib("center")[0]
+                yCen = e.get_dxf_attrib("center")[1]
+                center = self.fix((xCen, yCen))
                 radius = e.get_dxf_attrib("radius")
                 startAngle = e.get_dxf_attrib("start_angle")
                 endAngle = e.get_dxf_attrib("end_angle")
@@ -3005,7 +3043,9 @@ class Dxf():
                          linNum, e)
             elif dxfType == 'CIRCLE':
                 if circle:
-                    p = self.fix(e.get_dxf_attrib("center")[:2])
+                    xCen = e.get_dxf_attrib("center")[0]
+                    yCen = e.get_dxf_attrib("center")[1]
+                    p = self.fix((xCen, yCen))
                     radius = e.get_dxf_attrib("radius")
                     l0 = Arc(p, radius, 0.0, 360.0, linNum, e)
                 else:
@@ -3323,9 +3363,11 @@ class Dxf():
         for e in self.modelspace:
             dxfType = e.dxftype()
             if dxfType == lineType and e.get_dxf_attrib("layer") == layer:
-                l0 = Line(self.fix(e.get_dxf_attrib("start")[:2]), \
-                          self.fix(e.get_dxf_attrib("end")[:2]), \
-                          lineNum, e)
+                p0 = self.fix((e.get_dxf_attrib("start")[0], \
+                               e.get_dxf_attrib("start")[1]))
+                p1 = self.fix((e.get_dxf_attrib("end")[0], \
+                               e.get_dxf_attrib("end")[1]))
+                l0 = Line(p0, p1, lineNum, e)
                 lineNum += 1
                 line.append(l0)
         return line
