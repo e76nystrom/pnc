@@ -2520,7 +2520,7 @@ class MillPath():
             mill.move(path0[0].p0)
         else:
             #mill.safeZ()
-            l = path[0]
+            l = path0[0]
             p = l.p0
             if l.type == ARC:
                 dist = xyDist(l.c, mill.last)
@@ -2528,7 +2528,7 @@ class MillPath():
                     mill.safeZ()
                     # mill.retract(comment="r1")
                 else:
-                    mill.zTop()
+                    mill.zTop("mp 1")
             else:
                 dist = xyDist(p, mill.last)
                 # dprt("millPath dist %7.4f last (%7.4f, %7.4f) "\
@@ -2537,12 +2537,12 @@ class MillPath():
                 if dist > cfg.endMillSize:
                     mill.retract(comment="r2")
                 else:
-                    mill.zTop()
+                    mill.zTop("mp 2")
             mill.move(p)
             if cfg.pause:
                 mill.moveZ(cfg.pauseHeight)
                 mill.pause()
-            mill.zTop()
+            mill.zTop("mp 3")
 
         while True:
             if self.passCount == 0:
