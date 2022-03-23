@@ -60,6 +60,10 @@ DIR_XGT = 1
 DIR_YLT = 2
 DIR_YGT = 3
 
+REF_OVERALL = 0
+REF_MATERIAL = 1
+REF_FIXTURE = 2
+
 ToolDef = namedtuple('ToolDef', ['num', 'toolType', 'toolSize', 'comment'])
 
 # print("%s" % (os.environ['TZ'],))
@@ -90,6 +94,7 @@ class Config():
         self.layers = []        # layers to use in dxf file
         self.materialLayer = 'Material' # material layer
         self.fixtureLayer = 'Fixture'   # fixture layer
+        self.reference = REF_OVERALL    # origin reference
         self.dxfInput = None    # dxf input class
         self.init = False       # ncinit has been called
         self.output = True      # produce output in millPath
@@ -105,6 +110,13 @@ class Config():
         self.orientation = None # default orientation
         self.orientationLayer = None # layer for orientation point
         self.layer = None       # layer from command line
+
+        self.refValues = \
+            (\
+             (REF_OVERALL, "overall"),
+             (REF_MATERIAL, "material"),
+             (REF_FIXTURE, "fixture"),
+            )
 
         self.orientationValues = (\
             (O_UPPER_LEFT, "upperleft"), \
@@ -308,6 +320,7 @@ class Config():
             ('clrlayers', self.clrLayers), \
             ('materiallayer', self.setMaterialLayer), \
             ('fixturelayer', self.setFixtureLayer), \
+            ('reference', self.setRef), \
             ('orientation', self.setOrientation), \
 
             ('dxflines', self.dxfLine, True), \
@@ -1257,6 +1270,18 @@ class Config():
     def setFixtureLayer(self, args):
         self.fixtureLayer = self.evalStringArg(args[1])
 
+    def setRef(self, args):
+        # if self.dxfInput is not None:
+        #     ePrint("set reference before dxf file openned")
+        #     self.error = True
+        #     return
+        
+        val = args[1].lower()
+        for (i, x) in self.refValues:
+            if val == x:
+                self.reference = i
+                break
+
     def setOrientation(self, args):
         val = args[1].lower()
         for (i, x) in self.orientationValues:
@@ -1315,7 +1340,7 @@ class Config():
         self.dxfInput = Dxf(self)
         self.materialLayer = "Material"
         self.fixtureLayer = "Fixture"
-        self.dxfInput.open(fileName)
+        self.dxfInput.open(fileName, self.reference)
         self.dxfInput.setOrientation(self.orientation, self.orientationLayer)
 
     def dxfLine(self, args):
@@ -1390,6 +1415,11 @@ class Config():
         layer = self.getLayer(args)
         offset = self.endMillSize / 2 + self.finishAllowance
         self.segments = self.dxfInput.getPath(layer, True)
+        tmp = []
+        for seg in self.segments:
+            if len(seg) >= 3:
+                tmp.append(seg)
+        self.segments = tmp
         self.ncInit()
         mp = self.getMillPath()
         while len(self.segments) != 0:
@@ -2687,12 +2717,16 @@ class Dxf():
         self.yMin = 0.0
         self.xSize = 0.0
         self.ySize = 0.0
+        self.mXMin = MAX_VALUE
+        self.mXMax = MIN_VALUE
+        self.mYMin = MAX_VALUE
+        self.mYMax = MIN_VALUE
         self.fXMin = MAX_VALUE
         self.fXMax = MIN_VALUE
         self.fYMin = MAX_VALUE
         self.fYMax = MIN_VALUE
 
-    def open(self, inFile):
+    def open(self, inFile, ref):
         self.inFile = inFile
         self.dwg = dwg = ReadFile(inFile)
         self.modelspace = modelspace = dwg.modelspace()
@@ -2700,9 +2734,11 @@ class Dxf():
         xMax = yMax =  MIN_VALUE
         xMin = yMin = MAX_VALUE
         self.material = []
+        mXMax = mYMax = MIN_VALUE
+        mXMin = mYMin = MAX_VALUE
+        self.fixture = []
         fXMax = fYMax = MIN_VALUE
         fXMin = fYMin = MAX_VALUE
-        self.fixture = []
         checkLayers = len(cfg.layers) != 0
         for e in modelspace:
             dxfType = e.dxftype()
@@ -2720,6 +2756,8 @@ class Dxf():
                 x1 = e.get_dxf_attrib("end")[0]
                 y1 = e.get_dxf_attrib("end")[1]
                 if layer == cfg.fixtureLayer:
+                    dprt("f (x0 %7.4f y0 % 7.4f) (x1 %7.4f y1 % 7.4f)" % \
+                         (x0, y0, x1, y1))
                     self.fixture.append(((x0, y0), (x1, y1)))
                     fXMax = max(fXMax, x0, x1)
                     fXMin = min(fXMin, x0, x1)
@@ -2727,7 +2765,13 @@ class Dxf():
                     fYMin = min(fYMin, y0, y1)
                     continue
                 if layer == cfg.materialLayer:
+                    dprt("m (x0 %7.4f y0 % 7.4f) (x1 %7.4f y1 % 7.4f)" % \
+                         (x0, y0, x1, y1))
                     self.material.append(((x0, y0), (x1, y1)))
+                    mXMax = max(mXMax, x0, x1)
+                    mXMin = min(mXMin, x0, x1)
+                    mYMax = max(mYMax, y0, y1)
+                    mYMin = min(mYMin, y0, y1)
                 xMax = max(xMax, x0, x1)
                 xMin = min(xMin, x0, x1)
                 yMax = max(yMax, y0, y1)
@@ -2794,16 +2838,30 @@ class Dxf():
                     yMax = max(y0, yMax)
                     yMin = min(y0, yMin)
 
-        if len(self.fixture) != 0:
-            self.fXMin = fXMin
-            self.fXMax = fXMax
-            self.fYMin = fYMin
-            self.fYMax = fYMax
+        if  ref == REF_OVERALL:
+            self.xMin = xMin
+            self.xMax = xMax
+            self.yMin = yMin
+            self.yMax = yMax
+        elif ref == REF_MATERIAL:
+            if len(self.material) != 0:
+                self.mXMin = mXMin
+                self.mXMax = mXMax
+                self.mYMin = mYMin
+                self.mYMax = mYMax
+            else:
+                ePrint("material layer not defined")
+                self.error = True
+        elif ref == REF_FIXTURE:
+            if len(self.fixture) != 0:
+                self.fXMin = fXMin
+                self.fXMax = fXMax
+                self.fYMin = fYMin
+                self.fYMax = fYMax
+            else:
+                ePrint("fixture layer not defined")
+                self.error = True
 
-        self.xMin = xMin
-        self.xMax = xMax
-        self.yMin = yMin
-        self.yMax = yMax
         dprt("xMin %f yMin %f" % (xMin, yMin))
         dprt("xMax %f yMax %f" % (xMax, yMax))
         self.xSize = xMax - xMin
@@ -2811,12 +2869,14 @@ class Dxf():
         dprt("xSize %5.3f ySize %6.3f" % (self.xSize, self.ySize))
 
     def setOrientation(self, orientation=0, layer=None):
-        # dprt("\nmin (%7.4f, y %7.4f) max (%7.4f, y %7.4f)\n" % \
-        #       (self.xMin, self.yMin, self.xMax, self.yMax))
+        dprt("\nmin (x %7.4f, y %7.4f) max (x %7.4f, y %7.4f)\n" % \
+              (self.xMin, self.yMin, self.xMax, self.yMax))
 
-        # for (start, end) in self.material:
-        #     dprt("(%7.4f, y %7.4f) (%7.4f, y %7.4f))" % \
-        #         (start[0], start[1], end[0], end[1]))
+        print("material\n")
+        for (start, end) in self.material:
+            dprt("(%7.4f, y %7.4f) (%7.4f, y %7.4f))" % \
+                (start[0], start[1], end[0], end[1]))
+        print()
 
         self.xMul = 1
         self.yMul = 1
@@ -3039,6 +3099,10 @@ class Dxf():
                 radius = e.get_dxf_attrib("radius")
                 startAngle = e.get_dxf_attrib("start_angle")
                 endAngle = e.get_dxf_attrib("end_angle")
+                if (abs(startAngle - 0) < MIN_DIST) and \
+                   (abs(endAngle - 360) < MIN_DIAT) and \
+                   not circle:
+                    continue
                 l0 = Arc(center, radius, startAngle, endAngle, \
                          linNum, e)
             elif dxfType == 'CIRCLE':
