@@ -32,9 +32,9 @@ import geometry
 from dbgprt import dclose, dflush, dprt, dprtSet, ePrint
 from draw import Draw
 from geometry import (ARC, CCW, CW, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc, Line,
-                      newPoint,
-                      combineArcs, createPath, inside, offset, oStr, pathDir,
-                      pathLength, reverseSeg, rotateMinDist, xyDist)
+                      newPoint, combineArcs, createPath, inside, offset,
+                      oStr, pathDir, pathLength, reverseSeg, rotateMinDist,
+                      xyDist)
 from hershey import Font
 from mill import Mill
 from millLines import MillLine
@@ -63,6 +63,10 @@ DIR_YGT = 3
 REF_OVERALL = 0
 REF_MATERIAL = 1
 REF_FIXTURE = 2
+
+HOLE_NEAREST = 0
+HOLE_COLUMNS = 1
+HOLE_ROWS = 2
 
 ToolDef = namedtuple('ToolDef', ['num', 'toolType', 'toolSize', 'comment'])
 
@@ -127,6 +131,12 @@ class Config():
             (O_POINT, "point"), \
         )
 
+        self.holeOrderValues = (\
+            (HOLE_NEAREST, "nearest"), \
+            (HOLE_COLUMNS, "columns"), \
+            (HOLE_ROWS, "rows"), \
+        )
+
         self.dbg = False        # debugging output
         self.dbgFile = ""       # debug file
 
@@ -162,6 +172,7 @@ class Config():
         self.millHoleSize = None # size to mill hole
         self.holeMin = 0.0      # dxf select hole >= size
         self.holeMax = MAX_VALUE # dxf select hole < size
+        self.holeOrder = HOLE_NEAREST # order of holes
 
         self.pause = False       # enable pause
         self.pauseCenter = False # pause at center of hole
@@ -255,6 +266,7 @@ class Config():
             ('holemin', self.setHoleMin), \
             ('holemax', self.setHoleMax), \
             ('holerange', self.setHoleRange), \
+            ('holeorder', self.setHoleOrder), \
 
             ('coordinate', self.setCoord), \
             ('variables', self.setVariables), \
@@ -331,6 +343,7 @@ class Config():
             ('dxfinside', self.dxfInside, True), \
             ('dxfopen', self.dxfOpen, True), \
             ('dxfdrill', self.dxfDrill, True), \
+            ('dxfdrillsort', self.dxfDrillSort, True), \
             ('dxfbore', self.dxfBore, True), \
             ('dxfmillhole', self.dxfMillHole, True), \
             ('dxfsteppedhole', self.dxfSteppedHole, True), \
@@ -972,6 +985,14 @@ class Config():
             self.holeMin = 0.0
             self.holeMax = MAX_VALUE
 
+    def setHoleOrder(self, args):
+        val = args[1].lower()
+        for (i, x) in self.holeOrderValues:
+            if val == x:
+                self.holeOrder = i
+                val = None
+                break
+
     def setDepthPass(self, args):
         self.depthPass = abs(self.evalFloatArg(args[1]))
 
@@ -1141,20 +1162,19 @@ class Config():
                 mill.moveZ(self.pauseHeight)
                 mill.write("m0 (pause)\n")
             mill.zTop()
-            if self.peckDepth == 0 or self.peckDepth <= self.depth :
+            if self.peckDepth == 0 or self.peckDepth <= self.depth:
                 mill.zDepth(offset, comment=comment)
             else:
                 self.depth += offset
-                d = self.peckDepth
-                while True:
+                peckDepth = self.peckDepth
+                n = int(ceil(self.depth / self.peckDepth))
+                peckDepth = self.depth / n
+                d = peckDepth
+                for i in range(n):
                     mill.plungeZ(d, comment)
-                    if d <= self.depth:
-                        break
                     mill.zTop()
-                    mill.moveZ(d)
-                    d += self.peckDepth
-                    if d < self.depth:
-                        d = self.depth
+                    # mill.moveZ(d)
+                    d += peckDepth
             mill.retract()
         elif op == TAP:
             mill.write("m0 (pause insert tap)\n")
@@ -1532,6 +1552,69 @@ class Config():
             mp.millPath(path, tabPoints, False)
         self.tabPoints = []
 
+    def orderHoles(self, dLoc, dbg=False):
+        result = []
+        if self.holeOrder == HOLE_NEAREST:
+            last = self.mill.last
+            while len(dLoc) != 0:
+                minDist = MAX_VALUE
+                index = 0
+                for (i, loc) in enumerate(dLoc):
+                    dist = xyDist(last, loc)
+                    if dbg:
+                        dprt("%d last %7.4f %7.4f " \
+                             "loc %7.4f %7.4f dist %7.4f" % \
+                             (i, last[0], last[1], loc[0], loc[1], dist))
+                    if dist < minDist:
+                        minDist = dist
+                        index = i
+                loc = dLoc.pop(index)
+                result.append(loc)
+                if dbg:
+                    dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
+                last = loc
+        elif self.holeOrder == HOLE_COLUMNS:
+            dLoc.sort(key=lambda loc: (loc.x, loc.y))
+            lastX = dLoc[0].x
+            reverse = False
+            colStart = 0
+            result = []
+            iFinal = len(dLoc) - 1
+            for i, loc in enumerate(dLoc):
+                if (lastX != loc.x) or (i == iFinal):
+                    print(reverse, colStart, i)
+                    lastX = loc.x
+                    if reverse:
+                        for j in range(i if i == iFinal else i-1, \
+                                       colStart-1, -1):
+                            result.append(dLoc[j])
+                    else:
+                        for j in range(colStart, i):
+                            result.append(dLoc[j])
+                    reverse = not reverse
+                    colStart = i
+        elif self.holeOrder == HOLE_ROWS:
+            dLoc.sort(key=lambda loc: (loc.y, loc.x))
+            lastY = dLoc[0].y
+            reverse = False
+            rowStart = 0
+            result = []
+            iFinal = len(dLoc) - 1
+            for i, loc in enumerate(dLoc):
+                if (lastY != loc.y) or (i == iFinal):
+                    print(reverse, rowStart, i)
+                    lastY = loc.y
+                    if reverse:
+                        for j in range(i if i == iFinal else i-1, \
+                                       rowStart-1, -1):
+                            result.append(dLoc[j])
+                    else:
+                        for j in range(rowStart, i):
+                            result.append(dLoc[j])
+                    reverse = not reverse
+                    rowStart = i
+        return(result)
+
     def resetHoleVars(self):
         self.holeMin = 0.0
         self.holeMax = MAX_VALUE
@@ -1554,23 +1637,62 @@ class Config():
                 self.mill.write("(bore size %6.3f holes %d)\n" % \
                                 (d.size, self.holeCount))
             self.count = 0
+
+            # dLoc = d.loc
+            # while len(dLoc) != 0:
+            #     minDist = MAX_VALUE
+            #     index = 0
+            #     for (i, loc) in enumerate(dLoc):
+            #         dist = xyDist(last, loc)
+            #         if dbg:
+            #             dprt("%d last %7.4f %7.4f " \
+            #                  "loc %7.4f %7.4f dist %7.4f" % \
+            #                  (i, last[0], last[1], loc[0], loc[1], dist))
+            #         if dist < minDist:
+            #             minDist = dist
+            #             index = i
+            #     loc = dLoc.pop(index)
+            #     if dbg:
+            #         dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
+            #     last = loc
+
+            result = self.orderHoles(d.loc)
+            for loc in result:
+                (self.x, self.y) = loc
+                self.drill(None, op, d.size)
+        self.resetHoleVars()
+
+    def dxfDrillSort(self, args, op=DRILL):
+        dbg = False
+        layer = cfg.getLayer(args)
+        drill = self.dxfInput.getHoles(layer, self.holeMin, self.holeMax, \
+                                       dbg=False)
+        self.ncInit()
+        last = self.mill.last
+
+        for d in drill:
             dLoc = d.loc
-            while len(dLoc) != 0:
-                minDist = MAX_VALUE
-                index = 0
-                for (i, loc) in enumerate(dLoc):
-                    dist = xyDist(last, loc)
-                    if dbg:
-                        dprt("%d last %7.4f %7.4f " \
-                             "loc %7.4f %7.4f dist %7.4f" % \
-                             (i, last[0], last[1], loc[0], loc[1], dist))
-                    if dist < minDist:
-                        minDist = dist
-                        index = i
-                loc = dLoc.pop(index)
-                if dbg:
-                    dprt("%d loc %7.4f %7.4f" % (index, loc[0], loc[1]))
-                last = loc
+            dLoc.sort(key=lambda loc: (loc.x, loc.y))
+            lastX = dLoc[0].x
+            reverse = False
+            colStart = 0
+            result = []
+            iFinal = len(dLoc) - 1
+            for i, loc in enumerate(dLoc):
+                if (lastX != loc.x) or (i == iFinal):
+                    print(reverse, colStart, i)
+                    lastX = loc.x
+                    if reverse:
+                        for j in range(i if i == iFinal else i-1, \
+                                       colStart-1, -1):
+                            result.append(dLoc[j])
+                    else:
+                        for j in range(colStart, i):
+                            result.append(dLoc[j])
+                    reverse = not reverse
+                    colStart = i
+
+            for loc in result:
                 (self.x, self.y) = loc
                 self.drill(None, op, d.size)
         self.resetHoleVars()
@@ -1597,17 +1719,20 @@ class Config():
                             "holes %d)\n" % \
                             (hSize, size * 2 + self.endMillSize, \
                              len(d.loc)))
-            dLoc = d.loc
-            n = 1
-            while len(dLoc) != 0:
-                minDist = MAX_VALUE
-                index = 0
-                for (i, loc) in enumerate(dLoc):
-                    dist = xyDist(last, loc)
-                    if dist < minDist:
-                        minDist = dist
-                        index = i
-                loc = dLoc.pop(index)
+            # dLoc = d.loc
+            # n = 1
+            # while len(dLoc) != 0:
+            #     minDist = MAX_VALUE
+            #     index = 0
+            #     for (i, loc) in enumerate(dLoc):
+            #         dist = xyDist(last, loc)
+            #         if dist < minDist:
+            #             minDist = dist
+            #             index = i
+            #     loc = dLoc.pop(index)
+
+            result = self.orderHoles(d.loc)
+            for loc in result:
                 self.draw.hole((loc[0], loc[1]), hSize)
                 self.mill.write("(hole %d at %7.4f, %7.4f)\n" % \
                                 (n, loc[0], loc[1]))
@@ -1642,6 +1767,7 @@ class Config():
         self.tabPoints = []
         self.resetHoleVars()
 
+    # stepProfile ((depth1, diam1), ... (depthN, diamN))
     def getStepProfile(self, args):
         expr = r"^\w+\s+(.*)"
         m = re.match(expr, args[0])
@@ -1659,20 +1785,24 @@ class Config():
         mp = self.getMillPath()
         ncWrite = self.mill.write
         for d in drill:
-            dLoc = d.loc
-            n = 1
-            numHoles = len(dLoc)
-            while len(dLoc) != 0:
-                minDist = MAX_VALUE
-                index = 0
-                for (i, loc) in enumerate(dLoc):
-                    dist = xyDist(last, loc)
-                    if dist < minDist:
-                        minDist = dist
-                        index = i
-                loc = dLoc.pop(index)
+            # dLoc = d.loc
+            # n = 1
+            # numHoles = len(dLoc)
+            # while len(dLoc) != 0:
+            #     minDist = MAX_VALUE
+            #     index = 0
+            #     for (i, loc) in enumerate(dLoc):
+            #         dist = xyDist(last, loc)
+            #         if dist < minDist:
+            #             minDist = dist
+            #             index = i
+            #     loc = dLoc.pop(index)
+
+            result = self.orderHoles(d.loc)
+            for n, loc in enumerate(result):
                 ncWrite("(hole %2d of %2d steps %d x %7.4f, y %7.4f)\n\n" % \
-                        (n, numHoles, len(self.stepProfile), loc[0], loc[1]))
+                        (n, len(result), len(self.stepProfile), \
+                         loc[0], loc[1]))
                 last = loc
                 if self.pauseCenter:
                     mill = self.mill
@@ -2924,8 +3054,8 @@ class Dxf():
         (x, y) = point
         # x = int(x * 10000) / 10000.0
         # y = int(y * 10000) / 10000.0
-        return((self.xMul * x + self.xOffset, \
-                self.yMul * y + self.yOffset))
+        return(newPoint((self.xMul * x + self.xOffset, \
+                         self.yMul * y + self.yOffset)))
 
     def scale(self, point, scale=1):
         (x, y) = point
@@ -3100,7 +3230,7 @@ class Dxf():
                 startAngle = e.get_dxf_attrib("start_angle")
                 endAngle = e.get_dxf_attrib("end_angle")
                 if (abs(startAngle - 0) < MIN_DIST) and \
-                   (abs(endAngle - 360) < MIN_DIAT) and \
+                   (abs(endAngle - 360) < MIN_DIST) and \
                    not circle:
                     continue
                 l0 = Arc(center, radius, startAngle, endAngle, \
