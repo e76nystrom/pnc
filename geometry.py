@@ -1,6 +1,4 @@
 ################################################################################
-from __future__ import print_function
-
 from collections import namedtuple
 from copy import copy
 from math import (acos, asin, atan2, ceil, cos, degrees, floor, hypot, pi,
@@ -468,6 +466,8 @@ class Line():
             # if p is None:
             #     dprt("l no intersection s %7.4f, %7.4f e %7.4f %7.4f" % \
             #           (self.p1[0], self.p1[1], l.p0[0], l.p1[1]))
+        else:
+            p = None
         if p is not None:
             self.updateP1(p)    # set end of this one
             if trim:
@@ -646,19 +646,19 @@ class Line():
             ab = y1 - y2
             bb = x2 - y1
             cb = x1*y2 - x2*y1
-            pass
+
         yIntercept = abs(bb) > abs(ab)
         if yIntercept:          # y = m*x + by
             m = -(ab/bb)
             by = -(cb/bb)
 
-            t = d*sqrt(a0*a0 + b0*b0) - c0
+            t = d * sqrt(a0*a0 + b0*b0) - c0
             xp = (t - b0*by) / (a0 + b0*m)
             yp = m * xp + by
             dprt("a %7.4f b %7.4f t %7.4f" % (a0, b0, t))
             dprt("m %7.4f by %7.4f" % (m, by))
 
-            t = -d*sqrt(a0*a0 + b0*b0) - c0
+            t = -d * sqrt(a0*a0 + b0*b0) - c0
             xm = (t - b0*by) / (a0 + b0*m)
             ym = m * xp + by
             dprt("a %7.4f b %7.4f t %7.4f" % (a0, b0, t))
@@ -667,13 +667,13 @@ class Line():
             m = -(bb/ab)
             bx = -(cb/ab)
 
-            t = d*sqrt(a0*a0 + b0*b0) - c0
+            t = d * sqrt(a0*a0 + b0*b0) - c0
             yp = (t - b0*bx) / (a0 + b0*m)
             xp = m * yp + bx
             dprt("a %7.4f b %7.4f t %7.4f" % (a0, b0, t))
             dprt("m %7.4f bx %7.4f" % (m, bx))
 
-            t = -d*sqrt(a0*a0 + b0*b0) - c0
+            t = -d * sqrt(a0*a0 + b0*b0) - c0
             ym = (t - b0*bx) / (a0 + b0*m)
             xm = m * yp + bx
             dprt("a %7.4f b %7.4f t %7.4f" % (a0, b0, t))

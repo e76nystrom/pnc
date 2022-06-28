@@ -3,8 +3,6 @@
 #!/usr/local/bin/python2.7
 ################################################################################
 
-from __future__ import print_function
-
 import glob
 # from imp import load_source
 # import importlib.machinery
@@ -43,8 +41,9 @@ from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_MAX, O_POINT,
                          O_UPPER_LEFT, O_UPPER_RIGHT)
 
 DRILL = 0
-TAP = 1
-BORE = 2
+BORE = 1
+TAP = 2
+TAPMATIC = 3
 
 IF_DISABLE =        (1 << 0)
 COMPONENT_DISABLE = (1 << 1)
@@ -90,7 +89,7 @@ class Config():
         self.draw = None        # Draw class
         self.drawDxf = False    # create dxf drawing
         self.drawSvg = False    # create svg drawing
-        self.oneDxf = False     # combine ouput into one dxf
+        self.oneDxf = False     # combine output into one dxf
         self.slot = None        # Slot class
         self.move = None        # Move class
         self.mp = None          # millPath class
@@ -173,6 +172,9 @@ class Config():
         self.holeMin = 0.0      # dxf select hole >= size
         self.holeMax = MAX_VALUE # dxf select hole < size
         self.holeOrder = HOLE_NEAREST # order of holes
+
+        self.tapRpm = 0         # measured rpm
+        self.tapTpi = 20        # threads per inch
 
         self.pause = False       # enable pause
         self.pauseCenter = False # pause at center of hole
@@ -347,8 +349,10 @@ class Config():
             ('dxfbore', self.dxfBore, True), \
             ('dxfmillhole', self.dxfMillHole, True), \
             ('dxfsteppedhole', self.dxfSteppedHole, True), \
-            ('dxftap', self.dxfTap, True), \
             ('stepprofile', self.getStepProfile), \
+            ('dxftap', self.dxfTap, True), \
+            ('dxftapmatic', self.dxfTapMatic, True), \
+            ('tapmatic', self.tapmatic), \
 
             ('close', self.closeFiles), \
             ('outputfile', self.outputFile), \
@@ -521,7 +525,7 @@ class Config():
               " -d           debug\n" \
               " -h           help\n" \
               " -c           linuxcnc format\n" \
-              " -r	     resequenc input file\n" \
+              " -r	     resequence input file\n" \
               " -s           output svf file\n" \
               " -x           output dxf file\n" \
               " --dbg file   debug output file\n" \
@@ -1146,7 +1150,7 @@ class Config():
                 mill.write("g%s x %7.4f y %7.4f\n" % (gMove, self.x, self.y))
                 mill.last = (self.x, self.y)
         self.draw.hole((self.x, self.y), size)
-        holeCount = "/%d" % (self.holeCount) if self.holeCount is not None \
+        holeCount = ("/%d" % (self.holeCount)) if self.holeCount is not None \
                     else ""
         comment = "hole %d%s x %7.4f y %7.4f" % \
                   (self.count, holeCount, self.x, self.y)
@@ -1175,6 +1179,12 @@ class Config():
                     mill.zTop()
                     # mill.moveZ(d)
                     d += peckDepth
+        elif op == BORE:
+            mill.setSpeed(self.speed)
+            mill.zTop()
+            mill.zDepth()
+            mill.setSpeed(0)
+            mill.retract()
             mill.retract()
         elif op == TAP:
             mill.write("m0 (pause insert tap)\n")
@@ -1186,13 +1196,18 @@ class Config():
             mill.write("m0 (pause tap hole)\n")
             mill.retract()
             mill.write("m0 (pause remove tap)\n")
-        elif op == BORE:
+        elif op == TAPMATIC:
             mill.setSpeed(self.speed)
-            mill.zTop()
-            mill.zDepth()
-            mill.setSpeed(0)
+            if self.pause:
+                mill.moveZ(self.pauseHeight)
+                mill.write("m0 (pause)\n")
+            mill.moveZ(self.tapHeight, comment)
+            mill.write("f %5.3f\n" % (self.tapFeed))
+            mill.write("g1 z %7.4f\n" % (self.depth))
+            mill.write("f %5.3f\n" % (2 * self.tapFeed))
+            mill.write("g1 z %7.4f\n" % (self.tapHeight))
             mill.retract()
-
+            mill.write("m0 (pause)\n")
         mill.blankLine()
 
     def bore(self, args):
@@ -1731,6 +1746,7 @@ class Config():
             #             index = i
             #     loc = dLoc.pop(index)
 
+            n = 1
             result = self.orderHoles(d.loc)
             for loc in result:
                 self.draw.hole((loc[0], loc[1]), hSize)
@@ -1831,11 +1847,20 @@ class Config():
                 n += 1
         self.resetHoleVars()
 
+    def dxfBore(self, args):
+        self.dxfDrill(args, BORE)
+
     def dxfTap(self, args):
         self.dxfDrill(args, TAP)
 
-    def dxfBore(self, args):
-        self.dxfDrill(args, BORE)
+    def dxfTapMatic(self, args):
+        self.dxfDrill(args, TAPMATIC)
+
+    def tapmatic(self, args):
+        self.tapHeight = self.evalFloatArg(args[1])
+        self.tapRpm = self.evalFloatArg(args[2])
+        self.tapTpi = self.evalFloatArg(args[3])
+        self.tapFeed = self.tapRpm / self.tapTpi
 
     def closeFiles(self, _):
         self.dxfInput = None
@@ -1865,7 +1890,14 @@ class Config():
         l = args[0]
         fileName = l.split(' ', 1)[-1]
         if fileName.startswith('*'):
-            fileName = self.baseName + fileName[1:]
+            if fileName.endswith("$"):
+                fileName = (self.baseName + fileName[1:-1] + \
+                            ("%0.3f" % (self.drillSize))[2:])
+            elif fileName.endswith("$M"):
+                fileName = (self.baseName + fileName[1:-2] + \
+                            ("%0.3f" % (self.endMillSize))[2:] + "M")
+            else:
+                fileName = self.baseName + fileName[1:]
         else:
             if len(os.path.dirname(fileName)) == 0:
                 fileName = os.path.join(self.dirPath, fileName)
