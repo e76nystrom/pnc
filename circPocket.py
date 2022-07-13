@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from math import atan2, ceil, cos, degrees, radians, sin, sqrt
 
 from dbgprt import dprt, dprtSet

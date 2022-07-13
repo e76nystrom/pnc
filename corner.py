@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from dbgprt import dprt, dprtSet, ePrint
 from geometry import (ARC, CCW, CW, INDEX_MARKER, LINE, MAX_VALUE, MIN_DIST,
                       MIN_VALUE, Arc, Line, createPath, inside, oStr,

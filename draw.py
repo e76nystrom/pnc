@@ -1,6 +1,4 @@
-from __future__ import print_function
-
-from math import degrees
+ffrom math import degrees
 
 from dxfwrite import CENTER, MIDDLE
 from dxfwrite import DXFEngine as dxf

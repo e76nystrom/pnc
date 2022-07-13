@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from math import ceil, sqrt
 
 from dbgprt import dprt, ePrint

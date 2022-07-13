@@ -1,8 +1,5 @@
-from __future__ import print_function
-
 from dbgprt import dflush, dprt, dprtSet
 from geometry import CCW, CW, Arc, Line, tangent
-
 
 class ModTest():
     def __init__(self, cfg):

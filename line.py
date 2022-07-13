@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from math import ceil, hypot
 
 from dbgprt import dprt, dprtSet

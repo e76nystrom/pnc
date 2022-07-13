@@ -2,7 +2,6 @@ from math import radians
 
 from geometry import MIN_DIST
 
-
 class Engrave():
     def __init__(self, cfg):
         self.cfg = cfg
