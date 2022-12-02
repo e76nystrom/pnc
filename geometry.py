@@ -832,11 +832,12 @@ class Line():
 
     def prt(self, out=None, eol="\n", prefix=None):
         string = prefix if prefix is not None else ""
-        string += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f line %5.3f" % \
+        string += "%3d s%6.3f %6.3f e%6.3f %6.3f l %6.3f line %5.3f" % \
             (self.index, self.p0.x, self.p0.y, \
              self.p1.x, self.p1.y, self.length, \
              xyDist(self.p0, self.p1))
-        string += " dx %6.3f dy %6.3f" % (self.p1.x - self.p0.x, self.p1.y - self.p0.y)
+        string += " dx %6.3f dy %6.3f" % \
+            (self.p1.x - self.p0.x, self.p1.y - self.p0.y)
         if self.text != None:
             string += " " + self.text
         if out is None:
@@ -959,10 +960,17 @@ class Arc():
 
     def parallel(self, dist, direction=None, outside=None):
         if direction is None and outside is None:
+            dprt("*direction None outside None")
             d = self.fixDist(dist)
+            # d = dist
+            # if not self.swapped:
+            #     d = -d
+            dprt("swapped %5s dist %7.3f d %7.3f" % (self.swapped, dist, d))
         else:
             dist = abs(dist)
-            if direction == CCW:  # direction ccw
+            if direction == CCW: # direction ccw
+                dprt("*direction CCW swapped %s outside %s" % \
+                     (self.swapped, self.outside))
                 if self.swapped: # arc cw
                     if outside:
                         d = -dist
@@ -974,6 +982,8 @@ class Arc():
                     else:
                         d = -dist
             elif direction == CW: # direction cw
+                dprt("*direction cw swapped %s outside %s" % \
+                     (self.swapped, self.outside))
                 if self.swapped: # arc cw
                     if outside:
                         d = dist
@@ -987,6 +997,7 @@ class Arc():
         r = self.r + d
         if r < 0.0:
             l1 = None
+            dprt("negative radius")
         else:
             l1 = Arc(self.c, r, self.a0, self.a1, self.index)
             if self.swapped:
@@ -1336,8 +1347,8 @@ class Arc():
 
     def prt(self, out=None, eol="\n", prefix=None):
         string = prefix if prefix is not None else ""
-        string += "%2d s%6.3f %6.3f e%6.3f %6.3f l %5.3f arc%s" \
-            " c%6.3f%6.3f r %5.3f %4.0f %4.0f" % \
+        string += "%3d s%6.3f %6.3f e%6.3f %6.3f l %6.3f arc%s" \
+            " c%6.3f %6.3f r %5.3f %4.0f %4.0f" % \
             (self.index, self.p0.x, self.p0.y, \
              self.p1.x, self.p1.y, self.length, \
              (' ', 's')[self.swapped], self.c.x, self.c.y, \

@@ -1,4 +1,4 @@
-ffrom math import degrees
+from math import degrees
 
 from dxfwrite import CENTER, MIDDLE
 from dxfwrite import DXFEngine as dxf

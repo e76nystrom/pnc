@@ -56,9 +56,10 @@ class Mill():
                 x = dxf.xMax - dxf.xMin
                 y = dxf.yMax - dxf.yMin
                 self.write(" %s material %7.4f %7.4f" % (dxf.inFile, x, y))
-                if dxf.fXMax != MIN_VALUE:
-                    x = dxf.fXMax - dxf.fXMin
-                    y = dxf.fYMax - dxf.fYMin
+                minMax = dxf.fMinMax
+                if minMax.xMax != MIN_VALUE:
+                    x = minMax.xMax - minMax.xMin
+                    y = minMax.yMax - minMax.yMin
                     self.write(" fixture %7.4f %7.4f" % (x, y))
             self.write(")\n")
             if cfg.compNumber is not None:
@@ -274,22 +275,22 @@ class Mill():
                 comment = "\t(%s)" % (comment)
             self.write("g1 z %s%s\n" % (z, comment))
 
-    def cut(self, end, zOffset=None, comment=None, draw=True):
+    def cut(self, end, zEnd=None, comment=None, draw=True):
         if draw and self.draw is not None:
             self.draw.line(end)
         (xEnd, yEnd) = end
         self.setFeed(self.cfg.feed)
-        if zOffset is None:
+        if zEnd is None:
             t = "g1 x %7.4f y %7.4f" % (xEnd, yEnd)
         else:
             cfg = self.cfg
-            zDepth = cfg.top + zOffset
+            zDepth = zEnd
             if cfg.variables:
                 z = "[#%s + %7.4f]" % \
                     (cfg.topVar, zOffset)
             else:
                 z = "%7.4f" % (zDepth)
-            t = "g1 x %7.4f y %7.4f z%s" % (xEnd, yEnd, z)
+            t = "g1 x %7.4f y %7.4f z %s" % (xEnd, yEnd, z)
             self.lastZ = zDepth
         if comment is not None:
             t += " (%s)" % (comment)

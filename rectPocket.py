@@ -1,4 +1,4 @@
-from math import ceil, sqrt
+ofrom math import ceil, sqrt
 
 from dbgprt import dprt, ePrint
 from geometry import ARC, CCW, CW, LINE, MAX_VALUE, MIN_DIST, \
@@ -15,6 +15,8 @@ class RectPocket():
         self.stepOver = 0.85
         self.stepOverPercent = True
         self.spiral = True
+        self.slotMin = 0.0
+        self.slotMax = MAX_VALUE
         self.cmds = \
         ( \
           ('rectpocket', self.rectPocket, True), \
@@ -22,6 +24,7 @@ class RectPocket():
           ('rectspiral', self.setSpiral), \
           ('roundedpocket', self.roundedPocket), \
           ('rectslot', self.rectSlot,), \
+          ('slotRange', self.slotRange), \
           ('openSlot', self.openSlot,), \
           # ('', self.), \
         )
@@ -41,6 +44,27 @@ class RectPocket():
 
     def setSpiral(self, args):
         self.spiral = self.cfg.evalBoolArg(args[1])
+
+    def slotRange(self, args):
+        if len(args) >= 2:
+            if args[1] == "*":
+                self.slotMin = self.drillSize
+            else:
+                self.slotMin = self.cfg.evalFloatArg(args[1])
+            if len(args) >= 3:
+                val = args[2]
+                if val.startswith("+-"):
+                    val = self.cfg.evalFloatArg(val[2:])
+                    self.slotMax = self.slotMin + val
+                    self.slotMin -= val
+                else:
+                    self.slotMax = self.cfg.evalFloatArg(args[2])
+            else:
+                self.slotMax = self.slotMin + MIN_DIST
+                self.slotMin -= MIN_DIST
+        else:
+            self.slotMin = 0.0
+            self.slotMax = MAX_VALUE
 
     def rectPocket(self, args):
         layer = args[1]
@@ -72,6 +96,13 @@ class RectPocket():
             vl0 = vert[0]
             w = abs(hl0.p0[0] - hl0.p1[0]) # width
             h = abs(vl0.p0[1] - vl0.p1[1]) # height
+            if h < w:
+                if (h < self.slotMin) or (h > self.slotMax):
+                    continue
+            else:
+                if (w < self.slotMin) or (w > self.slotMax):
+                    continue
+
             x = min(hl0.p0[0], hl0.p1[0])
             y = min(vl0.p0[1], vl0.p1[1])
             self.drawRect(x, y, w, h)
@@ -190,13 +221,14 @@ class RectPocket():
         self.path.append(Line(p0, p1, self.index))
         self.index += 1
 
-    def addArcSeg(self, c, r, a0, a1):
-        self.path.append(Arc(c, r, a0, a1, self.index))
+    def addArcSeg(self, c, r, a0, a1, direction=CCW):
+        self.path.append(Arc(c, r, a0, a1, self.index, direction=CCW))
         self.index += 1
 
     def millPath(self):
         for l in self.path:
             l.prt()
+        dprt()
         cfg = self.cfg
         mp = cfg.getMillPath()
         cfg.mill.last = self.path[0].p0 # start at beginning
@@ -239,30 +271,41 @@ class RectPocket():
         self.path = []
         self.index = 0
         if h < w:
+            if (h < self.slotMin) or (h > self.slotMax):
+                return
             r = h / 2.0
             w0 = w / 2.0 - r
             c0 = (x - w0, y)
             c1 = (x + w0, y)
             r0 = r - cfg.endMillSize / 2.0 + cfg.finishAllowance
-            p0 = (x - w0, y - r0)
-            p1 = (x + w0, y - r0)
-            p2 = (x + w0, y + r0)
-            p3 = (x - w0, y + r0)
+            #  |<-----------w----------->|
+            #  |    p0 ----------- p3    |--
+            #  |     |             |     | ^
+            #  |     |     +r0     |     | |
+            #  |<-r c0 -w0 x,y +w0 c1 r->| h
+            #        |     -r0     |     | |
+            #        |             |     | v
+            #       p1 ----------- p2    |--
+            p0 = (x - w0, y + r0)
+            p1 = (x - w0, y - r0)
+            p2 = (x + w0, y - r0)
+            p3 = (x + w0, y + r0)
             self.addArcSeg(c0, r0, 90, 270)
-            self.addLineSeg(p0, p1)
+            self.addLineSeg(p1, p2)
             self.addArcSeg(c1, r0, 270, 90)
-            self.addLineSeg(p2, p3)
+            self.addLineSeg(p3, p0)
             if draw is not None:
-                p0 = (x - w0, y - r)
-                p1 = (x + w0, y - r)
-                p2 = (x + w0, y + r)
-                p3 = (x - w0, y + r)
-                draw.move(p3)
-                draw.arc(p0, c0)
-                draw.line(p1)
-                draw.arc(p2, c1)
-                draw.line(p3)
+                for l in self.path:
+                    l.prt()
+                dprt()
+                draw.move(p0)
+                draw.arc(p1, c0)
+                draw.line(p2)
+                draw.arc(p3, c1)
+                draw.line(p0)
         else:
+            if (w < self.slotMin) or (w > self.slotMax):
+                return
             r = w / 2.0
             h0 = h / 2.0 - r
             c0 = (x, y - h0)
@@ -289,10 +332,27 @@ class RectPocket():
         self.millPath()
 
     def rectSlot(self, args):
-        layer = args[1]
         cfg = self.cfg
         cfg.ncInit()
-        segments = cfg.dxfInput.getPath(layer)
+        if len(args) >= 2:
+            layer = args[1]
+            segments = cfg.dxfInput.getPath(layer)
+        else:
+            allSeg = cfg.dxfInput.getOpenPath()
+            segments = []
+            for seg in allSeg:
+                if len(seg) <= 2:
+                    continue
+                d = xyDist(seg[0].p0, seg[-1].p1)
+                if (d < MIN_DIST) and (len(seg) == 4):
+                    segments.append(seg)
+                    dprt("len %2d d %6.3f" % (len(seg), d))
+                    for l in seg:
+                        l.prt()
+                        l.draw()
+                        l.label()
+                    dprt()
+            
         millSeg = []
         for seg in segments:
             if len(seg) != 4:
@@ -302,6 +362,7 @@ class RectPocket():
             horiz = []
             arc = []
             for l in seg:
+                l.prt()
                 if l.type == LINE:
                     if abs(l.p0[0] - l.p1[0]) < MIN_DIST:
                         vert.append(l)
@@ -309,6 +370,7 @@ class RectPocket():
                         horiz.append(l)
                 elif l.type == ARC:
                     arc.append(l)
+            dprt()
                     
             if len(arc) == 2:
                 if abs(arc[0].r - cfg.endMillSize / 2.0) < MIN_DIST:
@@ -319,20 +381,20 @@ class RectPocket():
                     a0 = arc[0]
                     a1 = arc[1]
                     if len(vert) == 2:
-                        x = a0.p0.x
+                        x = a0.c.x
                         if a0.c.y > a1.c.y:
                             (a0, a1) = (a1, a0)
                         y = a0.c.y + (a1.c.y - a0.c.y) / 2
-                        w = abs(a0.p0.x - a0.p1.x)
+                        w = abs(a0.p0.x - a0.p0.x)
                         h = abs(a0.c.y - a1.c.y)
                         self.pocket(x, y, w, h)
                     elif len(horiz) == 2:
                         if a0.c.x > a1.c.y:
                             (a0, a1) = (a1, a0)
                         x = a0.c.x + (a1.c.x - a0.c.x) / 2
-                        y = a0.p0.y
-                        w = abs(a0.c.x - a1.c.x)
-                        h = abs(a0.p0.y - a1.p1.y)
+                        y = a0.c.y
+                        w = abs(a0.c.x - a1.c.x) + 2 * a0.r
+                        h = abs(a0.p0.y - a0.p1.y)
                         self.pocket(x, y, w, h)
             
         last = cfg.mill.last
