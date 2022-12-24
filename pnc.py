@@ -14,8 +14,6 @@ import random
 import re
 import subprocess
 import sys
-import wx
-# import wx.lib.colourdb
 import traceback
 from collections import namedtuple
 from math import ceil, cos, floor, radians, sin, tan
@@ -29,10 +27,10 @@ from ezdxf import readfile as ReadFile
 import geometry
 from dbgprt import dclose, dflush, dprt, dprtSet, ePrint
 from draw import Draw
-from geometry import (ARC, CCW, CW, MAX_VALUE, MIN_DIST, MIN_VALUE, Arc, Line,
-                      newPoint, combineArcs, createPath, inside, offset,
-                      oStr, pathDir, pathLength, reverseSeg, rotateMinDist,
-                      xyDist)
+from geometry import (ARC, LINE, CCW, CW, MAX_VALUE, MIN_DIST, MIN_VALUE,
+                      Arc, Line, newPoint, combineArcs, createPath, inside,
+                      offset, oStr, pathDir, pathLength, reverseSeg,
+                      rotateMinDist, xyDist)
 from hershey import Font
 from mill import Mill
 from millLines import MillLine
@@ -501,7 +499,7 @@ class Config():
                     elif tmp == "c":
                         self.linuxCNC = True
                     elif tmp == "g":
-                        cfg.gui = True
+                        self.gui = True
                     elif tmp == 'r':
                         self.reSeq = True
                     elif tmp == 's':
@@ -1233,7 +1231,7 @@ class Config():
         return(self.mp)
 
     def millSlot(self, p, width, length, comment):
-        self.slotNum + 1
+        self.slotNum += 1
         self.mill.write("(%s %2d width %0.3f length %0.3f "\
                         "at x %0.3f y %0.3f)\n" % \
                         (comment, self.slotNum, width, length, \
@@ -1357,7 +1355,8 @@ class Config():
         if self.orientation == O_POINT:
             self.orientationLayer = layer = args[2]
         if self.dxfInput is not None:
-            self.dxfInput.setOrientation(self.orientation, layer)
+            self.dxfInput.setOrientation(self.orientation, self.ref, \
+                                         self.refOffset, layer)
 
     def setXLimit(self, args):
         l = len(args)
@@ -1398,7 +1397,10 @@ class Config():
             ePrint("orientation not set")
             dflush()
         l = args[0]
-        fileName = l.split(' ', 1)[-1]
+        # fileName = l.split(' ', 1)[-1]
+        fileName = args[0]
+        if fileName.startswith("dxf "):
+            fileName = fileName[:4]
         if fileName == "*":
             if self.dxfFile is not None:
                 if re.search(r"\.dxf$", self.dxfFile):
@@ -1432,7 +1434,8 @@ class Config():
         self.materialLayer = "Material"
         self.fixtureLayer = "Fixture"
         self.dxfInput.open(fileName, self.reference, self.refOffset)
-        self.dxfInput.setOrientation(self.orientation, self.orientationLayer)
+        self.dxfInput.setOrientation(self.orientation, self.reference, \
+                                     self.refOffset, self.orientationLayer)
 
     def dxfLine(self, args):
         self.ncInit()
@@ -1747,7 +1750,7 @@ class Config():
 
     def dxfDrill(self, args, op=DRILL):
         dbg = False
-        layer = cfg.getLayer(args)
+        layer = self.getLayer(args)
         drill = self.dxfInput.getHoles(layer, self.holeMin, self.holeMax, \
                                        dbg=False)
         self.ncInit()
@@ -1789,7 +1792,7 @@ class Config():
 
     def dxfDrillSort(self, args, op=DRILL):
         dbg = False
-        layer = cfg.getLayer(args)
+        layer = self.getLayer(args)
         drill = self.dxfInput.getHoles(layer, self.holeMin, self.holeMax, \
                                        dbg=False)
         self.ncInit()
@@ -1824,8 +1827,8 @@ class Config():
 
     def dxfMillHole(self, args, drill=None):
         if drill is None:
-            layer = cfg.getLayer(args)
-            drill = self.dxfInput.getHoles(layer, cfg.holeMin, cfg.holeMax)
+            layer = self.getLayer(args)
+            drill = self.dxfInput.getHoles(layer, self.holeMin, self.holeMax)
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
@@ -1908,7 +1911,7 @@ class Config():
     def dxfSteppedHole(self, args, drill=None):
         if drill is None:
             layer = self.getLayer(args)
-            drill = self.dxfInput.getHoles(layer, cfg.holeMin, cfg.holeMax)
+            drill = self.dxfInput.getHoles(layer, self.holeMin, self.holeMax)
         self.ncInit()
         last = self.mill.last
         mp = self.getMillPath()
@@ -2277,7 +2280,7 @@ class Config():
         mill.write("o%d endif\n" % (oVal))
         mill.blankLine()
         mill.pause()
-        mill.setSpeed(cfg.speed)
+        mill.setSpeed(self.speed)
         mill.blankLine()
 
     def endRepeat(self, args):
@@ -2307,7 +2310,7 @@ class Config():
         mill.write("o%d endif\n" % (oVal))
         mill.blankLine()
         mill.pause()
-        mill.setSpeed(cfg.speed)
+        mill.setSpeed(self.speed)
         mill.write("o%d endwhile\n" % (rptOVal))
         mill.blankLine()
 
@@ -2575,7 +2578,7 @@ class MillPath():
                 self.done = True
                 self.millSeg(l0, None, comment)
             else:               # if not final pass
-                cfg.draw.drawX(l0.p1, 'R', True)
+                self.cfg.draw.drawX(l0.p1, 'R', True)
                 self.millSeg(l0, self.currentDepth, comment)
                 if abs(l1.length) > MIN_DIST:
                     self.millSeg(l1, None, comment)
@@ -2592,7 +2595,7 @@ class MillPath():
         d = self.rampDist
         if l.length >= d:         # if ramp fits
             (l0, l1) = l.split(d)
-            cfg.draw.drawX(l0.p1, 'R', True)
+            self.cfg.draw.drawX(l0.p1, 'R', True)
             self.rampClean.append(l0)
             self.rampDist = 0.0
             self.ramp = False
@@ -2648,14 +2651,14 @@ class MillPath():
                            d, length))
                     if d > MIN_DIST:
                         (l0, l1) = l.split(d)
-                        cfg.draw.drawX(l0.p1, "%d" % (self.tabNum))
+                        self.draw.drawX(l0.p1, "%d" % (self.tabNum))
                         comment = "ts0 t %d l %d" % (self.tabNum, l.index)
                         depth = self.currentDepth + self.tabDepth
                         self.millSeg(l0, None, comment)
                         self.mill.moveZ(depth)
                         l = l1
                     else:       # if no tab
-                        cfg.draw.drawX(l.p0, "%d" % (self.tabNum))
+                        self.cfg.draw.drawX(l.p0, "%d" % (self.tabNum))
                     self.tabLength = self.tabWidth
                     tabState = T_TAB_END
                 else:
@@ -2668,7 +2671,7 @@ class MillPath():
                 d = self.tabLength
                 if length > d:  # if tab fits in this line
                     (l0, l1) = l.split(d)
-                    cfg.draw.drawX(l0.p1, "%d" % (self.tabNum))
+                    self.cfg.draw.drawX(l0.p1, "%d" % (self.tabNum))
                     comment = "te0 t %d l %d" % (self.tabNum, l.index)
                     self.millSeg(l0, None, comment)
                     l = l1
@@ -2688,7 +2691,7 @@ class MillPath():
                 if length >= d: # if ramp fits in this line
                     (l0, l1) = l.split(d)
                     self.tabRampClean.append(l0)
-                    cfg.draw.drawX(l0.p1, "r")
+                    self.cfg.draw.drawX(l0.p1, "r")
                     self.tabRampDist = 0.0
                     self.passLoc += d
                     self.tabRampSeg(l0, "tr1")
@@ -3023,7 +3026,7 @@ class Dxf():
     def __init__(self, cfg):
         self.cfg = cfg
         self.dwg = None
-        self.modelspace = None
+        self.modelSpace = None
         self.dxfLayers = None
         self.xOffset = 0.0
         self.yOffset = 0.0
@@ -3047,32 +3050,35 @@ class Dxf():
     def open(self, inFile, ref, refOffset=None):
         self.inFile = inFile
         self.dwg = dwg = ReadFile(inFile)
-        self.modelspace = modelspace = dwg.modelspace()
+        self.modelSpace = modelSpace = dwg.modelspace()
         cfg = self.cfg
         
+        dxfTypes = ("LINE", "CIRCLE", "ARC", "LWPOLYLINE")
         self.minMax.init()
         self.mMinMax.init()
         self.fMinMax.init()
         
         self.material = []
         self.fixture = []
-        
+                
         checkLayers = len(cfg.layers) != 0
         self.dxfLayers = {}
-        for e in modelspace:
+        for e in modelSpace:
             dxfType = e.dxftype()
             layer = e.get_dxf_attrib("layer")
-            if not layer in self.dxfLayers:
-                self.dxfLayers[layer] = info = LayerInfo(layer)
-            else:
+
+            if dxfType in dxfTypes:
+                if not layer in self.dxfLayers:
+                    self.dxfLayers[layer] = LayerInfo(layer)
                 info = self.dxfLayers[layer]
-            info.append(e)
+                info.append(e)
                 
             if layer == cfg.materialLayer:
                 pass
             elif checkLayers:
                 if not layer in cfg.layers:
                     continue
+
             if dxfType == 'LINE':
                 x0 = e.get_dxf_attrib("start")[0]
                 y0 = e.get_dxf_attrib("start")[1]
@@ -3135,22 +3141,6 @@ class Dxf():
             elif dxfType == 'LWPOLYLINE':
                 for (x, y) in e.vertices():
                     self.minMax.point(x, y)
-        if  ref == REF_OVERALL:
-            if refOffset is not None:
-                self.yMin += refOffset
-                self.yMax += refOffset
-            self.xMin = self.minMax.xMin
-            self.xMax = self.minMax.xMax
-            self.yMin = self.minMax.yMin
-            self.yMax = self.minMax.yMax
-        elif ref == REF_MATERIAL:
-            if len(self.material) == 0:
-                ePrint("material layer not defined")
-                self.error = True
-        elif ref == REF_FIXTURE:
-            if len(self.fixture) == 0:
-                ePrint("fixture layer not defined")
-                self.error = True
 
         minMax = self.minMax
         dprt("xMin %f yMin %f" % (minMax.xMin, minMax.yMin))
@@ -3164,11 +3154,9 @@ class Dxf():
         for key in sorted(dxfLayers):
             info = dxfLayers[key]
             print("layer %-12s count %2d" % (key, info.count))
-        print()
 
-    def setOrientation(self, orientation=0, layer=None):
-        dprt("\nmin (x %7.4f, y %7.4f) max (x %7.4f, y %7.4f)\n" % \
-              (self.xMin, self.yMin, self.xMax, self.yMax))
+    def setOrientation(self, orientation=O_UPPER_LEFT, ref=REF_OVERALL, \
+                       refOffset=0, layer=None):
 
         if len(self.material) != 0:
             print("material\n")
@@ -3177,15 +3165,40 @@ class Dxf():
                     (start[0], start[1], end[0], end[1]))
             print()
 
-        if len(self.fixture) != 0:
+        dprt("reference %d" % (ref))
+        if ref == REF_FIXTURE:
+            if len(self.fixture) == 0:
+                ePrint("fixture layer not defined")
+                self.error = True
+                return
+            
+            print("fixture min and max")
             (xMin, yMin) = (self.fMinMax.xMin, self.fMinMax.yMin)
             (xMax, yMax) = (self.fMinMax.xMax, self.fMinMax.yMax)
-        elif len(self.material) != 0:
+        elif ref == REF_MATERIAL:
+            if len(self.material) == 0:
+                ePrint("material layer not defined")
+                self.error = True
+                return
+
+            print("material min and max")
             (xMin, yMin) = (self.mMinMax.xMin, self.mMinMax.yMin)
             (xMax, yMax) = (self.mMinMax.xMax, self.mMinMax.yMax)
-        else:
+        elif  ref == REF_OVERALL:
+            print("overall min and max")
+            if refOffset is not None:
+                self.yMin += refOffset
+                self.yMax += refOffset
             (xMin, yMin) = (self.minMax.xMin, self.minMax.yMin)
             (xMax, yMax) = (self.minMax.xMax, self.minMax.yMax)
+
+        dprt("\nmin (x %7.4f, y %7.4f) max (x %7.4f, y %7.4f)\n" % \
+              (xMin, yMin, xMax, yMax))
+
+        self.xMin = xMin
+        self.yMin = yMin
+        self.xMax = xMax
+        self.yMax = yMax
 
         self.xMul = 1
         self.yMul = 1
@@ -3207,7 +3220,7 @@ class Dxf():
             self.yOffset = -(yMin + (yMax - yMin) / 2)
         elif orientation == O_POINT:
             if layer is not None:
-                for e in self.modelspace:
+                for e in self.modelSpace:
                     if layer != e.get_dxf_attrib("layer"):
                         continue
                     if e.dxftype() == 'CIRCLE' or e.dxftype() == 'ARC':
@@ -3221,8 +3234,9 @@ class Dxf():
         self.yMin += self.yOffset
         self.yMax += self.yOffset
 
-        dprt("%d xOffset %7.4f yOffset %7.4f" % \
-               (orientation, self.xOffset, self.yOffset))
+        dprt("orientation %d %s xOffset %7.4f yOffset %7.4f" % \
+               (orientation, self.cfg.orientationValues[orientation][1], \
+                self.xOffset, self.yOffset))
 
     def fix(self, point):
         (x, y) = point
@@ -3237,7 +3251,7 @@ class Dxf():
 
     def getPoints(self, layer):
         points = []
-        for e in self.modelspace:
+        for e in self.modelSpace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             if layer != e.get_dxf_attrib("layer"):
                 continue
@@ -3250,7 +3264,7 @@ class Dxf():
 
     def getLabel(self, layer):
         points = []
-        for e in self.modelspace:
+        for e in self.modelSpace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             # if layer != e.get_dxf_attrib("layer"):
             #     continue
@@ -3278,7 +3292,7 @@ class Dxf():
             else:
                 minSize = size
         arcs = []
-        for e in self.modelspace:
+        for e in self.modelSpace:
             dxfType = e.dxftype()
             if dbg:
                 dprt("layer %s type %s" % \
@@ -3347,7 +3361,7 @@ class Dxf():
 
     def getCircles(self, layer=None):
         circles = []
-        for e in self.modelspace:
+        for e in self.modelSpace:
             # dprt("layer %s" % (e.get_dxf_attrib("layer")))
             if (layer is None) or (layer == e.get_dxf_attrib("layer")):
                 dxfType = e.dxftype()
@@ -3362,10 +3376,10 @@ class Dxf():
     def getObjects(self, layer=None):
         objects = []
         linNum = 0
-        for e in self.modelspace:
-            # dprt("layer %s" % (e.get_dxf_attrib("layer")))
-            if layer != e.get_dxf_attrib("layer"):
-                continue
+        for e in self.modelSpace:
+            if layer is not None:
+                if layer != e.get_dxf_attrib("layer"):
+                    continue
             dxfType = e.dxftype()
             if dxfType == 'LINE':
                 p0 = self.fix((e.get_dxf_attrib("start")[0], \
@@ -3414,7 +3428,7 @@ class Dxf():
         # find everything that matches layer
         linNum = 0
         entities = []
-        for e in self.modelspace:
+        for e in self.modelSpace:
             dxfType = e.dxftype()
             if True and dbg:
                 dprt("dxfType %-10s layer %s" % \
@@ -3512,7 +3526,7 @@ class Dxf():
         # find everything that matches layer
         linNum = 0
         entities = []
-        for e in self.modelspace:
+        for e in self.modelSpace:
             dxfType = e.dxftype()
             if True and dbg:
                 dprt("dxfType %-10s layer %s" % \
@@ -3899,7 +3913,7 @@ class Dxf():
         if uniCode:
             layer = layer.decode('utf-8')
             lineType = lineType.decode('utf-8')
-        for e in self.modelspace:
+        for e in self.modelSpace:
             dxfType = e.dxftype()
             if dxfType == lineType and e.get_dxf_attrib("layer") == layer:
                 p0 = self.fix((e.get_dxf_attrib("start")[0], \
@@ -3918,7 +3932,7 @@ class Dxf():
     # def segments(self, layer):
     #     segments = []
     #     linNum = 0
-    #     for e in self.modelspace:
+    #     for e in self.modelSpace:
     #         type = e.dxftype()
     #         if type == 'LINE' and e.get_dxf_attrib("layer") == layer:
     #             l0 = (self.fix(e.get_dxf_attrib("start")[:2]), \
@@ -4012,7 +4026,7 @@ class Dxf():
 
     # def getLines(self, layer):
     #     line = []
-    #     for e in self.modelspace:
+    #     for e in self.modelSpace:
     #         type = e.dxftype()
     #         if type == 'LINE' and e.get_dxf_attrib("layer") == layer:
     #             start = e.get_dxf_attrib("start")[:2]
@@ -4054,129 +4068,25 @@ class Dxf():
     #     #            (start[0], start[1], end[0], end[1]))
     #     return line
 
-class MainFrame(wx.Frame):
-    def __init__(self, parent, cfg, title):
-        self.cfg = cfg
-        super(MainFrame, self).__init__(parent, title = title)
-        # self.Maximize(True)
-        self.Bind(wx.EVT_CLOSE, self.onClose)
-        self.menuSetup()
-        self.InitUI()
-        self.plotFrame = PlotFrame(self, "Plot Frame")
-        self.Bind(wx.EVT_MOVE_END, self.onMoveEnd)
-
-    def onClose(self, event):
-        self.plotFrame.Destroy()
-        self.Destroy()
-
-    def onMoveEnd(self, event):
-        self.plotFrame.setPos(self)
-
-        # colors = wx.lib.colourdb.getColourList()
-        # for line in colors:
-        #     print line
-        # dflush()
-
-    def menuItem(self, topMenu, text, action=None):
-        ctlId = wx.Window.NewControlId()
-        menu = topMenu.Append(ctlId, text)
-        if action is not None:
-            self.Bind(wx.EVT_MENU, action, menu)
-        return ctlId
-
-    def menuSetup(self):
-        fileMenu = wx.Menu()
-        self.menuItem(fileMenu, "Save")
-        self.menuItem(fileMenu, "Exit")
-
-        menuBar = wx.MenuBar()
-        menuBar.Append(fileMenu, 'File')
-
-        self.SetMenuBar(menuBar)
-
-    def InitUI(self):
-        panel0 = wx.Panel(self)
-
-        self.sizerV = sizerV = wx.BoxSizer(wx.VERTICAL)
-
-        panel0.SetSizer(sizerV)
-
-        sizerH = wx.BoxSizer(wx.HORIZONTAL)
-
-        txt = wx.StaticText(panel0, -1, "Test")
-        sizerH.Add(txt, flag=wx.ALL|wx.ALIGN_CENTER_VERTICAL, border=2)
-
-        sizerV.Add(sizerH, flag=wx.CENTER|wx.ALL, border=2)
-
-        # self.panel1 = panel1 = wx.Panel(panel0)
-        # panel1.SetSize(200, 200)
-        # sizerV.Add(panel1)
-
-        self.zoom = False
-        self.left = None
-
-        self.sizerV.Fit(self)
-
-        self.Show(True)
-
-class PlotFrame(wx.Frame):
-    def __init__(self, mainFrame, title, parent=None):
-        wx.Frame.__init__(self, parent=parent, title=title)
-        self.mainFrame = mainFrame
-        self.cfg = mainFrame.cfg
-        self.Bind(wx.EVT_PAINT, self.OnPaint)
-        self.Bind(wx.EVT_LEFT_UP, self.OnMouseEvent)
-        self.setPos(mainFrame)
-        self.Show()
-
-    def setPos(self, mainFrame):
-        mainPos = mainFrame.GetPosition()
-        mainSize = mainFrame.GetSize()
-        self.SetPosition(wx.Point(mainPos.x + mainSize.width, mainPos.y))
-
-    def OnMouseEvent(self, e):
-         x = e.GetX()
-         print(x)
-#         # if not self.zoom:
-#         #     self.zoom = True
-#         #     self.offset = x > self.tc.xBase
-#         # else:
-#         #     self.zoom = False
-#         #     self.offset = False
-#         # self.tc.setZoomOffset(self.zoom, self.offset)
-#         # self.Refresh()
-
-    def OnPaint(self, e):
-        dc = wx.PaintDC(self)
-        dc.SetMapMode(wx.MM_TEXT)
-        brush = wx.Brush("white")
-        dc.SetBackground(brush)
-        dc.Clear()
-#         # self.tc.calcScale()
-#         # self.tc.draw(dc)
-
-        color = wx.Colour(255,0,0)
-        dc.SetTextForeground(color)
-        dc.DrawText("Hello wxPython", 10, 10)
-        dc.DrawLine(10, 10, 1000, 100)
-
 if len(sys.argv) <= 1:
     exit()
 
-cfg = Config()
-cfg.parseCmdLine()
+config = Config()
+config.parseCmdLine()
 
-if cfg.gui:
-    if False:
-        app = wx.App()
-        window = wx.Frame(None, title = "wxPython Frame", size = (300,200))
-        panel = wx.Panel(window)
-        label = wx.StaticText(panel, label = "Hello World", pos = (100,50))
-        window.Show(True)
-        app.MainLoop()
-    else:
+import wx.lib.inspection
+
+if config.gui:
+    if True:
         ex = wx.App()
-        MainFrame(None, cfg, 'PNC')
+        if False:
+            mainFrame = MainFrame(None, config, 'PNC')
+        else:
+            from mainFrame import MainFrame1
+            mainFrame = MainFrame1(None, config, 'PNC')
+        ex.SetTopWindow(mainFrame)
+        mainFrame.Show(True)
+        # wx.lib.inspection.InspectionTool().Show()
         ex.MainLoop()
 else:
-    cfg.open()
+    config.open()
