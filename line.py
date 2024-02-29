@@ -45,7 +45,7 @@ class Engrave():
             if len(seg) != 1:
                 continue
             line = seg[0]
-            if line.type != LINE:
+            if line.lType != LINE:
                 continue
             self.scribeLine(line)
 

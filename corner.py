@@ -180,11 +180,11 @@ class corner():
             for l in splitSeg:
                 (x0, y0) = l.p0
                 (x1, y1) = l.p1
-                if l.type == ARC:
+                if l.lType == ARC:
                     p = ((x0 + x1) / 2, (y0 + y1) / 2)
                     if (inside(p, box) & 1) == 0:
                         continue
-                elif l.type == LINE:
+                elif l.lType == LINE:
                     if (inside(l.p0, box) & 1) == 0 and \
                        (inside(l.p1, box) & 1) == 0:
                         continue
@@ -475,10 +475,10 @@ class corner():
         for l in path:
             if l.index == INDEX_MARKER:
                 continue
-            if l.type == ARC:
+            if l.lType == ARC:
                 if xyDist((self.trimX, self.trimY), l.c) < l.r:
                     continue
-            # elif l.type == LINE:
+            # elif l.lType == LINE:
             #     rtnPath.append(l)
             #     continue
             dprt()

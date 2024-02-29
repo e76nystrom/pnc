@@ -273,7 +273,7 @@ class Offset():
             for seg in segments:
                 for i, l in enumerate(seg):
                     lPrev = seg[i - 1]
-                    if lPrev.type == LINE and l.type == LINE:
+                    if lPrev.lType == LINE and l.lType == LINE:
                         d = self.dist if direction == CCW else -self.dist
                         d /= 2.0
                         lP0 = lPrev.parallel(d)
@@ -332,9 +332,9 @@ class Offset():
                     lp.draw()
                 seg = segments[i]
                 for j, l in enumerate(seg):
-                    if l.type == LINE:
+                    if l.lType == LINE:
                         loc = lineIntersection(lp, l)
-                    elif l.type == ARC:
+                    elif l.lType == ARC:
                         loc = lineArcTest(lp, l)
                     if loc is not None:
                         if xyDist(loc, l.p0) < MIN_DIST:
@@ -597,13 +597,13 @@ class Offset():
                 #     l1.label(str(l1.index), layer=offsetLayer)
 
             if xyDist(prevP, l1.p0) > MIN_DIST:
-                if prevL.type == LINE:
+                if prevL.lType == LINE:
                     p0 = prevL.p0
                 else:
                     p0 = prevL.tangent(False, 0.1, offsetLayer, True)
                 (x0, y0) = p0
                 (x1, y1) = l.p0
-                if l.type == LINE:
+                if l.lType == LINE:
                     p2 = l.p1
                 else:
                     p2 = l.tangent(True, 0.1, offsetLayer, True)
@@ -698,8 +698,8 @@ class Offset():
         return oSeg
 
     def pathIntersect(self, l0, l1):
-        if l0.type == LINE:
-            if l1.type == LINE:
+        if l0.lType == LINE:
+            if l1.lType == LINE:
                 loc = lineIntersection(l0, l1)
                 if isinstance(loc, int) and loc == 1:
                     return None
@@ -707,7 +707,7 @@ class Offset():
             else:
                 loc = lineArcTest(l0, l1)
         else:
-            if l1.type == LINE:
+            if l1.lType == LINE:
                 loc = lineArcTest(l1, l0)
             else:
                 loc = arcArcTest(l0, l1)
@@ -860,10 +860,10 @@ class Offset():
                     if (x0 == x1) and (y0 == y1): # if line start
                         l0 = iL.l
                         l1 = l.l
-                        if l0.type == l1.type:
+                        if l0.lType == l1.lType:
                             if not l0.colinear(l1): # and not colinear
                                 break
-                        elif l0.type == LINE:
+                        elif l0.lType == LINE:
                             if not lineArcTangent(l0, l1):
                                 break
                         else:
@@ -958,8 +958,8 @@ class Offset():
                 continue
             if update:
                 update = False
-                if prevL.type == LINE:
-                    if l.type == LINE:
+                if prevL.lType == LINE:
+                    if l.lType == LINE:
                         (x0, y0) = prevL.p1
                         (x1, y1) = l.p0
                         p = Point((x0 + x1) / 2, (y0 + y1) / 2)
@@ -968,7 +968,7 @@ class Offset():
                     else:
                         prevL.updateP1(l.p0)
                 else:
-                    if l.type == LINE:
+                    if l.lType == LINE:
                         l.updateP0(prevL.p1)
                     else:
                         l0 = Line(prevL.p1, l.p0, n)
@@ -1031,7 +1031,7 @@ class Offset():
                 e.prt(end='')
                 if e.evtType == LEFT:
                     l = e.l
-                    if l.type == LINE:
+                    if l.lType == LINE:
                         dprt(" m %7.4f b %7.4f %s" % \
                              (l.m, l.b, str(l.vertical)[0]), end='')
                 dprt()
@@ -1325,15 +1325,15 @@ class Offset():
         self.dbgIntersection.append((self.event, n, self.curX, l0.index, \
                                      l1.index, True))
 
-        if l0.type == LINE:
-            if l1.type == LINE:
+        if l0.lType == LINE:
+            if l1.lType == LINE:
                 loc = lineIntersection(l0, l1)
                 if isinstance(loc, int) and loc == 1:
                     return None
             else:
                 loc = lineArcTest(l0, l1)
         else:
-            if l1.type == LINE:
+            if l1.lType == LINE:
                 loc = lineArcTest(l1, l0)
             else:
                 loc = arcArcTest(l0, l1)
@@ -1720,8 +1720,8 @@ class Offset():
                  (n, i.loc.x, i.loc.y, i.l0.index, i.l1.index))
 
     def insideIntersect(self, l0, l1):
-        if l0.type == LINE:
-            if l1.type == LINE:
+        if l0.lType == LINE:
+            if l1.lType == LINE:
                 loc = lineIntersection(l0, l1)
                 if isinstance(loc, int):
                     return None
@@ -1729,7 +1729,7 @@ class Offset():
             else:
                 return lineArcTest(l0, l1)
         else:
-            if l1.type == LINE:
+            if l1.lType == LINE:
                 return lineArcTest(l1, l0)
             else:
                 return arcArcTest(l0, l1)
@@ -1743,10 +1743,10 @@ class Offset():
         arcs = []
         for l in seg:
             l.prt()
-            if l.type == LINE:
+            if l.lType == LINE:
                 lines.append(l)
                 l.draw()
-            elif l.type == ARC:
+            elif l.lType == ARC:
                 arcs.append(l)
 
         dprt()
@@ -2317,7 +2317,7 @@ def arcArcTest(a0, a1):
     return None
 
 def perpendicular(l, dist, direction):
-    if l.type == LINE:
+    if l.lType == LINE:
         (x0, y0) = l.p0         # start and end
         (x1, y1) = l.p1
         dx = x1 - x0
@@ -2351,9 +2351,9 @@ def perpendicular(l, dist, direction):
     return l1
 
 def transition(p, l, angle, dist, direction, outside, err, dbg=True):
-    if l.type == LINE:
+    if l.lType == LINE:
         return linearTransition(p, l, angle, dist, direction, dbg)
-    elif l.type == ARC:
+    elif l.lType == ARC:
         return spiral(p, l, angle, dist, direction, outside, err, dbg)
 
 def linearTransition(p, l, angle, dist, direction, dbg):
@@ -2485,7 +2485,7 @@ def bisect(l0, l1, dist, dbg=True):
 # y = (m*bp + b) / (1 + m*m)
 
 def linePoint(l, p):
-    if l.type == LINE:
+    if l.lType == LINE:
         (x0, y0) = l.p0         # start and end
         (x1, y1) = l.p1
         (x, y) = p

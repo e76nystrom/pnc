@@ -820,7 +820,7 @@ class BitmapPanel(wx.Panel):
                         if abs(dist) < .1:
                             self.selected = l
                             print("found")
-                            # if l.type == LINE:
+                            # if l.lType == LINE:
                             if True:
                                 d0 = xyDist(p, l.p0)
                                 d1 = xyDist(p, l.p1)
@@ -844,7 +844,7 @@ class BitmapPanel(wx.Panel):
                     self.lastEndPoint = 2
                     self.render()
                 else:
-                    # if l.type == LINE:
+                    # if l.lType == LINE:
                     if True:
                         d0 = xyDist(p, l.p0)
                         d1 = xyDist(p, l.p1)
@@ -866,9 +866,9 @@ class BitmapPanel(wx.Panel):
                     status += " pt (%7.3f %7.3f)" % \
                         (self.endPoint.x, self.endPoint.y)
                 l = self.selected
-                if l.type == LINE:
+                if l.lType == LINE:
                     status += " len %7.3f" % (l.length)
-                elif l.type == ARC:
+                elif l.lType == ARC:
                     status += " c (%7.3f %7.3f) r %7.3f" % (l.c.x, l.c.y, l.r)
             self.mainFrame.statusText.SetValue(status)
 
@@ -891,12 +891,12 @@ class BitmapPanel(wx.Panel):
         ctx.set_source_rgb(0, 0, 0)  # Solid color
         line = ctx.line_to
         for l in self.objects:
-            if l.type == LINE:
+            if l.lType == LINE:
                 (x, y) = self.calcPos(l.p0)
                 ctx.move_to(x, y)
                 (x, y) = self.calcPos(l.p1)
                 line(x, y)
-            elif l.type == ARC:
+            elif l.lType == ARC:
                 # (x, y) = self.calcPos(l.p0)
                 # ctx.move_to(x, y)
                 (xc, yc) = self.calcPos(l.c)
@@ -909,12 +909,12 @@ class BitmapPanel(wx.Panel):
 
         if self.selected is not None:
             l = self.selected
-            if l.type == LINE:
+            if l.lType == LINE:
                 (x, y) = self.calcPos(l.p0)
                 ctx.move_to(x, y)
                 (x, y) = self.calcPos(l.p1)
                 line(x, y)
-            elif l.type == ARC:
+            elif l.lType == ARC:
                 l.prt()
                 ctx.new_sub_path()
                 (xc, yc) = self.calcPos(l.c)

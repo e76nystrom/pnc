@@ -88,9 +88,9 @@ class pocket():
                 l.draw()
                 if dbg:
                     l.prt()
-                if l.type == LINE:
+                if l.lType == LINE:
                     mainPath.append(intScale(l.p0))
-                elif l.type == ARC:
+                elif l.lType == ARC:
                     self.arcLines(mainPath, l, dbg=dbg)
             if dbg:
                 dprt()
@@ -275,9 +275,9 @@ class pocket():
                 l.draw()
                 if dbg:
                     l.prt()
-                if l.type == LINE:
+                if l.lType == LINE:
                     mainPath.append(intScale(l.p0))
-                elif l.type == ARC:
+                elif l.lType == ARC:
                     self.arcLines(mainPath, l, dbg=dbg)
 
             if dbg:

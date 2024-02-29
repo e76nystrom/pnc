@@ -364,7 +364,7 @@ class Draw():
         self.hole(offset((0, 0), p), 2 * r)
 
     def drawStart(self, l):
-        if l.type == ARC:
+        if l.lType == ARC:
             (x0, y0) = l.p0
             if not l.swapped:
                 a0 = l.a0

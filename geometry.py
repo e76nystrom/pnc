@@ -273,7 +273,7 @@ def pathDir(seg, dbg=False):
         if draw is not None:
             string = "%s %d" % (oStr(direction), l.index)
             draw.text(string, l.p0, .020)
-    # if l.type == ARC:
+    # if l.lType == ARC:
     #     direction = (CCW, CW)[l.swapped]
     #     if dbg and draw is not None:
     #         (x0, y0) = l.p0
@@ -310,8 +310,8 @@ class Line():
     def __init__(self, p0, p1, i=-1, e=None):
         self.p0 = newPoint(p0)
         self.p1 = newPoint(p1)
-        self.type = LINE
-        self.str = 'line'
+        self.lType = LINE
+        self.lStr = 'line'
         self.index = i
         self.e = e
         self.length = xyDist(p0, p1)
@@ -459,9 +459,9 @@ class Line():
         return(l0)
 
     def intersect(self, l, end=1, trim=True, dbg=False):
-        if l.type == LINE:
+        if l.lType == LINE:
             p = lineLine(self, l, dbg)
-        elif l.type == ARC:
+        elif l.lType == ARC:
             p = lineArc(self, l, end, dbg)
             # if p is None:
             #     dprt("l no intersection s %7.4f, %7.4f e %7.4f %7.4f" % \
@@ -472,7 +472,7 @@ class Line():
             self.updateP1(p)    # set end of this one
             if trim:
                 l.updateP0(p)       # set start of next one
-                if l.type == ARC:
+                if l.lType == ARC:
                     a = degAtan2(p[1] - l.c[1], p[0] - l.c[0])
                     if l.swapped:
                         l.a1 = a
@@ -618,7 +618,7 @@ class Line():
     def bisect(self, l, dist):
         (x0, y0) = self.p0
         (x1, y1) = self.p1
-        if l.type == LINE:
+        if l.lType == LINE:
             (x2, y2) = l.p1
             d = abs(dist)
             dprt("d %7.4f (%7.4f %7.4f) (%7.4f %7.4f) (%7.4f %7.4f)" %
@@ -792,7 +792,7 @@ class Line():
         return(self)
 
     def colinear(self, l):
-        if l.type == ARC:       # if other is an arc
+        if l.lType == ARC:       # if other is an arc
             return False
         return orientation(self.p0, self.p1, l.p1) == LINEAR
 
@@ -863,8 +863,8 @@ class Arc():
             self.swapped = True
         else:
             self.swapped = False
-        self.type = ARC
-        self.str = 'arc'
+        self.lType = ARC
+        self.lStr = 'arc'
         self.index = i
         self.r = r
         self.a0 = a0
@@ -1060,9 +1060,9 @@ class Arc():
 
     def intersect(self, l, trim=True, dbg=False):
         p = None
-        if l.type == LINE:
+        if l.lType == LINE:
             p = lineArc(l, self, 0, dbg)
-        elif l.type == ARC:
+        elif l.lType == ARC:
             c0 = self.c
             c1 = l.c
             if self.r != l.r or c0.x != c1.x or c0.y != c1.y:
@@ -1262,7 +1262,7 @@ class Arc():
         return(l)
 
     def colinear(self, l):
-        if l.type == LINE:
+        if l.lType == LINE:
             return False
 
         return (xyDist(self.c, l.c) < MIN_DIST and
@@ -1766,7 +1766,7 @@ def inside(p, seg, dbg=False):
         (x1, y1) = l.p1
         cType = 0
         test = False
-        lType = l.type
+        lType = l.lType
         if lType == LINE:
             if x0 == x1:               # if line vertical
                 pass
@@ -1832,7 +1832,7 @@ def pathLength(seg):
     totalLength = 0.0
     for l in seg:
         # l.prt()
-        # if l.type == LINE:
+        # if l.lType == LINE:
         #     dprt("length %7.4f" % (l.length))
         # else:
         #     dprt("length %7.4f arcLen %5.1f " % (l.length, l.arcLen))
@@ -1862,7 +1862,7 @@ def splitArcs(seg, splitAngle=90, dbg=False):
     i = 0
     for l in seg:
         # l.prt()
-        if l.type == ARC:
+        if l.lType == ARC:
             if dbg:
                 l.prt()
             a0 = degrees(calcAngle(l.c, l.p0))
@@ -1917,7 +1917,7 @@ def splitArcs(seg, splitAngle=90, dbg=False):
                 l1.swap()
             newSeg.append(l1)
             i += 1
-        elif l.type == LINE:
+        elif l.lType == LINE:
             # dprt("%3d              s %9.6f, %9.6f e %9.6f, %9.6f" % \
             #       (i, l.p0[0], l.p0[1], l.p1[0], l.p1[1]))
             l1 = copy(l)
@@ -1939,7 +1939,7 @@ def combineArcs(seg):
         l = seg[i]
         # l.prt()
         # combine arcs
-        if l.type == ARC:
+        if l.lType == ARC:
             if (l.a1 - l.a0) >= 360.0:
                 newSeg = seg
                 break
@@ -1950,7 +1950,7 @@ def combineArcs(seg):
                 if j + 1 >= segLen:
                     break
                 l0 = seg[j + 1]
-                if (l0.type == ARC and l0.r == l.r and \
+                if (l0.lType == ARC and l0.r == l.r and \
                     l0.c[0] == l.c[0] and l0.c[1] == l.c[1]):
                     # l0.prt()
                     j += 1
@@ -2160,7 +2160,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
         newPath = []
         for l in segPath:
             l.prt()
-            if prev is not None and prev.type == LINE and l.type == LINE:
+            if prev is not None and prev.lType == LINE and l.lType == LINE:
                 arc = lineLineArc(segPath, prev, l, \
                                   cfg.endMillSize / 2.0, direction)
                 if arc is not None:
@@ -2181,7 +2181,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
         if p1 is not None:
             l.updateP0(p1)
             p1 = None
-        elif prev is not None and l.type == ARC and l.index == -1:
+        elif prev is not None and l.lType == ARC and l.index == -1:
             prev.updateP1(l.p0)
             p1 = l.p1
         if not keepIndex:
@@ -2191,7 +2191,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
     if dbg:
         for l in newPath:
             l.draw()
-            labelP(l.p0, "%s %d" % (l.str[0].upper(), l.index))
+            labelP(l.p0, "%s %d" % (l.lStr[0].upper(), l.index))
         dprt()
     return(newPath, segTabPoints)
 
@@ -2201,7 +2201,7 @@ def labelPoints(seg):
     for l in seg:
         (x, y) = l.p0
         t = 'l'
-        if l.type == ARC:
+        if l.lType == ARC:
             t = 'a'
         draw.text('%s%d' % (t, l.index), (x + .010, y + .010), .010)
 
@@ -2224,7 +2224,7 @@ def printPoint(name, point):
 #     for l in seg:
 #         l.prt()
 #         curDir = None
-#         if l.type == ARC:
+#         if l.lType == ARC:
 #             if dbg and draw is not None:
 #                 draw.move(l.c)
 #                 draw.line((l.c[0], l.c[1] + 1))
@@ -2234,7 +2234,7 @@ def printPoint(name, point):
 #             curDir = (CW, CCW)[s]
 #             dirStr = "a %s" % (oStr(curDir))
 #         else:
-#             if prev.type == LINE or prev.type == ARC:
+#             if prev.lType == LINE or prev.lType == ARC:
 #                 val = orientation(prev.p0, l.p0, l.p1)
 #                 if val != 0:
 #                     curDir = val
@@ -2323,7 +2323,7 @@ def printPoint(name, point):
 #     i = 0
 #     for l in seg:
 #         # l.prt()
-#         if l.type == ARC:
+#         if l.lType == ARC:
 #             (i0, i1) = l.c
 #             r = l.r
 #             a0 = degrees(calcAngle(l.c, l.p0))
@@ -2359,7 +2359,7 @@ def printPoint(name, point):
 #                 prev = p
 #                 j += 1
 #                 i += 1
-#         elif l.type == LINE:
+#         elif l.lType == LINE:
 #             # dprt("%3d              s %9.6f, %9.6f e %9.6f, %9.6f" % \
 #             #       (i, l.p0[0], l.p0[1], l.p1[0], l.p1[1]))
 #             # l.draw()

@@ -64,7 +64,7 @@ class Surface():
             vert = []
             horiz = []
             for l in seg:
-                if l.type == LINE:
+                if l.lType == LINE:
                     if abs(l.p0[0] - l.p1[0]) < MIN_DIST:
                         vert.append(l)
                     elif abs(l.p0[1] - l.p1[1]) < MIN_DIST:

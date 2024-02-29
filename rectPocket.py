@@ -78,7 +78,7 @@ class RectPocket():
             vert = []
             horiz = []
             for l in seg:
-                if l.type == LINE:
+                if l.lType == LINE:
                     if abs(l.p0[0] - l.p1[0]) < MIN_DIST:
                         vert.append(l)
                     elif abs(l.p0[1] - l.p1[1]) < MIN_DIST:
@@ -363,12 +363,12 @@ class RectPocket():
             arc = []
             for l in seg:
                 l.prt()
-                if l.type == LINE:
+                if l.lType == LINE:
                     if abs(l.p0[0] - l.p1[0]) < MIN_DIST:
                         vert.append(l)
                     elif abs(l.p0[1] - l.p1[1]) < MIN_DIST:
                         horiz.append(l)
-                elif l.type == ARC:
+                elif l.lType == ARC:
                     arc.append(l)
             dprt()
                     
@@ -430,7 +430,7 @@ class RectPocket():
             vert = []
             horiz = []
             for l in seg:
-                if l.type == LINE:
+                if l.lType == LINE:
                     if abs(l.p0.x - l.p1.x) < MIN_DIST:
                         vert.append(l)
                     elif abs(l.p0.y - l.p1.y) < MIN_DIST:

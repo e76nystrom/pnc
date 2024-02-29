@@ -1679,7 +1679,7 @@ class Config():
             draw.drawX(seg[-1].p1)
 
         radius1 = self.leadRadius # lead in radius
-        if l.type == ARC and radius1 != 0:
+        if l.lType == ARC and radius1 != 0:
             (cx, cy) = l.c		# arc center
             radius0 = l.r		# current radius
             radius1 = self.cfg.leadRadius # lead in radius
@@ -1724,7 +1724,6 @@ class Config():
             l = seg[0].extend(d, True)
             seg.insert(0, l)
 
-
     def addLeadOut(self, seg, dbg):
         l = seg[-1]
         draw = self.draw
@@ -1736,7 +1735,7 @@ class Config():
             draw.drawX(l.p1)
 
         radius1 = self.leadRadius	# lead out radius
-        if l.type == ARC and radius1 != 0:
+        if l.lType == ARC and radius1 != 0:
             (cx, cy) = l.c		# arc center
             radius0 = l.r		# current radius
 
@@ -3156,7 +3155,7 @@ class MillPath():
             #mill.safeZ()
             l = path0[0]
             p = l.p0
-            if l.type == ARC:
+            if l.lType == ARC:
                 dist = xyDist(l.c, mill.last)
                 if dist > (l.r + cfg.endMillSize / 2.0):
                     mill.safeZ()
@@ -3820,7 +3819,7 @@ class Dxf():
             j = i + 1
             while j < len(entities):
                 l1 = entities[j]
-                if (l0.type == l1.type) and \
+                if (l0.lType == l1.lType) and \
                    (xyDist(l0.p0, l1.p0) < MIN_DIST) and \
                    (xyDist(l0.p1, l1.p1) < MIN_DIST):
                     if dbg:
@@ -3857,7 +3856,7 @@ class Dxf():
         dprt("\nremove")
         for l in seg:
             remove = False
-            if l.type == LINE:
+            if l.lType == LINE:
                 (x0, y0) = l.p0
                 (x1, y1) = l.p1
                 dprt("p0  (%7.3f %7.3f) p1  (%7.3f %7.3f)" % \
@@ -3872,7 +3871,7 @@ class Dxf():
                         remove = True
                 else:           # oblique
                     pass
-            elif l.type == ARC:
+            elif l.lType == ARC:
                 pass
             else:
                 pass
@@ -4065,7 +4064,7 @@ class Dxf():
             j = i + 1
             while j < len(entities):
                 l1 = entities[j]
-                if (l0.type == l1.type) and \
+                if (l0.lType == l1.lType) and \
                    (xyDist(l0.p0, l1.p0) < MIN_DIST) and \
                    (xyDist(l0.p1, l1.p1) < MIN_DIST):
                     if dbg:
@@ -4185,7 +4184,7 @@ class Dxf():
                         p = start
                         if dbg:
                             dprt("swap %d %s" % \
-                                 (l0.index, ('line', 'arc')[l0.type]))
+                                 (l0.index, ('line', 'arc')[l0.lType]))
                         l0.swap()
                         newSeg.append(l0)
                         break
