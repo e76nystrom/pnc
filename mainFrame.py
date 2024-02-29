@@ -7,6 +7,7 @@ from math import radians, pi
 from geometry import (ARC, LINE, Line, xyDist)
 from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_MAX, O_POINT,
                          O_UPPER_LEFT, O_UPPER_RIGHT)
+from orientation import (REF_OVERALL, REF_MATERIAL, REF_FIXTURE)
 from geometry import Point as Pt
 
 def fieldList(panel, sizer, fields, col=1):
@@ -104,9 +105,14 @@ def addComboBox(panel, sizer, label, index, action, border=2,
               wx.ALIGN_CENTER_VERTICAL, border=2)
 
     (indexList, choiceList, text) = action()
-    combo = ComboBox(panel, label, indexList, choiceList, \
-                     id=-1, value=choiceList[0], choices=choiceList, \
-                     style=wx.CB_READONLY)
+    if (indexList is not None) and (choiceList is not None):
+        combo = ComboBox(panel, label, indexList, choiceList, \
+                         id=-1, value=choiceList[0], choices=choiceList, \
+                         style=wx.CB_READONLY)
+    else:
+        combo = ComboBox(panel, label, indexList, choiceList, \
+                         id=-1, style=wx.CB_READONLY)
+        
     combo.text = text
     # cfg = panel.mf.cfg
     # if cfg.info[index] is not None:
@@ -131,7 +137,7 @@ def addDialogButton(panel, sizer, idx, action=None, border=5):
     return btn
 
 class ComboBox(wx.ComboBox):
-    def __init__(self, parent, label, indexList,  choiceList, \
+    def __init__(self, parent, label, indexList=None,  choiceList=None, \
                  *args, **kwargs):
         self.label = label
         self.indexList = indexList
@@ -147,6 +153,7 @@ class ComboBox(wx.ComboBox):
         #           (self.label, rtnVal, self.text[val], val))
         #     print("indexList", self.indexList)
         return str(rtnVal)
+    
     def SetValue(self, val):
         if isinstance(val, str):
             val = int(val)
@@ -157,6 +164,11 @@ class ComboBox(wx.ComboBox):
                 #     print("label \"%s\" SetValue %d text \"%s\" index %d" % \
                 #           (self.label, val, self.text[index], n))
                 #     print("indexList", self.indexList)
+
+    def SetSel(self, val):
+        for (n, string) in enumerate(self.choiceList):
+            if val == string.lower():
+                self.SetSelection(n)
 
 def menuItem(frame, topMenu, text, action=None):
     ctlId = wx.Window.NewControlId()
@@ -194,6 +206,8 @@ def onOpen(frame, e):
 class OpenDialog(wx.Dialog):
     def __init__(self, frame):
         self.frame = frame
+        self.path = None
+        self.args = None
         pos = frame.GetPosition()
         wx.Dialog.__init__(self, frame, -1, "Open", pos, \
                            wx.DefaultSize, wx.DEFAULT_DIALOG_STYLE)
@@ -214,8 +228,23 @@ class OpenDialog(wx.Dialog):
         #     ("cReference", None, 'c', self.setupRef), \
         # )
         # fieldList(self, sizerG, self.fields)
-        self.combo = addComboBox(self, sizerG, "Reference", None, self.setupRef)
-        self.combo.Bind(wx.EVT_COMBOBOX, self.onCombo)
+
+        self.refLayer = addComboBox(self, sizerG, "Ref Layer", \
+                                         None, self.setupLayers)
+        self.refLayer.Bind(wx.EVT_COMBOBOX, self.onRefLayer)
+
+        self.materialLayer = addComboBox(self, sizerG, "Material Layer", \
+                                         None, self.setupLayers)
+        self.materialLayer.Bind(wx.EVT_COMBOBOX, self.onMaterialLayer)
+
+        self.comboLoc = addComboBox(self, sizerG, "Ref Loc", None, \
+                                    self.setupRef)
+        self.comboLoc.Bind(wx.EVT_COMBOBOX, self.onCombo)
+
+        self.comboType = addComboBox(self, sizerG, "Ref Type", None, \
+                                 self.setupRefType)
+        self.comboType.Bind(wx.EVT_COMBOBOX, self.onComboType)
+
         sizerV.Add(sizerG, flag=wx.LEFT|wx.ALL, border=2)
 
         sizerH = wx.BoxSizer(wx.HORIZONTAL)
@@ -245,13 +274,15 @@ class OpenDialog(wx.Dialog):
             frame.filename = dlg.GetFilename()
             self.fileName.SetValue(frame.filename)
             frame.dirname = dlg.GetDirectory()
-            frame.path = os.path.join(frame.dirname, frame.filename)
+            self.path = frame.path = os.path.join(frame.dirname, frame.filename)
             print(frame.path)
 
-            args = [self.frame.path, ]
+            self.args = [self.path, ]
             cfg = self.frame.cfg
-            cfg.orientation = int(self.combo.GetValue())
-            cfg.readDxf(args)
+            cfg.orientation = int(self.comboLoc.GetValue())
+            cfg.ref = int(self.comboType.GetValue())
+            cfg.readDxf(self.args)
+            self.setupComboLayers()
             self.frame.bitmapPanel.setup(cfg.dxfInput)
 
     @staticmethod
@@ -274,18 +305,82 @@ class OpenDialog(wx.Dialog):
         return (indexList, choiceList, "")
 
     def onCombo(self, e):
-        selection = e.EventObject.GetSelection()
-        cfg = self.cfg
-        cfg.setOrientation(selection)
-        print(selection)
+        orientation = e.EventObject.GetSelection()
+        cfg = self.frame.cfg
+        cfg.orientation = orientation
+        dxfInput = cfg.dxfInput
+        if dxfInput is not None:
+            if self.args is not None:
+                cfg.readDxf(self.args)
+                self.frame.bitmapPanel.setup(dxfInput)
+                print(orientation)
+
+    @staticmethod
+    def setupRefType():
+        references = \
+        (
+            (REF_OVERALL, "Overall"),
+            (REF_MATERIAL, "Material"),
+            (REF_FIXTURE, "Fixture"),
+        )
+        choiceList = []
+        indexList = []
+        sel = ["" for i in range(O_MAX)]
+        for (index, txt) in references:
+            indexList.append(index)
+            choiceList.append(txt)
+        return (indexList, choiceList, "")
+
+    def onComboType(self, e):
+        ref = e.EventObject.GetSelection()
+        cfg = self.frame.cfg
+        cfg.ref = ref
+        dxfInput = cfg.dxfInput
+        if dxfInput is not None:
+            if self.args is not None:
+                cfg.readDxf(self.args)
+                self.frame.bitmapPanel.setup(dxfInput)
+                print(ref)
+
+    def setupLayers(self):
+        dxfInput = self.frame.cfg.dxfInput
+        if dxfInput is not None:
+            dxfLayers = dxfInput.dxfLayers
+            choiceList = []
+            indexList = []
+            if dxfLayers is not None:
+                for n, key in enumerate(sorted(dxfLayers)):
+                    indexList.append(n)
+                    choiceList.append(key)
+                return (indexList, choiceList, "")
+        return (None, None, "")
+
+    def setupComboLayers(self):
+        (indexList, choiceList, txt) = self.setupLayers()
+        refCombo = self.refLayer
+        refCombo.indexList = indexList
+        refCombo.choiceList = choiceList
+        refCombo.Set(choiceList)
+        refCombo.SetSel("fixture")
+        materialCombo = self.materialLayer
+        materialCombo.indexList = indexList
+        materialCombo.choiceList = choiceList
+        materialCombo.Set(choiceList)
+        materialCombo.SetSel("material")
+
+    def onRefLayer(self, e):
+        pass
+
+    def onMaterialLayer(self, e):
         pass
 
     def onDialogOk(self, e):
-        args = [self.frame.path, ]
         cfg = self.frame.cfg
-        cfg.orientation = int(self.combo.GetValue())
-        cfg.readDxf(args)
-        self.frame.bitmapPanel.setup(cfg.dxfInput)
+        cfg.orientation = int(self.comboLoc.GetValue())
+        cfg.ref = int(self.comboType.GetValue())
+        if self.args is not None:
+            cfg.readDxf(self.args)
+            self.frame.bitmapPanel.setup(cfg.dxfInput)
         self.Show(False)
 
     def onDialogCancel(self, e):

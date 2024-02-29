@@ -362,3 +362,11 @@ class Draw():
         p = (index * 1, 3)
         self.drawLine(p, m, b, 2 * r)
         self.hole(offset((0, 0), p), 2 * r)
+
+    def drawStart(self, l):
+        if l.type == ARC:
+            (x0, y0) = l.p0
+            if not l.swapped:
+                a0 = l.a0
+            else:
+                a0 = l.a1
