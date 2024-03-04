@@ -190,9 +190,14 @@ def eqnLine(p0, p1):
 # (y2-y1) * (x3-x2) - (y3-y2) * (x2-x1)
 
 LINEAR = 0
-CW = 1
-CCW = 2
-BOTH = 3
+CW     = 1
+CCW    = 2
+BOTH   = 3
+
+oString = ["" for _ in range(CCW + 1)]
+oString[LINEAR] = "LIN"
+oString[CW]     = "CW"
+oString[CCW]    = "CCW"
 
 def orientation(p1, p2, p3):
     val = ((p2[1] - p1[1]) * (p3[0] - p2[0]) - \
@@ -207,7 +212,7 @@ def orientation(p1, p2, p3):
         return CCW
 
 def oStr(o):
-    return(('LIN', 'CW ', 'CCW')[o])
+    return oString[o]
 
 # orientation test
 # p0 = (-1, 0)
@@ -352,6 +357,14 @@ class Line():
 
     def swap(self):
         (self.p0, self.p1) = (self.p1, self.p0)
+
+    def fwdAngle(self):
+        angle = atan2(self.p1.y - self.p0.y, self.p1.x - self.p0.x)
+        return angle
+
+    def revAngle(self):
+        angle = atan2(self.p0.y - self.p1.y, self.p0.x - self.p1.x)
+        return angle
 
     def parallel(self, dist, direction=None, outside=None):
         (x0, y0) = self.p0      # start and end
@@ -2012,7 +2025,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
             direction = CW          # ccw ^ |  / normal
         else:                       #       | ^ cutter turns cw
             direction = CCW         #  cw v |  \ climb
-        #			                       /
+
         if not outside:             #
             if direction == CCW:    #        / inside path
                 direction = CW      #  cw ^ |  / normal
@@ -2038,27 +2051,32 @@ def createPath(seg, dist, outside, tabPoints=None, \
             if direction == CW:
                 d = -d
     else:                           # open path
-        pFirst = newSeg[0].p0
-        pLast = newSeg[-1].p1
         if ref is not None:
-            if xyDist(ref, pLast) < xyDist(ref, pFirst):
+            dStr = xyDist(ref, newSeg[0].p0)
+            dEnd = xyDist(ref, newSeg[1].p1)
+            if dbg:
+                dprt("ref (%7.3f %7.3f) dStr %7.3f dEnd %7.3f" %
+                     (ref.x, ref.y, dStr, dEnd))
+            if dEnd < dStr:
                 if dbg:
-                    dprt("reverse direction")
+                    dprt("createPath open reverse direction")
                 newSeg = reverseSeg(newSeg)
             l = newSeg[0]
             direction = orientation(l.p0, l.p1, ref)
             if direction == CW:
                 d = -d
         else:
-            l = newSeg[1]       # segment past leadin
+            l = newSeg[1]       # segment past leadIn
             pMid = l.midPoint(d, True)
             cross = inside(pMid, newSeg, False)
             if (cross & 1) != 0:
                 d = -d
 
     if dbg:
+        dprt("createPath <")
         for l in newSeg:
             l.prt()
+        dprt(">\n")
 
     intersect = True
     segPath = []
@@ -2068,23 +2086,16 @@ def createPath(seg, dist, outside, tabPoints=None, \
     else:
         segTabPoints = None
 
-    # if False: #closed:
-    #     offset = cfg.offset
-    #     offset.passNum = 0
-    #     offset.dbgOffset = True
-    #     offset.drawOffset = True
-    #     offset.dbgIntersect = True
-    #     polygons = offset.offsetSeg(newSeg, direction, d, outside)
-    #     segPath = polygons[0]
-    # else:
     print("***")
     for (i, l) in enumerate(newSeg):
         if dbg:
             dprt("processing %d" % (l.index))
             l.prt()
             dprt()
-            l.draw()
+            # l.draw()
+            
         pMid = l.midPoint(d, dbg)
+        
         if closed:
             cross = inside(pMid, newSeg, False)
             # if draw is not None
@@ -2093,10 +2104,13 @@ def createPath(seg, dist, outside, tabPoints=None, \
                 ePrint("createPath - parallel line not on correct side")
                 dprt("choose distance negative %d" % (cross))
                 d = -d
+                
         if l.index != INDEX_MARKER:
-            l1 = l.parallel(d)
             print("*l  ", end="")
             l.prt()
+
+            l1 = l.parallel(d)
+
             print("*l1 ", end="")
             l1.prt()
             dx0 = l1.p0.x - l.p0.x
@@ -2106,13 +2120,16 @@ def createPath(seg, dist, outside, tabPoints=None, \
             print("p0 (%6.3f, %6.3f) p0 (%6.3f, %6.3f)" % (dx0, dy0, dx1, dy1))
         else:
             l1 = copy(l)
+            
         if not keepIndex:
             l1.index = i
+            
         if prev is not None:
             # dprt("intersect %d %s and %d %s" % \
             #       (prev.index, prev.str[0], l1.index, l1.str[0]))
             if intersect:
                 p = prev.intersect(l1)
+               # draw.drawX(p, "a")
         segPath.append(l1)
 
         prev = l1

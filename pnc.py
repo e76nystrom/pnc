@@ -22,13 +22,19 @@ from operator import itemgetter
 from enum import Enum
 
 # from sys import stdout
-from dxfwrite import CENTER
-from dxfwrite import DXFEngine as dxf
+
+# from dxfwrite import CENTER
+# from dxfwrite import DXFEngine as dxf
+
 from ezdxf import readfile as ReadFile
 
-import geometry
 from dbgprt import dclose, dflush, dprt, dprtSet, ePrint
-from draw import Draw
+
+# from draw import Draw
+from drawEZ import Draw
+from ezdxf.enums import TextEntityAlignment
+
+import geometry
 from geometry import (ARC, LINE, CCW, CW, MAX_VALUE, MIN_DIST, MIN_VALUE,
                       Arc, Line, newPoint, combineArcs, createPath, inside,
                       offset, oStr, pathDir, pathLength, reverseSeg,
@@ -52,32 +58,119 @@ IF_DISABLE =        (1 << 0)
 COMPONENT_DISABLE = (1 << 1)
 OPERATION_DISABLE = (1 << 2)
 
-ST_XMIN = 0
-ST_XMAX = 1
-ST_YMIN = 2
-ST_YMAX = 3
-ST_MAX = 4
+# ST_XMIN = 0
+# ST_XMAX = 1
+# ST_YMIN = 2
+# ST_YMAX = 3
+# ST_MAX = 4
 
-strString = ["" for _ in range(ST_MAX)]
-strString[ST_XMIN] = "xMin"
-strString[ST_XMAX] = "xMax"
-strString[ST_YMIN] = "yMin"
-strString[ST_YMAX] = "yMax"
+# strString = ["" for _ in range(ST_MAX)]
+# strString[ST_XMIN] = "xMin"
+# strString[ST_XMAX] = "xMax"
+# strString[ST_YMIN] = "yMin"
+# strString[ST_YMAX] = "yMax"
 
-DIR_XLT = 0
-DIR_XGT = 1
-DIR_YLT = 2
-DIR_YGT = 3
-DIR_MAX = 4
-dirString = ["" for _ in range(DIR_MAX)]
-dirString[DIR_XLT] = "xLT"
-dirString[DIR_XGT] = "xGT"
-dirString[DIR_YLT] = "yLT"
-dirString[DIR_YGT] = "yGT"
+# DIR_XLT = 0
+# DIR_XGT = 1
+# DIR_YLT = 2
+# DIR_YGT = 3
+# DIR_MAX = 4
+# dirString = ["" for _ in range(DIR_MAX)]
+# dirString[DIR_XLT] = "xLT"
+# dirString[DIR_XGT] = "xGT"
+# dirString[DIR_YLT] = "yLT"
+# dirString[DIR_YGT] = "yGT"
+
+class OpenStart(Enum):
+    X_MIN = 0
+    X_MAX = 1
+    Y_MIN = 2
+    Y_MAX = 3
+startLen = len(OpenStart)
+
+startString = ["" for _ in range(startLen)]
+startString[OpenStart.X_MIN.value] = "xmin"
+startString[OpenStart.X_MAX.value] = "xmax"
+startString[OpenStart.Y_MIN.value] = "ymin"
+startString[OpenStart.Y_MAX.value] = "ymax"
+
+class OpenDir(Enum):
+    X_LT = 0
+    X_GT = 1
+    Y_LT = 2
+    Y_GT = 3
+    CCW  = 4
+    CW   = 5
+dirLen = len(OpenDir)
+
+dirString = ["" for _ in range(dirLen)]
+dirString[OpenDir.X_LT.value] = "xlt"
+dirString[OpenDir.X_GT.value] = "xgt"
+dirString[OpenDir.Y_LT.value] = "ylt"
+dirString[OpenDir.Y_GT.value] = "ygt"
+dirString[OpenDir.CCW.value]  = "ccw"
+dirString[OpenDir.CW.value]   = "cw"
+
+class OpenType(Enum):
+    X_MIN_X_LT = 0
+    X_MIN_X_GT = 1
+    X_MIN_Y_LT = 2
+    X_MIN_Y_GT = 3
+
+    X_MAX_X_LT = 4
+    X_MAX_X_GT = 5
+    X_MAX_Y_LT = 6
+    X_MAX_Y_GT = 7
+
+    Y_MIN_X_LT = 8
+    Y_MIN_X_GT = 9
+    Y_MIN_Y_LT = 10
+    Y_MIN_Y_GT = 11
+
+    Y_MAX_X_LT = 12
+    Y_MAX_X_GT = 13
+    Y_MAX_Y_LT = 14
+    Y_MAX_Y_GT = 15
+
+
+leadInAngle = [0.0 for _ in range(startLen * dirLen)]
+
+RAD_90 = radians(90)
+
+leadInAngle[dirLen * OpenStart.X_MIN.value + OpenDir.Y_LT.value] = -RAD_90 # 0 2
+leadInAngle[dirLen * OpenStart.X_MIN.value + OpenDir.Y_GT.value] =  RAD_90 # 0 3
+
+leadInAngle[dirLen * OpenStart.X_MAX.value + OpenDir.Y_LT.value] =  RAD_90 # 1 2
+leadInAngle[dirLen * OpenStart.X_MAX.value + OpenDir.Y_GT.value] = -RAD_90 # 1 3
+
+leadInAngle[dirLen * OpenStart.Y_MIN.value + OpenDir.X_LT.value] =  RAD_90 # 2 0
+leadInAngle[dirLen * OpenStart.Y_MIN.value + OpenDir.X_GT.value] = -RAD_90 # 2 1
+
+leadInAngle[dirLen * OpenStart.Y_MAX.value + OpenDir.X_LT.value] = -RAD_90 # 3 0
+leadInAngle[dirLen * OpenStart.Y_MAX.value + OpenDir.X_GT.value] =  RAD_90 # 3 1
+
+leadInAngle[dirLen * OpenStart.X_MIN.value + OpenDir.CCW.value]  =  RAD_90 # 0 4
+leadInAngle[dirLen * OpenStart.X_MIN.value + OpenDir.CW.value]   = -RAD_90 # 0 5
+
+leadInAngle[dirLen * OpenStart.X_MAX.value + OpenDir.CCW.value]  =  RAD_90 # 1 4
+leadInAngle[dirLen * OpenStart.X_MAX.value + OpenDir.CW.value]   = -RAD_90 # 1 5
+
+leadInAngle[dirLen * OpenStart.Y_MIN.value + OpenDir.CCW.value]  =  RAD_90 # 2 4
+leadInAngle[dirLen * OpenStart.Y_MIN.value + OpenDir.CW.value]   = -RAD_90 # 2 5
+
+leadInAngle[dirLen * OpenStart.Y_MAX.value + OpenDir.CCW.value]  =  RAD_90 # 3 4
+leadInAngle[dirLen * OpenStart.Y_MAX.value + OpenDir.CW.value]   = -RAD_90 # 3 5
+
+for i in range(startLen):
+    for j in range(dirLen):
+        index = dirLen * i + j
+        val = leadInAngle[index]
+        print("%2d %d %d %s %3s %3.0f" %
+              (index, i, j, startString[i], dirString[j], degrees(val)))
 
 HOLE_NEAREST = 0
 HOLE_COLUMNS = 1
-HOLE_ROWS = 2
+HOLE_ROWS    = 2
 
 OP_T = 0
 OP_B = 1
@@ -96,9 +189,8 @@ class Skip(Enum):
     Y0_MAX = 6
     Y1_MIN = 7
     Y1_MAX = 8
-    MAX = 9
 
-skipString = ["" for _ in range(Skip.MAX.value)]
+skipString = ["" for _ in range(len(Skip) + 1)]
 skipString[Skip.X0_MIN.value] = "X0_MIN"
 skipString[Skip.X0_MAX.value] = "X0_MAX"
 skipString[Skip.X1_MIN.value] = "X1_MIN"
@@ -633,7 +725,7 @@ class Config():
                 line = "***component %d%s\n" % (component, compComment)
                 section = 1
             elif command == "+++operation":
-                match = re.match(r"\+*\w+\s+(\*|[\d\.]+)\s+-?\s*(.*)$", l)
+                match = re.match(r"\+*\w+\s+(\*|[\d.]+)\s+-?\s*(.*)$", l)
                 result = match.groups()
                 opComment = ""
                 if match is not None:
@@ -963,7 +1055,7 @@ class Config():
     def setTool(self, args):
         if len(args) >= 2:
             # match = re.match(r"^[a-zA-z]+ +[0-9]+ +(.*)$", args[0])
-            match = re.match(r"^\w+ +(\w*[\d\w]+)+ *(.*)$", args[0])
+            match = re.match(r"^\w+ +(\w*[\w]+)+ *(.*)$", args[0])
             comment = ""
             if match is not None:
                 tool = match.group(1)
@@ -1373,7 +1465,7 @@ class Config():
             ePrint("set reference before dxf file opened")
             self.error = True
             return
-        
+
         val = args[1].lower()
         for (i, x) in self.refValues:
             if val == x:
@@ -1423,7 +1515,7 @@ class Config():
         else:
             self.xMinLimit = float(self.evalFloatArg(args[1]))
             self.xMaxLimit = float(self.evalFloatArg(args[2]))
-        print("xLimits", self.xMinLimit, self.xMaxLimit)
+        dprt("xLimits min %7.3f max %7.3f" % (self.xMinLimit, self.xMaxLimit))
 
     def setYLimit(self, args):
         l = len(args)
@@ -1438,6 +1530,7 @@ class Config():
         else:
             self.yMinLimit = float(self.evalFloatArg(args[1]))
             self.yMaxLimit = float(self.evalFloatArg(args[2]))
+        dprt("yLimits min %7.3f max %7.3f" % (self.yMinLimit, self.yMaxLimit))
 
     def clrLimits(self, args):
           self.xLimit = None
@@ -1592,59 +1685,100 @@ class Config():
         self.tabPoints = []
 
     def openSetup(self, args):
-        startList = ("xmin", "xmax", "ymin", "ymax")
-        dirList = ("xlt", "xgt", "ylt", "ygt")
         if len(args) < 2:
             return False
+
         start = args[0].lower()
         self.startType = None
-        for i, val in enumerate(startList):
+        for i, val in enumerate(startString):
             if start == val:
                 self.startType = i
                 break
+
         direction = args[1].lower()
         self.dirType = None
-        for i, val in enumerate(dirList):
+        for i, val in enumerate(dirString):
             if direction == val:
                 self.dirType = i
                 break
+
         return True
 
-    def openPoint(self, seg, dist):
-        dprt("\nopenPoint startType %s dirType %s" % \
-             (strString[self.startType], dirString[self.dirType]))
+    def openPoint(self, seg, dist=0.0, dbg=False):
         startType = self.startType
+        dirType = self.dirType
+
+        if dbg:
+            dprt("\n" "openPoint startType %s dirType %s" % \
+                 (startString[startType], dirString[dirType]))
+
         p0 = seg[0].p0
         p1 = seg[-1].p1
+
         reverse = False
-        if startType == ST_XMIN:
-            if p0.x > p1.x:
-                reverse = True
-        elif startType == ST_XMAX:
-            if p0.x < p1.x:
-                reverse = True
-        elif startType == ST_YMIN:
-            if p0.y > p1.y:
-                reverse = True
-        elif startType == ST_YMAX:
-            if p0.y < p1.y:
-                reverse = True
+        if startType == OpenStart.X_MIN.value:
+            reverse = p0.x > p1.x
+        elif startType == OpenStart.X_MAX.value:
+            reverse = p0.x < p1.x
+        elif startType == OpenStart.Y_MIN.value:
+            reverse = p0.y > p1.y
+        elif startType == OpenStart.Y_MAX.value:
+            reverse = p0.y < p1.y
+
+        newSeg = None
         if reverse:
-            print("reverse")
-            seg = reverseSeg(seg)
-        p0 = seg[0].p0
-        dirType = self.dirType
-        if dirType == DIR_XLT:
-            p = newPoint((p0.x - dist, p0.y))
-        elif dirType == DIR_XGT:
-            p = newPoint((p0.x + dist, p0.y))
-        elif dirType == DIR_YLT:
-            p = newPoint((p0.x, p0.y - dist))
-        elif dirType == DIR_YGT:
-            p = newPoint((p0.x, p0.y + dist))
-        dprt("p0 (%7.3f %7.3f) p (%7.3f %7.3f)\n" % \
-             (p0.x, p0.y, p.x, p.y))
-        return p
+            newSeg = reverseSeg(seg)
+            if True or dbg:
+                dprt("openPoint reverse direction <")
+                for l in newSeg:
+                    l.prt()
+                dprt(">\n")
+            seg = newSeg
+
+        p = None
+        if dist != 0:
+            l = seg[0]
+            if l.lType == ARC:
+                dist += l.r
+                aPt = self.arcAngleR(l.c, l.p0)
+                p0 = l.c
+            else:
+                aFwd = l.fwdAngle()
+                i0 = self.startType * dirLen + self.dirType
+                a = leadInAngle[i0]
+                aPt = aFwd + a
+                p0 = l.p0
+
+            x = dist * cos(aPt) + p0.x
+            y = dist * sin(aPt) + p0.y
+
+            p = newPoint((x, y))
+
+            # p0 = seg[0].p0
+            # if dirType == OpenDir.X_LT.value:
+            #     p = newPoint((p0.x - dist, p0.y))
+            # elif dirType == OpenDir.X_GT.value:
+            #     p = newPoint((p0.x + dist, p0.y))
+            # elif dirType == OpenDir.Y_LT.value:
+            #     p = newPoint((p0.x, p0.y - dist))
+            # elif dirType == OpenDir.Y_GT.value:
+            #     p = newPoint((p0.x, p0.y + dist))
+            # elif dirType == OpenDir.CCW.value:
+            #     p = newPoint((p0.x, p0.y + dist))
+            # elif dirType == OpenDir.CW.value:
+            #     p = newPoint((p0.x, p0.y + dist))
+
+            if dbg:
+                p0 = l.p0
+                dprt("p0 (%7.3f %7.3f) p (%7.3f %7.3f)\n" % \
+                     (p0.x, p0.y, p.x, p.y))
+
+                dStr = xyDist(p, seg[0].p0)
+                dEnd = xyDist(p, seg[1].p1)
+                dprt("openPoint p (%7.3f %7.3f) dStr %7.3f dEnd %7.3f" %
+                     (p.x, p.y, dStr, dEnd))
+
+        return (p, seg)
 
     @staticmethod
     def aFix(a):
@@ -1682,7 +1816,7 @@ class Config():
         if l.lType == ARC and radius1 != 0:
             (cx, cy) = l.c		# arc center
             radius0 = l.r		# current radius
-            radius1 = self.cfg.leadRadius # lead in radius
+            radius1 = self.leadRadius # lead in radius
 
             a0 = self.arcAngleR(l.c, l.p0)
             a0x = l.a0		# angle to lead in center
@@ -1714,6 +1848,7 @@ class Config():
                 l1 = Arc((cx1, cy1), radius1, aStr, aEnd, direction=d)
 
             seg.insert(0, l1)
+            draw.drawStart(l1)
 
             if dbg:
                 dprt("\nlead in")
@@ -1721,8 +1856,38 @@ class Config():
                 l.prt()
         else:
             d = self.endMillSize / 2.0 + 0.125
-            l = seg[0].extend(d, True)
-            seg.insert(0, l)
+            aFwd = l.fwdAngle()
+            index = self.startType * dirLen + self.dirType
+            a = leadInAngle[index]
+            d = CCW if a > 0.0 else CW
+            aPt = aFwd + a
+
+            r = self.leadRadius
+            p0 = l.p0
+            x = r * cos(aPt) + p0.x
+            y = r * sin(aPt) + p0.y
+            point = newPoint((x, y))
+            self.draw.drawX(point)
+
+            aFwd = self.aFix(degrees(aFwd))
+            a = degrees(a)
+            aPt = degrees(aPt)
+            aEnd = self.aFix(aPt - 180)
+            aStr = self.aFix(aEnd - a)
+
+            txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f aStr %3.0f aEnd %3.0f %s" %
+                   (index, self.startType, self.dirType,
+                    aFwd, a, aPt, aStr, aEnd, oStr(d)))
+            dprt(txt)
+
+            self.draw.text(txt, point, 0.010)
+            if d == CCW:
+                l1 = Arc(point, r, aStr , aEnd, direction=d)
+            else:
+                l1 = Arc(point, r, aEnd , aStr, direction=d)
+
+            # l = seg[0].extend(d, True)
+            seg.insert(0, l1)
 
     def addLeadOut(self, seg, dbg):
         l = seg[-1]
@@ -1774,31 +1939,62 @@ class Config():
                 l.prt()
                 l1.prt()
         else:
-            d = self.endMillSize / 2.0 + 0.125
-            l = seg[-1].extend(d, False)
-            seg.append(l)
+            aFwd = l.fwdAngle()
+            index = self.startType * dirLen + self.dirType
+            a = leadInAngle[index]
+            d = CCW if a > 0.0 else CW
+            aPt = aFwd + a
+
+            r = self.leadRadius
+            p0 = l.p1
+            x = r * cos(aPt) + p0.x
+            y = r * sin(aPt) + p0.y
+            point = newPoint((x, y))
+            self.draw.drawX(point)
+
+            aFwd = self.aFix(degrees(aFwd))
+            a = degrees(a)
+            aPt = degrees(aPt)
+            aStr = self.aFix(aPt - 180)
+            aEnd = self.aFix(aStr + a)
+
+            txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f aStr %3.0f aEnd %3.0f %s" %
+                   (index, self.startType, self.dirType,
+                    aFwd, a, aPt, aStr, aEnd, oStr(d)))
+            dprt(txt)
+
+            self.draw.text(txt, point, 0.010)
+            if d == CCW:
+                l1 = Arc(point, r, aStr , aEnd, direction=d)
+            else:
+                l1 = Arc(point, r, aEnd , aStr, direction=d)
+
+            seg.append(l1)
 
     def dxfOpen(self, args, dbg=False):
         layer = self.getLayer(args)
         dist = self.endMillSize / 2.0 + self.finishAllowance
+
+        self.ncInit()
+
         if layer.lower() == "uselimits":
             self.segments = self.dxfInput.getPathByLimits()
         else:
             self.segments = self.dxfInput.getPath(layer)
+
         if len(self.segments) == 0:
             return
-        # self.points = self.dxfInput.getPoints(layer)
-        # self.points = self.dxfInput.getLabel(layer)
+
         if not self.openSetup(args[2:]):
             return
-        self.ncInit()
+
         mp = self.getMillPath()
         for (i, seg) in enumerate(self.segments):
 
-            dprt("dxfOpen seg %d" % (i))
+            dprt("dxfOpen seg %d <" % (i))
             for l in seg:
                 l.prt()
-            dprt()
+            dprt(">\n")
 
             if xyDist(seg[0].p0, seg[-1].p1) < MIN_DIST:
                 ePrint("dxfOpen - segment is closed skipping")
@@ -1810,46 +2006,42 @@ class Config():
 
             if dbg:
                 dprt("%s s (%7.4f %7.4f) e (%7.4f %7.4f)" %
-                     (strString[startType], pStart.x, pStart.y, pEnd.x, pEnd.y))
+                     (startString[startType], pStart.x, pStart.y, pEnd.x, pEnd.y))
 
-            rev = False
-            if startType == ST_XMIN:
-                rev = pStart.x > pEnd.x
-            elif startType == ST_XMAX:
-                rev = pStart.x < pEnd.x
-            elif startType == ST_YMIN:
-                rev = pStart.y > pEnd.y
-            elif startType == ST_YMAX:
-                rev = pStart.y < pEnd.y
+            (point, newSeg) = self.openPoint(seg, dist, dbg)
 
-            if rev:
-                seg = reverseSeg(seg)
-                if dbg:
-                    dprt("reverse")
-                    for l in seg:
-                        l.prt()
-                    dprt()
+            if newSeg is not None:
+                seg = newSeg
 
             self.addLeadIn(seg, dbg)
             self.addLeadOut(seg, dbg)
 
-            if dbg:
+            dprt("dxfOpen leadIn and leadOut <")
+            for l in seg:
+                l.prt()
+            dprt(">\n")
+
+            if True or dbg:
                 for l in seg:
                     l.draw()
 
             # return
 
             # points = self.points[0] if len(self.points) > 0 else None
-            point = self.openPoint(seg, dist)
-            self.draw.drawX(point)
+            # point = self.openPoint(seg, dist)
+
             (path, tabPoints) \
                 = createPath(seg, dist, False, self.tabPoints, False, \
                              point, addArcs=self.addArcs)
             # else:
             #     path = seg
             #     tabPoints = None
+
             for l in path:
                 l.prt()
+
+            # return
+
             mp.millPath(path, tabPoints, False)
         self.tabPoints = []
 
@@ -1866,9 +2058,9 @@ class Config():
         for seg in segments:
             if len(seg) <= 2:
                 continue
-                d = xyDist(seg[0].p0, seg[-1].p1)
-                if d < MIN_DIST:    # ignore closed
-                    continue
+                # d = xyDist(seg[0].p0, seg[-1].p1)
+                # if d < MIN_DIST:    # ignore closed
+                #     continue
 
             (x0, y0) = seg[0].p0
             (x1, y1) = seg[-1].p1
@@ -1947,7 +2139,7 @@ class Config():
 
         sides = self.classifyOpen(self.segments)
         seg = self.selectOpen(args[1:], sides)
-        
+
         # self.points = self.dxfInput.getPoints(layer)
         # self.points = self.dxfInput.getLabel(layer)
 
@@ -1986,7 +2178,7 @@ class Config():
         seg.insert(0, l)
         l = seg[-1].extend(d, False)
         seg.append(l)
-        
+
         # points = self.points[0] if len(self.points) > 0 else None
         point = self.openPoint(seg, dist)
         self.draw.drawX(point)
@@ -3132,18 +3324,24 @@ class MillPath():
         self.totalLength = pathLength(path0)
         if True:
             draw = cfg.draw
+
             (x, y) = path0[0].p0
             d = 0.050
             last = draw.last
-            draw.move((x - d, y - d))
-            l = draw.lDebug
-            draw.line((x, y), layer=l)
-            draw.line((x + d, y - d), layer=l)
+            # draw.move((x - d, y - d))
+            # l = draw.lDebug
+            # draw.line((x, y), layer=l)
+            # draw.line((x + d, y - d), layer=l)
+
+            draw.drawStart(path[0])
             direction = pathDir(path0)
-            draw.add(dxf.text("start %s" % (oStr(direction)), \
-                              (x, y - d), 0.010, \
-                              alignpoint=(x, y - d), halign=CENTER, \
-                              layer = draw.lText))
+            # draw.add(dxf.text("start %s" % (oStr(direction)),
+            #                   (x, y - d), 0.010,
+            #                   alignpoint=(x, y - d), halign=CENTER,
+            #                   layer = draw.lText))
+            draw.text("start %s" % (oStr(direction)),
+                      (x, y - d), 0.010,
+                      align=TextEntityAlignment.MIDDLE_CENTER)
             draw.move(last)
 
         rampLine = self.rampSetup()
@@ -3319,7 +3517,7 @@ class LayerInfo():
 class MinMax():
     def __init__(self):
         self.init()
-        
+
     def init(self):
         self.xMin = MAX_VALUE
         self.xMax = MIN_VALUE
@@ -3331,7 +3529,7 @@ class MinMax():
         self.xMin = min(self.xMin, x)
         self.yMax = max(self.yMax, y)
         self.yMin = min(self.yMin, y)
-        
+
     def line(self, x0, y0, x1, y1):
         self.xMax = max(self.xMax, x0, x1)
         self.xMin = min(self.xMin, x0, x1)
@@ -3376,15 +3574,15 @@ class Dxf():
         self.dwg = dwg = ReadFile(inFile)
         self.modelSpace = modelSpace = dwg.modelspace()
         cfg = self.cfg
-        
+
         dxfTypes = ("LINE", "CIRCLE", "ARC", "LWPOLYLINE")
         self.minMax.init()
         self.mMinMax.init()
         self.fMinMax.init()
-        
+
         self.material = []
         self.fixture = []
-                
+
         checkLayers = len(cfg.layers) != 0
         self.dxfLayers = {}
         for e in modelSpace:
@@ -3397,7 +3595,7 @@ class Dxf():
                 info = self.dxfLayers[layer]
                 info.append(e)
             self.layerInfo = info
-                
+
             if layer == cfg.materialLayer:
                 pass
             elif checkLayers:
@@ -3495,7 +3693,7 @@ class Dxf():
                 ePrint("fixture layer not defined")
                 self.error = True
                 return
-            
+
             print("fixture min and max")
             (xMin, yMin) = (self.fMinMax.xMin, self.fMinMax.yMin)
             (xMax, yMax) = (self.fMinMax.xMax, self.fMinMax.yMax)
@@ -3526,7 +3724,7 @@ class Dxf():
 
         self.xMul = 1
         self.yMul = 1
-        
+
         if orientation == O_UPPER_LEFT:
             self.xOffset = -xMin
             self.yOffset = -yMax
@@ -3884,7 +4082,7 @@ class Dxf():
 
     def getPathByLimits(self, circle=False, dbg=True, rand=False):
         if dbg:
-            dprt("getOpenPath")
+            dprt("\n" "getOpenPath")
         # find all lines and polylines
         # xMin = self.xMin
         # xMax = self.xMax
@@ -3898,15 +4096,24 @@ class Dxf():
         yMaxLimit = cfg.yMaxLimit + .001
 
         if dbg:
-            dprt("min (%8.4f, %8.4f) max (%8.4f, %8.4f)" %
+            dprt("min (%8.4f, %8.4f) max (%8.4f, %8.4f)\n" %
                  (xMinLimit, yMinLimit, xMaxLimit, yMaxLimit))
+            # self.cfg.draw.rectangle(xMinLimit, yMinLimit, xMaxLimit, yMaxLimit)
         linNum = 0
         entities = []
         cfg = self.cfg
         for e in self.modelSpace:
             dxfType = e.dxftype()
             dxfLayer = e.get_dxf_attrib("layer")
-            if True and dbg:
+
+            if dxfLayer == "DIMENSIONS":
+                continue
+            if dxfLayer == "CONTINUOUS":
+                # if dxfType == "MTEXT":
+                #     print("mtext")
+                continue
+
+            if dbg:
                 dprt("dxfType %-10s layer %s" % \
                      (dxfType, dxfLayer))
 
@@ -3919,8 +4126,13 @@ class Dxf():
 
                 (x0, y0) = p0
                 (x1, y1) = p1
-                # dprt("p0 (%8.4f, %8.4f) p1 (%8.4f, %8.4f)" %
-                #      (x0, y0, x1, y1))
+                if dbg:
+                    dprt("p0 (%8.4f, %8.4f) p1 (%8.4f, %8.4f)" %
+                         (x0, y0, x1, y1))
+                    draw = self.cfg.draw
+                    draw.move((x0, y0))
+                    draw.line((x1, y1))
+
                 if cfg.xLimitActive:
                     if x0 < xMinLimit:
                         skip = Skip.X0_MIN
@@ -3964,7 +4176,7 @@ class Dxf():
                 #     if abs(p0.x - self.xSize) < MIN_DIST or \
                 #        abs(p0.x) < MIN_DIST:
                 #         continue
-                    
+
                 # # horizontal line
                 # if abs(p0.y - p1.y) < MIN_DIST:
                 #     if abs(p0.y - self.ySize) < MIN_DIST or \
@@ -3974,6 +4186,26 @@ class Dxf():
                 if skip == Skip.NONE:
                     l0 = Line(p0, p1, linNum, e)
                 else:
+                    if dbg:
+                        dprt("skip %s" % (skipString[skip.value]), end=" ")
+
+                        if   skip == Skip.X0_MIN:
+                            dprt("%7.3f < %7.3f" % (x0, xMinLimit))
+                        elif skip == Skip.X0_MAX:
+                            dprt("%7.3f > %7.3f" % (x0, xMaxLimit))
+                        elif skip == Skip.X1_MIN:
+                            dprt("%7.3f < %7.3f" % (x1, xMinLimit))
+                        elif skip == Skip.X1_MAX:
+                            dprt("%7.3f > %7.3f" % (x1, xMaxLimit))
+                        elif skip == Skip.Y0_MIN:
+                            dprt("%7.3f < %7.3f" % (y0, yMinLimit))
+                        elif skip == Skip.Y0_MAX:
+                            dprt("%7.3f > %7.3f" % (y0, yMaxLimit))
+                        elif skip == Skip.Y1_MIN:
+                            dprt("%7.3f < %7.3f" % (y1, yMinLimit))
+                        elif skip == Skip.Y1_MAX:
+                            dprt("%7.3f > %7.3f" % (y1, yMaxLimit))
+                        dprt()
                     continue
 
             elif dxfType == 'ARC':
@@ -4089,7 +4321,7 @@ class Dxf():
             dprt()
 
         # self.removeBorder(entities)
-        
+
         return(self.connect1(entities, dbg))
 
     def connect0(self, entities, dbg=False):

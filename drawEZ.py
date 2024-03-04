@@ -1,8 +1,9 @@
 from math import degrees
 from enum import Enum
 
-from dxfwrite import CENTER, MIDDLE
-from dxfwrite import DXFEngine as dxf
+import ezdxf
+# from ezdxf.gfxattribs import GfxAttribs
+from ezdxf.enums import TextEntityAlignment
 
 from svgwrite import Drawing
 from svgwrite.path import Path
@@ -16,25 +17,29 @@ from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_POINT,
 from math import radians, sin, cos, atan2
 
 BORDER = 'BORDER'
-PATH = 'PATH'
-HOLE = 'HOLE'
-TEXT = 'TEXT'
-DEBUG = 'DEBUG'
+PATH   = 'PATH'
+HOLE   = 'HOLE'
+TEXT   = 'TEXT'
+DEBUG  = 'DEBUG'
 
 class Color(Enum):
-    RED = 1
-    YELLOW = 2
-    GREEN = 3
-    CYAN = 4
-    BLUE = 5
+    RED     = 1
+    YELLOW  = 2
+    GREEN   = 3
+    CYAN    = 4
+    BLUE    = 5
     MAGENTA = 6
-    WHITE = 7
+    WHITE   = 7
 
 class Draw():
-    def __init__(self, cfg, d=None, svg=None):
+    def __init__(self, cfg):
         self.cfg = cfg
-        self.d = d
-        self.svg = svg
+        # self.d = d
+        self.dxfFile = ""
+        self.doc = None
+        self.msp = None
+
+        self.svg = None
         self.path = None
         self.materialPath = None
         self.enable = True
@@ -65,38 +70,21 @@ class Draw():
                 self.path = None
                 ePrint("svg file open error %s" % (svgFile))
 
-        if drawDxf and self.d is None:
-            dxfFile = inFile + "_ngc.dxf"
-            try:
-                self.d = dxf.drawing(dxfFile)
-                self.layerIndex = 0
-                self.d.add_layer('0', color=self.color, lineweight=0)
-                self.setupLayers()
-            except IOError:
-                self.d = None
-                ePrint("dxf file open error %s" % (dxfFile))
-
-    def nextLayer(self):
-        self.layerIndex += 1
-        self.setupLayers()
-
-    def setupLayers(self):
-        i = str(self.layerIndex)
-        self.layers = [['lBorder', i + BORDER], \
-                       ['lPath', i + PATH], \
-                       ['lHole', i + HOLE], \
-                       ['lText', i + TEXT], \
-                       ['lDebug', i + DEBUG]]
-        for (var, l) in self.layers:
-            self.definedLayers[l] = True
-            self.d.add_layer(l, color=self.color, lineweight=0)
-            exec("self." + var + "='" + l + "'")
+        if drawDxf and self.msp is None:
+            self.dxfFile = inFile + "_ngc.dxf"
+            self.doc = ezdxf.new(setup=True)
+            self.msp = self.doc.modelspace()
+            self.layerIndex = 1
+            self.doc.layers.add(str(self.layerIndex), color=self.color,
+                                linetype='CONTINUOUS', lineweight=0)
+            self.setupLayers()
 
     def close(self):
-        if self.d is not None:
+        if self.doc is not None:
             dprt("save drawing file")
-            self.d.save()
-            self.d = None
+            self.doc.saveas(self.dxfFile)
+            self.doc = None
+            self.msp = None
 
         if self.svg is not None:
             self.svg.add(self.lPath)
@@ -105,12 +93,39 @@ class Draw():
                 self.svg.save()
                 self.svg = None
 
+    def nextLayer(self):
+        self.layerIndex += 1
+        self.setupLayers()
+
+    def setupLayers(self):
+        i = str(self.layerIndex)
+        self.layers = [['lBorder', i + BORDER],
+                       ['lPath',   i + PATH],
+                       ['lHole',   i + HOLE],
+                       ['lText',   i + TEXT],
+                       ['lDebug',  i + DEBUG]]
+        for (var, l) in self.layers:
+            self.definedLayers[l] = True
+            self.doc.layers.add(name=var, linetype="CONTINUOUS")
+            exec("self." + var + "='" + l + "'")
+
+    def getLayer(self, layer, dLayer):
+        if layer is None:
+            layer = dLayer
+        else:
+            if not layer in self.definedLayers:
+                self.definedLayers[layer] = True
+                self.doc.layers.add(name=layer, color= self.color,
+                                    linetype="CONTINUOUS",
+                                    lineweight=0)
+        return layer
+
     def scaleOffset(self, point):
         if self.offset == 0.0:
-            point = ((self.xOffset + point[0]) * self.pScale, \
+            point = ((self.xOffset + point[0]) * self.pScale,
                      (self.yOffset - point[1]) * self.pScale)
         else:
-            point = ((self.xOffset + point[0]) * self.pScale, \
+            point = ((self.xOffset + point[0]) * self.pScale,
                      (self.yOffset - point[1]) * self.pScale)
         return point
 
@@ -123,7 +138,7 @@ class Draw():
             self.offset = 0.0
             path = self.materialPath
             if path is None:
-                self.materialPath = Path(stroke_width=.5, stroke='red', \
+                self.materialPath = Path(stroke_width=.5, stroke='red',
                                       fill='none')
                 path = self.materialPath
             path.push('M', (self.scaleOffset((0, 0))))
@@ -134,11 +149,12 @@ class Draw():
 
             self.path.push('M', (self.scaleOffset((0, 0))))
 
-            # dwg = svgwrite.Drawing(name, (svg_size_width, svg_size_height), \
+            # dwg = svgwrite.Drawing(name, (svg_size_width, svg_size_height),
             # debug=True)
 
         cfg = self.cfg
-        if self.d is not None:
+        if self.msp is not None:
+            p0 = p1 = p2 = p3 = (0.0, 0.0)
             orientation = cfg.orientation
             if orientation == O_UPPER_LEFT:
                 p0 = (0.0, 0.0)
@@ -173,22 +189,25 @@ class Draw():
                 p3 = (dxfInput.xMax, dxfInput.yMin)
             else:
                 ePrint("invalid orientation")
-            self.d.add(dxf.line(p0, p1, layer=self.lBorder))
-            self.d.add(dxf.line(p1, p2, layer=self.lBorder))
-            self.d.add(dxf.line(p2, p3, layer=self.lBorder))
-            self.d.add(dxf.line(p3, p0, layer=self.lBorder))
+
+            line = self.msp.add_line
+            line(p0, p1, dxfattribs={"layer": self.lBorder})
+            line(p1, p2, dxfattribs={"layer": self.lBorder})
+            line(p2, p3, dxfattribs={"layer": self.lBorder})
+            line(p3, p0, dxfattribs={"layer": self.lBorder})
+
 
     def materialOutline(self, lines, layer=None):
         cfg = self.cfg
         if self.svg is not None:
             self.xOffset = 0.0
             self.yOffset = cfg.dxfInput.ySize
-            self.svg.add(Rect((0, 0), (cfg.dxfInput.xSize * self.pScale, \
-                                       cfg.dxfInput.ySize * self.pScale), \
+            self.svg.add(Rect((0, 0), (cfg.dxfInput.xSize * self.pScale,
+                                       cfg.dxfInput.ySize * self.pScale),
                               fill='rgb(255, 255, 255)'))
             path = self.materialPath
             if path is None:
-                self.materialPath = Path(stroke_width=.5, stroke='red', \
+                self.materialPath = Path(stroke_width=.5, stroke='red',
                                          fill='none')
                 path = self.materialPath
             for l in lines:
@@ -196,13 +215,14 @@ class Draw():
                 path.push('M', (self.scaleOffset(start)))
                 path.push('L', (self.scaleOffset(end)))
 
-        if self.d is not None:
+        if self.msp is not None:
             if layer is None:
                 layer = self.lBorder
             for l in lines:
                 (start, end) = l
-                self.d.add(dxf.line(cfg.dxfInput.fix(start), \
-                                    cfg.dxfInput.fix(end), layer=layer))
+                self.msp.add_line(cfg.dxfInput.fix(start),
+                                  cfg.dxfInput.fix(end),
+                                  dxfattribs={"layer": layer})
 
     def move(self, end):
         if self.enable:
@@ -217,14 +237,12 @@ class Draw():
             if self.svg is not None:
                 self.path.push('L', self.scaleOffset(end))
                 # dprt("svg line %7.4f %7.4f" % self.scaleOffset(end))
-            if self.d is not None:
-                if layer is None:
-                    layer = self.lPath
-                else:
-                    if not layer in self.definedLayers:
-                        self.definedLayers[layer] = True
-                        self.d.add_layer(layer, color=self.color, lineweight=0)
-                self.d.add(dxf.line(self.last, end, layer=layer))
+                
+            if self.msp is not None:
+                layer = self.getLayer(layer, self.lPath)
+                self.msp.add_line(self.last, end,
+                                  dxfattribs={"layer": layer})
+
             # dprt("   line %7.4f %7.4f" % end)
             self.last = end
 
@@ -232,22 +250,19 @@ class Draw():
         if self.enable:
             r = xyDist(end, center)
             if self.svg is not None:
-                self.path.push_arc(self.scaleOffset(end), 0, r, \
-                                    large_arc=True, angle_dir='+', \
+                self.path.push_arc(self.scaleOffset(end), 0, r,
+                                    large_arc=True, angle_dir='+',
                                     absolute=True)
-            if self.d is not None:
-                if layer is None:
-                    layer = self.lPath
-                else:
-                    if not layer in self.definedLayers:
-                        self.definedLayers[layer] = True
-                        self.d.add_layer(layer, color=self.color, lineweight=0)
+            if self.msp is not None:
+                layer = self.getLayer(layer, self.lPath)
                 p0 = self.last
                 p1 = end
                 if xyDist(p0, p1) < MIN_DIST:
-                    self.d.add(dxf.circle(r, center, layer=layer))
+                    # self.d.add(dxf.circle(r, center, layer=layer))
+                    self.msp.add_circle(center, radius=r,
+                                        dxfattribs={"layer": layer})
                 else:
-                    # dprt("p0 (%7.4f, %7.4f) p1 (%7.4f, %7.4f)" % \
+                    # dprt("p0 (%7.4f, %7.4f) p1 (%7.4f, %7.4f)" %
                     #      (p0[0], p0[1], p1[0], p1[1]))
                     # if orientation(p0, center, p1) == CCW:
                     #     (p0, p1) = (p1, p0)
@@ -256,19 +271,17 @@ class Draw():
                     if a1 == 0.0:
                         a1 = 360.0
                     # dprt("a0 %5.1f a1 %5.1f" % (a0, a1))
-                    self.d.add(dxf.arc(r, center, a0, a1, layer=layer))
+                    self.msp.add_arc(center, radius=r, start_angle=a0,
+                                      end_angle=a1,
+                                      dxfattribs={"layer": layer})
                 self.last = end
 
     def circle(self, end, r, layer=None):
         if self.enable:
-            if self.d is not None:
-                if layer is None:
-                    layer = self.lHole
-                else:
-                    if not layer in self.definedLayers:
-                        self.definedLayers[layer] = True
-                        self.d.add_layer(layer, color=self.color, lineweight=0)
-                self.d.add(dxf.circle(r, end, layer=layer))
+            if self.msp is not None:
+                layer = self.getLayer(layer, self.lHole)
+                self.msp.add_circle(end, radius=r,
+                                    dxfattribs={"layer": layer})
         self.last = end
 
     def hole(self, end, drillSize):
@@ -276,86 +289,81 @@ class Draw():
             if self.svg is not None:
                 self.path.push('L', self.scaleOffset(end))
                 # dprt("svg line %7.4f %7.4f" % self.scaleOffset(end))
-                self.svg.add(Circle(self.scaleOffset(end), \
-                                    (drillSize / 2) * self.pScale, \
-                                    stroke='black', stroke_width=.5, \
+                self.svg.add(Circle(self.scaleOffset(end),
+                                    (drillSize / 2) * self.pScale,
+                                    stroke='black', stroke_width=.5,
                                     fill="none"))
-            if self.d is not None:
-                self.d.add(dxf.line(self.last, end, layer=self.lPath))
-                self.d.add(dxf.circle(drillSize / 2, end, layer=self.lHole))
+
+            if self.msp is not None:
+                self.msp.add_line(self.last, end,
+                                  dxfattribs={"layer": self.lPath})
+                self.msp.add_circle(end, radius=drillSize / 2,
+                                    dxfattribs={"layer": self.lPath})
         self.last = end
 
-    def text(self, txt, p0, height, layer=None):
-        if self.enable:
-            if self.d is not None:
-                if layer is None:
-                    layer = self.lText
-                else:
-                    if not layer in self.definedLayers:
-                        self.definedLayers[layer] = True
-                        self.d.add_layer(layer, color=self.color, lineweight=0)
-                self.d.add(dxf.text(txt, p0, height, layer=layer))
+    def text(self, txt, p0, height, layer=None, align=None):
+        if self.enable and self.msp is not None:
+            layer = self.getLayer(layer, self.lText)
+            # self.d.add(dxf.text(txt, p0, height, layer=layer))
+            attrib = {"layer": layer,
+                      "style": "LiberationMono"}
+            txt = self.msp.add_text(txt, height=height, dxfattribs=attrib)
+            if align is None:
+                txt.set_placement(p0)
+            else:
+                txt.set_placement(p0, align=align)
 
-    def add(self, entity):
-        if self.enable:
-            if self.d is not None:
-                self.d.add(entity)
+    # def add(self, entity):
+    #     if self.enable:
+    #         if self.d is not None:
+    #             self.d.add(entity)
 
     def drawCross(self, p, layer=None):
-        if layer is None:
-            layer = self.lDebug
-        else:
-            if not layer in self.definedLayers:
-                self.definedLayers[layer] = True
-                self.d.add_layer(layer, color=self.color, lineweight=0)
-        (x, y) = p
-        dprt("cross %2d %7.4f, %7.4f" % (self.lCount, x, y))
-        labelP(p, "%d" % (self.lCount))
-        last = self.last
-        self.move((x - 0.02, y))
-        self.line((x + 0.02, y), layer)
-        self.move((x, y - 0.02))
-        self.line((x, y + 0.02), layer)
-        self.lCount += 1
-        self.move(last)
+        if self.enable and self.msp is not None:
+            layer = self.getLayer(layer, self.lDebug)
+
+            (x, y) = p
+            dprt("cross %2d %7.4f, %7.4f" % (self.lCount, x, y))
+            labelP(p, "%d" % (self.lCount))
+            last = self.last
+            self.move((x - 0.02, y))
+            self.line((x + 0.02, y), layer)
+            self.move((x, y - 0.02))
+            self.line((x, y + 0.02), layer)
+            self.lCount += 1
+            self.move(last)
 
     def drawX(self, p, txt=None, swap=False, layer=None, h=0.010):
-        if layer is None:
-            layer = self.lDebug
-        else:
-            if not layer in self.definedLayers:
-                self.definedLayers[layer] = True
-                self.d.add_layer(layer, color=self.color, lineweight=0)
-        (x, y) = p
-        xOfs = 0.020
-        yOfs = 0.010
-        if swap:
-            (xOfs, yOfs) = (yOfs, xOfs)
-        last = self.last
-        self.move((x - xOfs, y - yOfs))
-        self.line((x + xOfs, y + yOfs), layer)
-        self.move((x - xOfs, y + yOfs))
-        self.line((x + xOfs, y - yOfs), layer)
-        self.move(p)
-        if txt is not None:
-            self.text('%s' % (txt), (x + xOfs, y - yOfs), h, layer)
-        self.move(last)
+        if self.enable and self.msp is not None:
+            layer = self.getLayer(layer, self.lDebug)
+
+            (x, y) = p
+            xOfs = 0.020
+            yOfs = 0.010
+            if swap:
+                (xOfs, yOfs) = (yOfs, xOfs)
+            last = self.last
+            self.move((x - xOfs, y - yOfs))
+            self.line((x + xOfs, y + yOfs), layer)
+            self.move((x - xOfs, y + yOfs))
+            self.line((x + xOfs, y - yOfs), layer)
+            self.move(p)
+            if txt is not None:
+                self.text('%s' % (txt), (x + xOfs, y - yOfs), h, layer)
+            self.move(last)
 
     def drawCircle(self, p, d=0.010, layer=None, txt=None):
-        if layer is None:
-            layer = self.lDebug
-        else:
-            if not layer in self.definedLayers:
-                self.definedLayers[layer] = True
-                if self.d is not None:
-                    self.d.add_layer(layer, color=self.color, lineweight=0)
-        last = self.last
-        self.circle(p, d / 2.0, layer)
-        if txt is not None:
-            self.add(dxf.text(txt, p, 0.010, \
-                              alignpoint=p, halign=CENTER, valign=MIDDLE, \
-                              layer=layer))
-        self.move(last)
+        if self.enable and self.msp is not None:
+            layer = self.getLayer(layer, self.lDebug)
+
+            last = self.last
+            self.circle(p, d / 2.0, layer)
+            if txt is not None:
+                align = TextEntityAlignment.MIDDLE_CENTER
+                txt = self.msp.add_text(txt, height=0.010,
+                                        dxfattribs={"layer": layer})
+                txt.set_placement(p, align= align)
+            self.move(last)
 
     def drawLine(self, p, m, b, x):
         self.move(offset((0, b), p))
@@ -378,20 +386,6 @@ class Draw():
             else:
                 a -= radians(90)
             print("center angle %3.0f" % (degrees(a)))
-            # dirType = cfg.dirType
-            # if   dirType == OpenDir.X_LT:
-            #     pass
-            # elif dirType == OpenDir.X_GT:
-            #     pass
-            # elif dirType == OpenDir.Y_LT:
-            #     pass
-            # elif dirType == OpenDir.Y_GT:
-            #     pass
-
-            # if not l.swapped:
-            #     a0 = l.a0
-            # else:
-            #     a0 = l.a1
         else:
             a = l.fwdAngle()
             print("fwdAngle %3.0f" % (degrees(a)))
@@ -403,19 +397,21 @@ class Draw():
         y0 = r * sin(a0) + sy
         x1 = r * cos(a1) + sx
         y1 = r * sin(a1) + sy
-        add = self.d.add
-        line = dxf.line
-        add(line((x0, y0), l.p0))
-        add(line((x1, y1), l.p0))
 
+        line = self.msp.add_line
+        layer = self.lDebug
+        line((x0, y0), l.p0, dxfattribs={"layer": layer})
+        line((x1, y1), l.p0, dxfattribs={"layer": layer})
+        
     def rectangle(self, xMin, yMin, xMax, yMax):
-        add = self.d.add
-        line = dxf.line
         p0 = (xMin, yMin)
         p1 = (xMin, yMax)
         p2 = (xMax, yMax)
         p3 = (xMax, yMin)
-        add(line(p0, p1))
-        add(line(p1, p2))
-        add(line(p2, p3))
-        add(line(p3, p0))
+
+        line = self.msp.add_line
+        layer = self.lDebug
+        line(p0, p1, dxfattribs={"layer": layer})
+        line(p1, p2, dxfattribs={"layer": layer})
+        line(p2, p3, dxfattribs={"layer": layer})
+        line(p3, p0, dxfattribs={"layer": layer})
