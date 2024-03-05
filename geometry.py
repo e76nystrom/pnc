@@ -2088,7 +2088,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
 
     print("***")
     for (i, l) in enumerate(newSeg):
-        if dbg:
+        if False and dbg:
             dprt("processing %d" % (l.index))
             l.prt()
             dprt()
@@ -2129,7 +2129,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
             #       (prev.index, prev.str[0], l1.index, l1.str[0]))
             if intersect:
                 p = prev.intersect(l1)
-               # draw.drawX(p, "a")
+                # draw.drawX(p, "a")
         segPath.append(l1)
 
         prev = l1

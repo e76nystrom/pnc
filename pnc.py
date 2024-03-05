@@ -16,7 +16,7 @@ import subprocess
 import sys
 import traceback
 from collections import namedtuple
-from math import ceil, cos, floor, radians, sin, tan, atan2, degrees
+from math import ceil, cos, floor, hypot, radians, sin, tan, atan2, degrees
 from os import getcwd
 from operator import itemgetter
 from enum import Enum
@@ -249,6 +249,7 @@ class Config():
         self.orientation = None # default orientation
         self.orientationLayer = None # layer for orientation point
         self.layer = None       # layer from command line
+        self.dimLookup = None   # dxf drawing variables
 
         self.refValues = \
             (\
@@ -393,160 +394,160 @@ class Config():
         self.cmdAction = {}
         self.gCodeAction = {}
         self.cmds = \
-        ( \
-            ('xpark', self.parkX), \
-            ('ypark', self.parkY), \
-            ('zpark', self.ParkZ), \
-            ('park', self.park), \
+        (
+            ('xpark', self.parkX),
+            ('ypark', self.parkY),
+            ('zpark', self.ParkZ),
+            ('park',  self.park),
 
-            ('xinitial', self.initialX), \
-            ('yinitial', self.initialY), \
-            ('zinitial', self.initialZ), \
-            ('initial', self.initial), \
+            ('xinitial', self.initialX),
+            ('yinitial', self.initialY),
+            ('zinitial', self.initialZ),
+            ('initial',  self.initial),
 
-            ('size', self.setSize), \
-            ('drillsize', self.setDrillSize), \
-            ('drillangle', self.setDrillAngle), \
-            ('drillextra', self.setDrillExtra), \
-            ('peckdepth', self.setPeckDepth), \
-            ('millHolesize', self.setMillHoleSize), \
-            ('holemin', self.setHoleMin), \
-            ('holemax', self.setHoleMax), \
-            ('holerange', self.setHoleRange), \
-            ('holeorder', self.setHoleOrder), \
+            ('size',         self.setSize),
+            ('drillsize',    self.setDrillSize),
+            ('drillangle',   self.setDrillAngle),
+            ('drillextra',   self.setDrillExtra),
+            ('peckdepth',    self.setPeckDepth),
+            ('millHolesize', self.setMillHoleSize),
+            ('holemin',      self.setHoleMin),
+            ('holemax',      self.setHoleMax),
+            ('holerange',    self.setHoleRange),
+            ('holeorder',    self.setHoleOrder),
 
-            ('coordinate', self.setCoord), \
-            ('variables', self.setVariables), \
+            ('coordinate', self.setCoord),
+            ('variables',  self.setVariables),
 
-            ('safez', self.setSafeZ), \
-            ('retract', self.setRetract), \
-            ('top', self.setTop), \
-            ('depth', self.setDepth), \
-            ('depthpass', self.setDepthPass), \
-            ('evendepth', self.setEvenDepth), \
+            ('safez',     self.setSafeZ),
+            ('retract',   self.setRetract),
+            ('top',       self.setTop),
+            ('depth',     self.setDepth),
+            ('depthpass', self.setDepthPass),
+            ('evendepth', self.setEvenDepth),
 
-            ('feed', self.setFeed), \
-            ('zfeed', self.setZFeed), \
+            ('feed',  self.setFeed),
+            ('zfeed', self.setZFeed),
 
-            ('speed', self.setSpeed), \
-            ('delay', self.setDelay), \
-            ('tool', self.setTool), \
+            ('speed', self.setSpeed),
+            ('delay', self.setDelay),
+            ('tool',  self.setTool),
 
-            ('x', self.setLocX), \
-            ('y', self.setLocY), \
-            ('loc', self.setLoc), \
-            ('xoffset', self.setXOffset), \
-            ('yoffset', self.setYOffset), \
-            ('drill', self.drill, True), \
-            ('bore', self.bore, True), \
+            ('x',       self.setLocX),
+            ('y',       self.setLocY),
+            ('loc',     self.setLoc),
+            ('xoffset', self.setXOffset),
+            ('yoffset', self.setYOffset),
+            ('drill',   self.drill, True),
+            ('bore',    self.bore, True),
 
-            ('pause', self.setPause, True), \
-            ('pausecenter', self.setPauseCenter), \
-            ('pauseheight', self.setPauseHeight), \
-            ('homepause', self.setHomePause), \
-            ('pausehere', self.pauseHere), \
+            ('pause',       self.setPause, True),
+            ('pausecenter', self.setPauseCenter),
+            ('pauseheight', self.setPauseHeight),
+            ('homepause',   self.setHomePause),
+            ('pausehere',   self.pauseHere),
 
-            ('rampangle', self.setRampAngle), \
-            ('shortramp', self.setShortRamp), \
+            ('rampangle', self.setRampAngle),
+            ('shortramp', self.setShortRamp),
 
-            ('widthpasses', self.setWidthPasses), \
-            ('widthperpass', self.setWidthPerPass), \
-            ('width', self.setWidth), \
-            ('vbit', self.setVBit), \
+            ('widthpasses',  self.setWidthPasses),
+            ('widthperpass', self.setWidthPerPass),
+            ('width',        self.setWidth),
+            ('vbit',         self.setVBit),
 
-            ('xslot', self.xSlot, True), \
-            ('yslot', self.ySlot, True), \
+            ('xslot', self.xSlot, True),
+            ('yslot', self.ySlot, True),
 
-            ('test', self.setTest), \
+            ('test', self.setTest),
 
-            ('endmill', self.setEndMillSize), \
-            ('endmillsize', self.setEndMillSize), \
-            ('finish', self.setFinish), \
-            ('finishallowance', self.setFinish), \
-            ('leadradius', self.setLeadRadius), \
+            ('endmill',         self.setEndMillSize),
+            ('endmillsize',     self.setEndMillSize),
+            ('finish',          self.setFinish),
+            ('finishallowance', self.setFinish),
+            ('leadradius',      self.setLeadRadius),
 
-            ('tabs', self.setTabs), \
-            ('tabwidth', self.setTabWidth), \
-            ('tabdepth', self.setTabDepth), \
+            ('tabs',     self.setTabs),
+            ('tabwidth', self.setTabWidth),
+            ('tabdepth', self.setTabDepth),
 
-            ('direction', self.setDirection), \
-            ('output', self.setOutput), \
-            ('alternate', self.setAlternate), \
-            ('addarcs', self.setAddArcs), \
-            ('closeopen', self.setCloseOpen), \
+            ('direction', self.setDirection),
+            ('output',    self.setOutput),
+            ('alternate', self.setAlternate),
+            ('addarcs',   self.setAddArcs),
+            ('closeopen', self.setCloseOpen),
 
-            ('dxf', self.readDxf), \
-            ('setlayers', self.setLayers), \
-            ('clrlayers', self.clrLayers), \
-            ('materiallayer', self.setMaterialLayer), \
-            ('fixturelayer', self.setFixtureLayer), \
-            ('reference', self.setRef), \
-            ('refOffset', self.setRefOffset), \
-            ('orientation', self.setOrientation), \
-            ('xlimit', self.setXLimit), \
-            ('ylimit', self.setYLimit), \
-            ('clrlimits', self.clrLimits), \
+            ('dxf',           self.readDxf),
+            ('setlayers',     self.setLayers),
+            ('clrlayers',     self.clrLayers),
+            ('materiallayer', self.setMaterialLayer),
+            ('fixturelayer' , self.setFixtureLayer),
+            ('reference',     self.setRef),
+            ('refOffset',     self.setRefOffset),
+            ('orientation',   self.setOrientation),
+            ('xlimit',        self.setXLimit),
+            ('ylimit',        self.setYLimit),
+            ('clrlimits',     self.clrLimits),
 
-            ('dxflines', self.dxfLine, True), \
-            ('dxfgetpath', self.dxfPath), \
-            ('dxftab', self.dxfTab, True), \
-            ('dxfpoint', self.dxfPoint), \
-            ('dxfoutside', self.dxfOutside, True), \
-            ('dxfinside', self.dxfInside, True), \
-            ('dxfopen', self.dxfOpen, True), \
-            ('dxfopen1', self.dxfOpen1, True), \
-            ('dxfdrill', self.dxfDrill, True), \
-            ('dxfdrillsort', self.dxfDrillSort, True), \
-            ('dxfbore', self.dxfBore, True), \
-            ('dxfmillhole', self.dxfMillHole, True), \
-            ('dxfsteppedhole', self.dxfSteppedHole, True), \
-            ('stepprofile', self.getStepProfile), \
-            ('dxftap', self.dxfTap, True), \
-            ('dxftapmatic', self.dxfTapMatic, True), \
-            ('tapmatic', self.tapmatic), \
+            ('dxflines',       self.dxfLine, True),
+            ('dxfgetpath',     self.dxfPath),
+            ('dxftab',         self.dxfTab, True),
+            ('dxfpoint',       self.dxfPoint),
+            ('dxfoutside',     self.dxfOutside, True),
+            ('dxfinside',      self.dxfInside, True),
+            ('dxfopen',        self.dxfOpen, True),
+            ('dxfopen1',       self.dxfOpen1, True),
+            ('dxfdrill',       self.dxfDrill, True),
+            ('dxfdrillsort',   self.dxfDrillSort, True),
+            ('dxfbore',        self.dxfBore, True),
+            ('dxfmillhole',    self.dxfMillHole, True),
+            ('dxfsteppedhole', self.dxfSteppedHole, True),
+            ('stepprofile',    self.getStepProfile),
+            ('dxftap',         self.dxfTap, True),
+            ('dxftapmatic',    self.dxfTapMatic, True),
+            ('tapmatic',       self.tapmatic),
 
-            ('close', self.closeFiles), \
-            ('outputfile', self.outputFile), \
+            ('close',      self.closeFiles),
+            ('outputfile', self.outputFile),
 
-            ('setfont', self.setFont), \
-            ('engrave', self.engrave), \
-            ('probe', self.setProbe), \
-            ('probedepth', self.setProbeDepth), \
-            ('probefeed', self.setProbeFeed), \
-            ('probetool', self.setProbeTool), \
-            ('level', self.setLevel), \
+            ('setfont',    self.setFont),
+            ('engrave',    self.engrave),
+            ('probe',      self.setProbe),
+            ('probedepth', self.setProbeDepth),
+            ('probefeed',  self.setProbeFeed),
+            ('probetool',  self.setProbeTool),
+            ('level',      self.setLevel),
 
-            ('drawdxf', self.setDrawDxf), \
-            ('drawsvg', self.setDrawSvg), \
-            ('onedxf', self.setOneDxf), \
-            ('closedxf', self.closeDxf), \
+            ('drawdxf',  self.setDrawDxf),
+            ('drawsvg',  self.setDrawSvg),
+            ('onedxf',   self.setOneDxf),
+            ('closedxf', self.closeDxf),
 
-            ('dbg', self.setDbg), \
-            ('dbgfile', self.setDbgFile), \
-            ('printgcode', self.setPrintGCode), \
+            ('dbg',        self.setDbg),
+            ('dbgfile',    self.setDbgFile),
+            ('printgcode', self.setPrintGCode),
 
-            ('setx', self.setX), \
-            ('sety', self.setY), \
+            ('setx', self.setX),
+            ('sety', self.setY),
 
-            ('load', self.load), \
+            ('load', self.load),
 
-            ('var', self.var), \
-            ('rm',  self.remove), \
-            ('run', self.runCmd), \
-            ('runscript', self.runScript), \
+            ('var',       self.var),
+            ('rm',        self.remove),
+            ('run',       self.runCmd),
+            ('runscript', self.runScript),
 
-            ('repeat', self.repeat, True), \
-            ('repeatcheck', self.repeatCheck, True), \
-            ('endr', self.endRepeat, True), \
+            ('repeat',      self.repeat, True),
+            ('repeatcheck', self.repeatCheck, True),
+            ('endr',        self.endRepeat, True),
 
-            ('if', self.cmdIf), \
-            ('endif', self.cmdEndIf), \
+            ('if',    self.cmdIf),
+            ('endif', self.cmdEndIf),
 
-            ('component', self.component), \
-            ('operation', self.operation), \
+            ('component', self.component),
+            ('operation', self.operation),
 
-            ('***component', self.component), \
-            ('+++operation', self.operation), \
+            ('***component', self.component),
+            ('+++operation', self.operation),
         )
         self.addCommands(self.cmds)
 
@@ -672,18 +673,18 @@ class Config():
 
     def help(self):
         print("Usage: pnc [options] pncFile [dxfInput]")
-        print(" ?            help\n" \
-              " -d           debug\n" \
-              " -h           help\n" \
-              " -c           linuxcnc format\n" \
-              " -r	     resequence input file\n" \
-              " -s           output svf file\n" \
-              " -x           output dxf file\n" \
-              " --dbg file   debug output file\n" \
-              " --dxf file   dxf input file\n" \
-              " --layer layer layer for dxf commands\n" \
-              " --level file level input file\n" \
-              " --probe      generate probe data" \
+        print(" ?            help\n"
+              " -d           debug\n"
+              " -h           help\n"
+              " -c           linuxcnc format\n"
+              " -r	     resequence input file\n"
+              " -s           output svf file\n"
+              " -x           output dxf file\n"
+              " --dbg file   debug output file\n"
+              " --dxf file   dxf input file\n"
+              " --layer layer layer for dxf commands\n"
+              " --level file level input file\n"
+              " --probe      generate probe data"
         )
         sys.exit()
 
@@ -701,7 +702,7 @@ class Config():
                 dprt(result)
             return(gppFile)
         except subprocess.CalledProcessError as e:
-            print("return code %d\n%s\n%s" % \
+            print("return code %d\n%s\n%s" %
                   (e.returncode, e.cmd, e.output))
             return(pncFile)
 
@@ -731,7 +732,7 @@ class Config():
                 if match is not None:
                     if len(result) >= 2:
                         opComment = " - " + match.group(2)
-                line = "+++operation %d.%d%s\n" % \
+                line = "+++operation %d.%d%s\n" %
                            (component, section, opComment)
                 section += 1
             fOut.write(str.encode(line))
@@ -808,10 +809,10 @@ class Config():
                                 ePrint("invalid cmd %s" % cmd)
                                 sys.exit()
                     # except ValueError:
-                    #     ePrint("Invalid argument line %d %s" % \
+                    #     ePrint("Invalid argument line %d %s" %
                     #           (self.lineNum, line))
                     # except IndexError:
-                    #     ePrint("Missing argument line %d %s" % \
+                    #     ePrint("Missing argument line %d %s" %
                     #           (self.lineNum, line))
                     # except:
                     #     dflush()
@@ -859,7 +860,7 @@ class Config():
             geometry.draw = draw
 
         draw.open(self.outFileName, self.drawDxf, self.drawSvg)
-
+        
         dxfInput = self.dxfInput
         if dxfInput is not None:
             if len(dxfInput.material) != 0:
@@ -869,6 +870,8 @@ class Config():
 
             if len(dxfInput.fixture) != 0:
                 draw.materialOutline(dxfInput.fixture)
+
+        dxfInput.drawDxf(layer=self.draw.lDrawing)
 
         draw.move((self.xInitial, self.yInitial))
 
@@ -954,7 +957,7 @@ class Config():
         self.zInitial = self.evalFloatArg(args[1])
 
     def initial(self, args):
-        result = self.getLocation(args, [self.xInitial, \
+        result = self.getLocation(args, [self.xInitial,
                                          self.yInitial, self.zInitial])
         (self.xInitial, self.yInitial, self.zInitial) = result
 
@@ -1583,6 +1586,7 @@ class Config():
         self.dxfInput.open(fileName, self.reference, self.refOffset)
         self.dxfInput.setOrientation(self.orientation, self.reference, \
                                      self.refOffset, self.orientationLayer)
+        self.dxfReadDim(fileName)
 
     def dxfLine(self, args):
         self.ncInit()
@@ -1604,6 +1608,123 @@ class Config():
             layer = None
         return(layer)
 
+    def dxfReadDim(self, fileName):
+        line = 0
+        dimCount = 0
+        txtCount = 0
+        file = open(fileName, 'r')
+
+        xDim = 0.0
+        yDim = 0.0
+        xTxt = 0.0
+        yTxt = 0.0
+        txtStr = ""
+        layer = ""
+
+        NONE = 0
+        DIM  = 1
+        TXT  = 2
+
+        func = NONE
+
+        dimText = []
+        varText = []
+        while True:
+            line += 1
+            code = file.readline().strip()
+            if len(code) == 0:
+                break
+            try:
+                intCode = int(code)
+                # dprt("*", code)
+            except ValueError:
+                dprt("value error", code)
+                exit()
+
+            val = file.readline().strip()
+            if intCode == 0:
+                if func == TXT:
+                    if layer == "DIMENSIONS":
+                        # {\fMicrosoft Sans Serif|b0|i0|c0|p0;.000}
+                        match = re.match(r"{.*?;([.\d]+)", txtStr)
+                        if match is not None:
+                            result = match.groups()
+                            if len(result) == 1:
+                                txtStr = result[0]
+                                dprt("%7.3f %7.3f %s %s" %
+                                     (xTxt, yTxt, layer, txtStr))
+                                dimText.append((xTxt, yTxt, txtStr))
+                    elif layer == "CONTINUOUS":
+                        # {\fArial|b0|i0|c0|p0;\C7;yMin}
+                        match = re.match(r"{.*?;.*?;(\w*)", txtStr)
+                        if match is not None:
+                            result = match.groups()
+                            if len(result) == 1:
+                                txtStr = result[0]
+                                dprt("%7.3f %7.3f %s %s" %
+                                     (xTxt, yTxt, layer, txtStr))
+                                varText.append((xTxt, yTxt, txtStr))
+                # elif func == DIM:
+                #     dprt("%7.3f %7.3f" % (xDim, yDim))
+
+                if val == "MTEXT":
+                    txtCount += 1
+                    func = TXT
+                # elif val == "DIMENSION":
+                #     dimCount += 1
+                #     func = DIM
+                # else:
+                #     dprt("%5d %s" % (line, val))
+                #     func = NONE
+
+            # if func == DIM:
+            #     if intCode == 10:
+            #         xDim = float(val)
+            #     elif intCode == 20:
+            #         yDim = float(val)
+            #     elif intCode == 8:
+            #         layer = val
+            #     # dprt("%6d %4d, %s" % (line, intCode, val))
+
+            elif func == TXT:
+                if intCode == 10:
+                    xTxt = float(val)
+                elif intCode == 20:
+                    yTxt = float(val)
+                elif intCode == 8:
+                    layer = val
+                elif intCode == 1:
+                    txtStr = val
+                # dprt("%4d, %s" % (intCode, val))
+
+            line += 1
+        file.close()
+
+        varText.sort(key=itemgetter(0, 1))
+        dimText.sort(key=itemgetter(0, 1))
+
+        dimLookup = {}
+        for x0, y0, var in varText:
+            minDist = 9999
+            minDim = ""
+            minIndex = 0
+            for j, (x1, y1, dim) in enumerate(dimText):
+                dist = hypot(x1 - x0, y1 - y0)
+                if dist < minDist:
+                    minDist = dist
+                    minDim = dim
+                    minIndex = j
+            del dimText[minIndex]
+            dimLookup[var] = float(minDim)
+            dprt("%4s %6s" % (var, minDim))
+
+        dprt()
+
+        for key in sorted(dimLookup):
+            dprt("%4s %7.3f" % (key, dimLookup[key]))
+
+        self.dimLookup = dimLookup
+   
     def dxfPath(self, args):
         layer = self.getLayer(args)
         self.segments = self.dxfInput.getPath(layer)
@@ -1991,7 +2112,7 @@ class Config():
         mp = self.getMillPath()
         for (i, seg) in enumerate(self.segments):
 
-            dprt("dxfOpen seg %d <" % (i))
+            dprt("dxfOpen seg %d len %d" % (i, len(seg)))
             for l in seg:
                 l.prt()
             dprt(">\n")
@@ -2020,6 +2141,8 @@ class Config():
             for l in seg:
                 l.prt()
             dprt(">\n")
+
+            # return
 
             if True or dbg:
                 for l in seg:
@@ -2618,7 +2741,13 @@ class Config():
             if  pos > 0:
                 metric = 25.4
                 arg = arg[:pos] + arg[pos + 2:]
-            val = float(eval(arg)) / metric
+            val = None
+            dimLookup = self.dimLookup
+            if dimLookup is not None:
+                if arg in dimLookup:
+                    val = dimLookup[arg]
+            if val is None:
+                val = float(eval(arg)) / metric
             dprt("evalFloatArg %s %7.4f" % (arg, val))
             return(val)
         except NameError:
@@ -3575,7 +3704,8 @@ class Dxf():
         self.modelSpace = modelSpace = dwg.modelspace()
         cfg = self.cfg
 
-        dxfTypes = ("LINE", "CIRCLE", "ARC", "LWPOLYLINE")
+        dxfTypes = ("LINE", "CIRCLE", "ARC", "LWPOLYLINE",
+        "DIMENSION", "MTEXT")
         self.minMax.init()
         self.mMinMax.init()
         self.fMinMax.init()
@@ -3618,6 +3748,7 @@ class Dxf():
                     self.material.append(((x0, y0), (x1, y1)))
                     self.mMinMax.line(x0, y0, x1, y1)
                 self.minMax.line(x0, y0, x1, y1)
+         
             elif dxfType == 'CIRCLE':
                 if layer == cfg.fixtureLayer:
                     continue
@@ -3625,6 +3756,7 @@ class Dxf():
                 yCen = e.get_dxf_attrib("center")[1]
                 radius = e.get_dxf_attrib("radius")
                 self.minMax.circle(xCen, yCen, radius)
+
             elif dxfType == 'ARC':
                 xCen = e.get_dxf_attrib("center")[0]
                 yCen = e.get_dxf_attrib("center")[1]
@@ -3660,6 +3792,7 @@ class Dxf():
                 y = radius * sin(radians(a1)) + yCen
                 # dprt("(%5.1f, %5.2f, %5.2f)\n" % (fix(prev), x, y))
                 self.minMax.point(x, y)
+
             elif dxfType == 'LWPOLYLINE':
                 for (x, y) in e.vertices():
                     self.minMax.point(x, y)
@@ -4080,6 +4213,48 @@ class Dxf():
         dprt()
         return(newSeg)
 
+    def drawDxf(self, layer=None):
+        draw = self.cfg.draw
+        for e in self.modelSpace:
+            dxfType = e.dxftype()
+            dxfLayer = e.get_dxf_attrib("layer")
+
+            tmp = dxfLayer.lower()
+            if tmp == "dimensions":
+                continue
+            if tmp == "construction":
+                continue
+            if tmp == "continuous":
+                # if dxfType == "MTEXT":
+                #     print("mtext")
+                continue
+
+            if dxfType == 'LINE':
+                p0 = self.fix((e.get_dxf_attrib("start")[0], \
+                               e.get_dxf_attrib("start")[1]))
+                p1 = self.fix((e.get_dxf_attrib("end")[0], \
+                               e.get_dxf_attrib("end")[1]))
+
+                draw.lineDxf(p0, p1, layer)
+
+            elif dxfType == 'ARC':
+                xCen = e.get_dxf_attrib("center")[0]
+                yCen = e.get_dxf_attrib("center")[1]
+                center = self.fix((xCen, yCen))
+                radius = e.get_dxf_attrib("radius")
+                startAngle = e.get_dxf_attrib("start_angle")
+                endAngle = e.get_dxf_attrib("end_angle")
+
+                draw.arcDxf(center, radius, startAngle, endAngle, layer)
+
+            elif dxfType == 'CIRCLE':
+                xCen = e.get_dxf_attrib("center")[0]
+                yCen = e.get_dxf_attrib("center")[1]
+                p = self.fix((xCen, yCen))
+                radius = e.get_dxf_attrib("radius")
+
+                draw.circleDxf(p, radius, layer)
+
     def getPathByLimits(self, circle=False, dbg=True, rand=False):
         if dbg:
             dprt("\n" "getOpenPath")
@@ -4106,9 +4281,12 @@ class Dxf():
             dxfType = e.dxftype()
             dxfLayer = e.get_dxf_attrib("layer")
 
-            if dxfLayer == "DIMENSIONS":
+            tmp = dxfLayer.lower()
+            if tmp == "dimensions":
                 continue
-            if dxfLayer == "CONTINUOUS":
+            if tmp == "construction":
+                continue
+            if tmp == "continuous":
                 # if dxfType == "MTEXT":
                 #     print("mtext")
                 continue
@@ -4129,9 +4307,6 @@ class Dxf():
                 if dbg:
                     dprt("p0 (%8.4f, %8.4f) p1 (%8.4f, %8.4f)" %
                          (x0, y0, x1, y1))
-                    draw = self.cfg.draw
-                    draw.move((x0, y0))
-                    draw.line((x1, y1))
 
                 if cfg.xLimitActive:
                     if x0 < xMinLimit:
@@ -4152,36 +4327,6 @@ class Dxf():
                         skip = Skip.Y1_MIN
                     elif y1 > yMaxLimit:
                         skip = Skip.Y1_MAX
-
-                # dprt("p0  (%7.3f %7.3f) p1  (%7.3f %7.3f)" % \
-                #      (x0, y0, x1, y1))
-                # horizontal
-                # if abs(y0 - y1) < MIN_DIST:
-                #     if ((abs(y0 - yMin) < MIN_DIST) or \
-                #         (abs(y0 - yMax) < MIN_DIST)): # top or bottom
-                #         if True:
-                #             dprt("skip")
-                #         continue
-
-                # # vertical
-                # elif abs(x0 - x1) < MIN_DIST:
-                #     if ((abs(x0 - xMin) < MIN_DIST) or \
-                #         (abs(x0 - xMax) < MIN_DIST)): # right or left
-                #         if True:
-                #             dprt("skip")
-                #         continue
-
-                # # vertical line
-                # if abs(p0.x - p1.x) < MIN_DIST:
-                #     if abs(p0.x - self.xSize) < MIN_DIST or \
-                #        abs(p0.x) < MIN_DIST:
-                #         continue
-
-                # # horizontal line
-                # if abs(p0.y - p1.y) < MIN_DIST:
-                #     if abs(p0.y - self.ySize) < MIN_DIST or \
-                #        abs(p0.y) < MIN_DIST:
-                #         continue
 
                 if skip == Skip.NONE:
                     l0 = Line(p0, p1, linNum, e)
@@ -4265,6 +4410,7 @@ class Dxf():
                     l0 = Arc(p, radius, 0.0, 360.0, linNum, e)
                 else:
                     continue
+                
             elif dxfType == 'LWPOLYLINE':
                 prev = None
                 vertices = list(e.vertices())
@@ -4282,6 +4428,7 @@ class Dxf():
                 continue
             if dbg:
                 l0.prt()
+                # l0.draw()
             entities.append(l0)
             linNum += 1
         if dbg:

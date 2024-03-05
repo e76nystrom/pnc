@@ -16,11 +16,12 @@ from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_POINT,
 
 from math import radians, sin, cos, atan2
 
-BORDER = 'BORDER'
-PATH   = 'PATH'
-HOLE   = 'HOLE'
-TEXT   = 'TEXT'
-DEBUG  = 'DEBUG'
+DRAWING = 'DRAWING'
+BORDER  = 'BORDER'
+PATH    = 'PATH'
+HOLE    = 'HOLE'
+TEXT    = 'TEXT'
+DEBUG   = 'DEBUG'
 
 class Color(Enum):
     RED     = 1
@@ -50,11 +51,12 @@ class Draw():
         self.xOffset = 50
         self.yOffset = 350
         self.layerIndex = 0
-        self.lBorder = BORDER
-        self.lPath = PATH
-        self.lHole = HOLE
-        self.lText = TEXT
-        self.lDebug = DEBUG
+        self.lDrawing = DRAWING
+        self.lBorder =  BORDER
+        self.lPath =    PATH
+        self.lHole =    HOLE
+        self.lText =    TEXT
+        self.lDebug =   DEBUG
         self.lCount = 0
         self.definedLayers = {}
         self.color = Color.WHITE.value
@@ -81,7 +83,7 @@ class Draw():
 
     def close(self):
         if self.doc is not None:
-            dprt("save drawing file")
+            dprt("save drawing file %s" % (self.dxfFile))
             self.doc.saveas(self.dxfFile)
             self.doc = None
             self.msp = None
@@ -246,15 +248,25 @@ class Draw():
             # dprt("   line %7.4f %7.4f" % end)
             self.last = end
 
+    def lineDxf(self, start, end, layer=None):
+        if self.msp is not None:
+            layer = self.getLayer(layer, self.lPath)
+            self.msp.add_line(start, end, dxfattribs={"layer": layer})
+
     def arc(self, end, center, layer=None):
         if self.enable:
+
             r = xyDist(end, center)
             if self.svg is not None:
                 self.path.push_arc(self.scaleOffset(end), 0, r,
                                     large_arc=True, angle_dir='+',
                                     absolute=True)
+                
             if self.msp is not None:
                 layer = self.getLayer(layer, self.lPath)
+                # if (layer == "1PATH" and
+                #     xyDist(center, (5.7874, 10.4331)) < MIN_DIST):
+                #     print("found")
                 p0 = self.last
                 p1 = end
                 if xyDist(p0, p1) < MIN_DIST:
@@ -276,6 +288,12 @@ class Draw():
                                       dxfattribs={"layer": layer})
                 self.last = end
 
+    def arcDxf(self, center, r, start, end, layer=None):
+        if self.msp is not None:
+            layer = self.getLayer(layer, self.lPath)
+            self.msp.add_arc(center, radius=r, start_angle=start,
+                             end_angle=end, dxfattribs={"layer": layer})
+
     def circle(self, end, r, layer=None):
         if self.enable:
             if self.msp is not None:
@@ -283,6 +301,12 @@ class Draw():
                 self.msp.add_circle(end, radius=r,
                                     dxfattribs={"layer": layer})
         self.last = end
+
+    def circleDxf(self, center, r, layer=None):
+        if self.msp is not None:
+            layer = self.getLayer(layer, self.lHole)
+            self.msp.add_circle(center, radius=r, dxfattribs={"layer": layer})
+        
 
     def hole(self, end, drillSize):
         if self.enable:
