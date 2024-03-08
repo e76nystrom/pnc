@@ -284,8 +284,8 @@ class Draw():
                         a1 = 360.0
                     # dprt("a0 %5.1f a1 %5.1f" % (a0, a1))
                     self.msp.add_arc(center, radius=r, start_angle=a0,
-                                      end_angle=a1,
-                                      dxfattribs={"layer": layer})
+                                     end_angle=a1,
+                                     dxfattribs={"layer": layer})
                 self.last = end
 
     def arcDxf(self, center, r, start, end, layer=None):

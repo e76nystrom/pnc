@@ -2053,7 +2053,7 @@ def createPath(seg, dist, outside, tabPoints=None, \
     else:                           # open path
         if ref is not None:
             dStr = xyDist(ref, newSeg[0].p0)
-            dEnd = xyDist(ref, newSeg[1].p1)
+            dEnd = xyDist(ref, newSeg[-1].p1)
             if dbg:
                 dprt("ref (%7.3f %7.3f) dStr %7.3f dEnd %7.3f" %
                      (ref.x, ref.y, dStr, dEnd))

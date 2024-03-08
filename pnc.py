@@ -250,6 +250,8 @@ class Config():
         self.orientationLayer = None # layer for orientation point
         self.layer = None       # layer from command line
         self.dimLookup = None   # dxf drawing variables
+        self.segments = None    # path segments
+        self.dxfEntities = None # saved dxf entities
 
         self.refValues = \
             (\
@@ -488,23 +490,24 @@ class Config():
             ('ylimit',        self.setYLimit),
             ('clrlimits',     self.clrLimits),
 
-            ('dxflines',       self.dxfLine, True),
-            ('dxfgetpath',     self.dxfPath),
-            ('dxftab',         self.dxfTab, True),
-            ('dxfpoint',       self.dxfPoint),
-            ('dxfoutside',     self.dxfOutside, True),
-            ('dxfinside',      self.dxfInside, True),
-            ('dxfopen',        self.dxfOpen, True),
-            ('dxfopen1',       self.dxfOpen1, True),
-            ('dxfdrill',       self.dxfDrill, True),
-            ('dxfdrillsort',   self.dxfDrillSort, True),
-            ('dxfbore',        self.dxfBore, True),
-            ('dxfmillhole',    self.dxfMillHole, True),
-            ('dxfsteppedhole', self.dxfSteppedHole, True),
-            ('stepprofile',    self.getStepProfile),
-            ('dxftap',         self.dxfTap, True),
-            ('dxftapmatic',    self.dxfTapMatic, True),
-            ('tapmatic',       self.tapmatic),
+            ('dxflines',         self.dxfLine, True),
+            ('dxflimitspath',    self.dxfLimitsPath, True),
+            ('dxfgetpath',       self.dxfPath),
+            ('dxftab',           self.dxfTab, True),
+            ('dxfpoint',         self.dxfPoint),
+            ('dxfoutside',       self.dxfOutside, True),
+            ('dxfinside',        self.dxfInside, True),
+            ('dxfopen',          self.dxfOpen, True),
+            ('dxfopen1',         self.dxfOpen1, True),
+            ('dxfdrill',         self.dxfDrill, True),
+            ('dxfdrillsort',     self.dxfDrillSort, True),
+            ('dxfbore',          self.dxfBore, True),
+            ('dxfmillhole',      self.dxfMillHole, True),
+            ('dxfsteppedhole',   self.dxfSteppedHole, True),
+            ('stepprofile',      self.getStepProfile),
+            ('dxftap',           self.dxfTap, True),
+            ('dxftapmatic',      self.dxfTapMatic, True),
+            ('tapmatic',         self.tapmatic),
 
             ('close',      self.closeFiles),
             ('outputfile', self.outputFile),
@@ -732,7 +735,7 @@ class Config():
                 if match is not None:
                     if len(result) >= 2:
                         opComment = " - " + match.group(2)
-                line = "+++operation %d.%d%s\n" %
+                line = "+++operation %d.%d%s\n" % \
                            (component, section, opComment)
                 section += 1
             fOut.write(str.encode(line))
@@ -1724,6 +1727,22 @@ class Config():
             dprt("%4s %7.3f" % (key, dimLookup[key]))
 
         self.dimLookup = dimLookup
+
+    def dxfLimitsPath(self, args):
+        if len(args) >= 2:
+            arg = args[1].lower()
+            if arg == 'clear':
+                self.dxfEntities = []
+            elif arg == 'add':
+                entities = self.dxfInput.getPathByLimits()
+                for l in entities:
+                    l.prt()
+                self.dxfEntities += entities
+        else:
+            entities = self.dxfInput.getPathByLimits()
+            for l in entities:
+                l.prt()
+            self.dxfEntities = entities
    
     def dxfPath(self, args):
         layer = self.getLayer(args)
@@ -2098,8 +2117,14 @@ class Config():
 
         self.ncInit()
 
-        if layer.lower() == "uselimits":
-            self.segments = self.dxfInput.getPathByLimits()
+        tmp = layer.lower()
+        if tmp == "uselimits":
+            entities = self.dxfInput.getPathByLimits()
+            self.segments = self.dxfInput.connect1(entities, dbg)
+        elif tmp == "usesaved":
+            for index, l in enumerate(self.dxfEntities):
+                l.index = index
+            self.segments = self.dxfInput.connect1(self.dxfEntities, True)
         else:
             self.segments = self.dxfInput.getPath(layer)
 
@@ -2129,7 +2154,7 @@ class Config():
                 dprt("%s s (%7.4f %7.4f) e (%7.4f %7.4f)" %
                      (startString[startType], pStart.x, pStart.y, pEnd.x, pEnd.y))
 
-            (point, newSeg) = self.openPoint(seg, dist, dbg)
+            (point, newSeg) = self.openPoint(seg, dist, dbg=True)
 
             if newSeg is not None:
                 seg = newSeg
@@ -3705,7 +3730,7 @@ class Dxf():
         cfg = self.cfg
 
         dxfTypes = ("LINE", "CIRCLE", "ARC", "LWPOLYLINE",
-        "DIMENSION", "MTEXT")
+                    "DIMENSION", "MTEXT")
         self.minMax.init()
         self.mMinMax.init()
         self.fMinMax.init()
@@ -4424,6 +4449,8 @@ class Dxf():
                         linNum += 1
                     prev = p
                 continue
+            elif dxfType == 'DIMENSION':
+                print("dimension")
             else:
                 continue
             if dbg:
@@ -4469,7 +4496,7 @@ class Dxf():
 
         # self.removeBorder(entities)
 
-        return(self.connect1(entities, dbg))
+        return entities
 
     def connect0(self, entities, dbg=False):
         for l0 in entities:
