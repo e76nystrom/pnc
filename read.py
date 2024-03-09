@@ -2,23 +2,24 @@
 
 import sys
 import re
+from collections import namedtuple
 from math import hypot
 from operator import itemgetter
 from enum import Enum
 
 FUNC = 0
 
-END_SEC = "ENDSEC"
+END_SEC      = "ENDSEC"
 
 BLOCK_RECORD = "BLOCK_RECORD"
 END_TAB      = "ENDTAB"
 
-BLOCK   = "BLOCK"
-END_BLK = "ENDBLK"
+BLOCK        = "BLOCK"
+END_BLK      = "ENDBLK"
 
-DIMENSION = "DIMENSION"
-M_TEXT    = "MTEXT"
-LINE      = "LINE"
+DIMENSION    = "DIMENSION"
+M_TEXT       = "MTEXT"
+LINE         = "LINE"
 
 # data types
 STRING   = 1
@@ -37,6 +38,8 @@ REF      = 330
 DIM_MASK = 0x7
 ORDINATE = 6
 
+DimResult = namedtuple('DimResult', ['val', 'text'])
+
 class Func(Enum):
     NONE         = 0
     DIM          = 1
@@ -46,7 +49,7 @@ class Func(Enum):
     BLOCK        = 5
     END_BLOCK    = 6
 
-class ReadDxf:
+class ReadDxfDim:
     def __init__(self):
         self.line = 0
 
@@ -62,6 +65,12 @@ class ReadDxf:
         self.blockElement = None
 
         self.xMin = self.yMin = 0
+
+        self.txtPath = []
+        self.pathLookup = {}
+
+    def getPathLookup(self):
+        return self.pathLookup
 
     def readCodeVal(self):
         code = self.dxfFile.readline().strip()
@@ -81,17 +90,13 @@ class ReadDxf:
         self.line += 1
         return (curLine, intCode, val)
 
-    @staticmethod
-    def floatStr(x):
-        return float(x)
-
-    def process(self, fName):
+    def readDimensions(self, fName):
         self.dxfFile = open(fName, 'r')
 
         while True:
             result = self.readCodeVal()
             if result is None:
-                 return False
+                 return None
 
             (line, code, val) = result
             if val == "EOF":
@@ -100,7 +105,7 @@ class ReadDxf:
 
             result = self.readCodeVal()
             if result is None:
-                return False
+                return None
             if code == 0:
                 if val == "SECTION":
                     (line, code, val) = result
@@ -154,7 +159,7 @@ class ReadDxf:
             dim[Y_DEF] = y1 = float(dim[Y_DEF]) - self.yMin
             dimName = dim[NAME]
             dimLookup[dimName] = dim
-            print("%2s (%7.3f %7.3f) (%7.3f %7.3f)" %
+            print("%3s (%7.3f %7.3f) (%7.3f %7.3f)" %
                   (dimName, x0, y0, x1, y1))
 
         self.dimNameLoc = []
@@ -186,7 +191,7 @@ class ReadDxf:
         for x, y, txt, blockName in self.dimTxt:
             print("%-5s %7.3f %7.3f %s" % (txt, x, y, blockName))
 
-        print()
+        print("\n" "varLookup")
         varLookup = {}
         # p0 = p1 = delta = (0, 0)
         for x0, y0, var in self.dimNameLoc:
@@ -194,6 +199,7 @@ class ReadDxf:
             # minDim = 0.0
             minIndex = 0
             dimName = ""
+            dimText = ""
             # print("\n" "(%7.3f %7.3f) %s" % (x0, y0, var))
             for j, (x1, y1, dim, name) in enumerate(self.dimTxt):
                 dx = x1 - x0
@@ -205,35 +211,32 @@ class ReadDxf:
                     minDist = dist
                     minIndex = j
                     dimName = name
+                    dimText = dim
                     # minDim = float(dim)
                     # p0 = (x0, y0)
                     # p1 = (x1, y1)
                     # delta = (dx, dy)
             del self.dimTxt[minIndex]
 
-            ref = dimLookup[dimName]
-            minDim = 0.0
-            if var.startswith('x'):
-                minDim = ref[X_DEF]
-            elif var.startswith('y'):
-                minDim = ref[Y_DEF]
-
-            varLookup[var] = (minDim, dimName)
-            print("%4s %2d %10.6f %5.3f" %
-                  (var, minIndex, minDim, minDist))
+            if dimName in dimLookup:
+                ref = dimLookup[dimName]
+                minDim = 0.0
+                if var.startswith('x'):
+                    minDim = ref[X_DEF]
+                elif var.startswith('y'):
+                    minDim = ref[Y_DEF]
+                varLookup[var] = DimResult(minDim, dimText)
+                print("%4s %2d %10.6f \"%6s\" %5.3f" %
+                      (var, minIndex, minDim, dimText, minDist))
+            else:
+                print("error")
 
         print("\n" "varLookup")
         for key in sorted(varLookup):
-            dim, dimName = varLookup[key]
-            ref = dimLookup[dimName]
-            refDim = 0.0
-            if key.startswith('x'):
-                refDim = ref[X_DEF]
-            elif key.startswith('y'):
-                refDim = ref[Y_DEF]
-            print("%4s %10.6f %2s %10.6f" % (key, dim, dimName, refDim))
+            dim, dimText = varLookup[key]
+            print("%4s %10.6f \"%6s\"" % (key, dim, dimText))
 
-        print()
+        print("\n" "txtLookup")
         tstLookup = {}
         dbg = False
         # p0 = p1 = delta = (0, 0)
@@ -290,17 +293,33 @@ class ReadDxf:
             elif var.startswith('y'):
                 minDim = ref[Y_DEF]
 
-            print("%2s %2s %2d  %4s %10.6f \"%6s\" %7.3f" %
+            print("%3s %3s %2d  %4s %10.6f \"%6s\" %7.3f" %
                   (minBlock, minHandle, minIndex, var, minDim,
                    minText, minDist))
-            tstLookup[var] = (minDim, minText)
+            tstLookup[var] = DimResult(minDim, minText)
 
         print("\n" "tstLookup")
         for key in sorted(tstLookup):
             dimVal, dimTxt = tstLookup[key]
             print("%4s %10.6f \"%6s\"" % (key, dimVal, dimTxt))
 
-        return True
+        print("\n" "pathLookup %d" % (len(self.txtPath)))
+        if len(self.txtPath) != 0:
+            pathLookup = {}
+            for txtEntity in self.txtPath:
+                x = float(txtEntity[X_LOC]) - self.xMin
+                y = float(txtEntity[Y_LOC]) - self.yMin
+                txt = txtEntity[STRING]
+                pathLookup[txt] = (x, y)
+
+            for key in sorted(pathLookup):
+                (x, y) = pathLookup[key]
+                print("%-6s (%7.3f %7.3f)" % (key, x, y))
+            self.pathLookup = pathLookup
+        else:
+            self.pathLookup = None
+
+        return tstLookup
 
     def addHandle(self, entity):
         if HANDLE in entity:
@@ -460,6 +479,7 @@ class ReadDxf:
         self.func = Func.NONE
         self.dimRec = []
         self.dimName = []
+        self.txtPath = []
         self.txtEntity = None
         self.dimEntity = None
         self.lineEntity = None
@@ -480,19 +500,28 @@ class ReadDxf:
                         print("add %2s dim %s\n" %
                               (handle, self.dimEntity[NAME]))
                     else:
-                        print("skip\n")
+                        print("skip %s\n" % (self.dimEntity[NAME]))
                 elif self.func == Func.TXT:
-                    self.dimName.append(self.txtEntity)
                     txtStr = self.txtEntity[STRING]
                     # {\fArial|b0|i0|c0|p0;\C7;yMin}
-                    match = re.match(r"{.*?;.*?;(\w*)", txtStr)
+                    match = re.match(r"{.*?;.*?;([(\s\w)]*)", txtStr)
                     if match is not None:
                         result = match.groups()
                         if len(result) == 1:
                             txtStr = result[0]
-                            self.txtEntity[STRING] = txtStr
-                    handle = self.addHandle(self.txtEntity)
-                    print("add %2s txt %s\n" % (handle, txtStr))
+                            ch = txtStr[0]
+                            if ch == '(':
+                                txtStr = txtStr[1:-1]
+                                self.txtEntity[STRING] = txtStr
+                                self.txtPath.append(self.txtEntity)
+                                print("add txtPath %s\n" % (txtStr))
+                            elif ch.isalpha():
+                                self.txtEntity[STRING] = txtStr
+                                self.dimName.append(self.txtEntity)
+                                handle = self.addHandle(self.txtEntity)
+                                print("add %2s txt %s\n" % (handle, txtStr))
+                            else:
+                                print("skip %s" % (txtStr))
                 elif self.func == Func.LINE:
                     l = self.lineEntity
                     x0 = float(l[X_LOC])
@@ -550,6 +579,6 @@ if __name__ == '__main__':
     else:
         fileName = "test/DimensionTest.dxf"
 
-    dxf = ReadDxf()
+    dxf = ReadDxfDim()
 
-    dxf.process(fileName)
+    dxf.readDimensions(fileName)

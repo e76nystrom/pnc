@@ -46,6 +46,7 @@ from offset import Offset
 from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_MAX, O_POINT,
                          O_UPPER_LEFT, O_UPPER_RIGHT)
 from orientation import (REF_OVERALL, REF_MATERIAL, REF_FIXTURE)
+from read import ReadDxfDim
 
 DRILL = 0
 BORE = 1
@@ -318,6 +319,11 @@ class Config():
         self.yLimitActive = False # y limit active
         self.yMinLimit = None   # y min limit for reading from dxf
         self.yMaxLimit = None   # y max limit for reading from dxf
+
+        self.startType = None
+        self.dirType   = None
+        self.pathPoint = None
+        self.pointName = ""
 
         self.tapRpm = 0         # measured rpm
         self.tapTpi = 20        # threads per inch
@@ -1589,7 +1595,9 @@ class Config():
         self.dxfInput.open(fileName, self.reference, self.refOffset)
         self.dxfInput.setOrientation(self.orientation, self.reference, \
                                      self.refOffset, self.orientationLayer)
-        self.dxfReadDim(fileName)
+
+        self.readDxfDim = ReadDxfDim()
+        self.dimLookup = self.readDxfDim.readDimensions(fileName)
 
     def dxfLine(self, args):
         self.ncInit()
@@ -1611,122 +1619,122 @@ class Config():
             layer = None
         return(layer)
 
-    def dxfReadDim(self, fileName):
-        line = 0
-        dimCount = 0
-        txtCount = 0
-        file = open(fileName, 'r')
+    # def dxfReadDim(self, fileName):
+    #     line = 0
+    #     dimCount = 0
+    #     txtCount = 0
+    #     file = open(fileName, 'r')
 
-        xDim = 0.0
-        yDim = 0.0
-        xTxt = 0.0
-        yTxt = 0.0
-        txtStr = ""
-        layer = ""
+    #     xDim = 0.0
+    #     yDim = 0.0
+    #     xTxt = 0.0
+    #     yTxt = 0.0
+    #     txtStr = ""
+    #     layer = ""
 
-        NONE = 0
-        DIM  = 1
-        TXT  = 2
+    #     NONE = 0
+    #     DIM  = 1
+    #     TXT  = 2
 
-        func = NONE
+    #     func = NONE
 
-        dimText = []
-        varText = []
-        while True:
-            line += 1
-            code = file.readline().strip()
-            if len(code) == 0:
-                break
-            try:
-                intCode = int(code)
-                # dprt("*", code)
-            except ValueError:
-                dprt("value error", code)
-                exit()
+    #     dimText = []
+    #     varText = []
+    #     while True:
+    #         line += 1
+    #         code = file.readline().strip()
+    #         if len(code) == 0:
+    #             break
+    #         try:
+    #             intCode = int(code)
+    #             # dprt("*", code)
+    #         except ValueError:
+    #             dprt("value error", code)
+    #             exit()
 
-            val = file.readline().strip()
-            if intCode == 0:
-                if func == TXT:
-                    if layer == "DIMENSIONS":
-                        # {\fMicrosoft Sans Serif|b0|i0|c0|p0;.000}
-                        match = re.match(r"{.*?;([.\d]+)", txtStr)
-                        if match is not None:
-                            result = match.groups()
-                            if len(result) == 1:
-                                txtStr = result[0]
-                                dprt("%7.3f %7.3f %s %s" %
-                                     (xTxt, yTxt, layer, txtStr))
-                                dimText.append((xTxt, yTxt, txtStr))
-                    elif layer == "CONTINUOUS":
-                        # {\fArial|b0|i0|c0|p0;\C7;yMin}
-                        match = re.match(r"{.*?;.*?;(\w*)", txtStr)
-                        if match is not None:
-                            result = match.groups()
-                            if len(result) == 1:
-                                txtStr = result[0]
-                                dprt("%7.3f %7.3f %s %s" %
-                                     (xTxt, yTxt, layer, txtStr))
-                                varText.append((xTxt, yTxt, txtStr))
-                # elif func == DIM:
-                #     dprt("%7.3f %7.3f" % (xDim, yDim))
+    #         val = file.readline().strip()
+    #         if intCode == 0:
+    #             if func == TXT:
+    #                 if layer == "DIMENSIONS":
+    #                     # {\fMicrosoft Sans Serif|b0|i0|c0|p0;.000}
+    #                     match = re.match(r"{.*?;([.\d]+)", txtStr)
+    #                     if match is not None:
+    #                         result = match.groups()
+    #                         if len(result) == 1:
+    #                             txtStr = result[0]
+    #                             dprt("%7.3f %7.3f %s %s" %
+    #                                  (xTxt, yTxt, layer, txtStr))
+    #                             dimText.append((xTxt, yTxt, txtStr))
+    #                 elif layer == "CONTINUOUS":
+    #                     # {\fArial|b0|i0|c0|p0;\C7;yMin}
+    #                     match = re.match(r"{.*?;.*?;(\w*)", txtStr)
+    #                     if match is not None:
+    #                         result = match.groups()
+    #                         if len(result) == 1:
+    #                             txtStr = result[0]
+    #                             dprt("%7.3f %7.3f %s %s" %
+    #                                  (xTxt, yTxt, layer, txtStr))
+    #                             varText.append((xTxt, yTxt, txtStr))
+    #             # elif func == DIM:
+    #             #     dprt("%7.3f %7.3f" % (xDim, yDim))
 
-                if val == "MTEXT":
-                    txtCount += 1
-                    func = TXT
-                # elif val == "DIMENSION":
-                #     dimCount += 1
-                #     func = DIM
-                # else:
-                #     dprt("%5d %s" % (line, val))
-                #     func = NONE
+    #             if val == "MTEXT":
+    #                 txtCount += 1
+    #                 func = TXT
+    #             # elif val == "DIMENSION":
+    #             #     dimCount += 1
+    #             #     func = DIM
+    #             # else:
+    #             #     dprt("%5d %s" % (line, val))
+    #             #     func = NONE
 
-            # if func == DIM:
-            #     if intCode == 10:
-            #         xDim = float(val)
-            #     elif intCode == 20:
-            #         yDim = float(val)
-            #     elif intCode == 8:
-            #         layer = val
-            #     # dprt("%6d %4d, %s" % (line, intCode, val))
+    #         # if func == DIM:
+    #         #     if intCode == 10:
+    #         #         xDim = float(val)
+    #         #     elif intCode == 20:
+    #         #         yDim = float(val)
+    #         #     elif intCode == 8:
+    #         #         layer = val
+    #         #     # dprt("%6d %4d, %s" % (line, intCode, val))
 
-            elif func == TXT:
-                if intCode == 10:
-                    xTxt = float(val)
-                elif intCode == 20:
-                    yTxt = float(val)
-                elif intCode == 8:
-                    layer = val
-                elif intCode == 1:
-                    txtStr = val
-                # dprt("%4d, %s" % (intCode, val))
+    #         elif func == TXT:
+    #             if intCode == 10:
+    #                 xTxt = float(val)
+    #             elif intCode == 20:
+    #                 yTxt = float(val)
+    #             elif intCode == 8:
+    #                 layer = val
+    #             elif intCode == 1:
+    #                 txtStr = val
+    #             # dprt("%4d, %s" % (intCode, val))
 
-            line += 1
-        file.close()
+    #         line += 1
+    #     file.close()
 
-        varText.sort(key=itemgetter(0, 1))
-        dimText.sort(key=itemgetter(0, 1))
+    #     varText.sort(key=itemgetter(0, 1))
+    #     dimText.sort(key=itemgetter(0, 1))
 
-        dimLookup = {}
-        for x0, y0, var in varText:
-            minDist = 9999
-            minDim = ""
-            minIndex = 0
-            for j, (x1, y1, dim) in enumerate(dimText):
-                dist = hypot(x1 - x0, y1 - y0)
-                if dist < minDist:
-                    minDist = dist
-                    minDim = dim
-                    minIndex = j
-            del dimText[minIndex]
-            dimLookup[var] = float(minDim)
-            dprt("%4s %6s" % (var, minDim))
+    #     dimLookup = {}
+    #     for x0, y0, var in varText:
+    #         minDist = 9999
+    #         minDim = ""
+    #         minIndex = 0
+    #         for j, (x1, y1, dim) in enumerate(dimText):
+    #             dist = hypot(x1 - x0, y1 - y0)
+    #             if dist < minDist:
+    #                 minDist = dist
+    #                 minDim = dim
+    #                 minIndex = j
+    #         del dimText[minIndex]
+    #         dimLookup[var] = float(minDim)
+    #         dprt("%4s %6s" % (var, minDim))
 
-        dprt()
+    #     dprt()
 
-        for key in sorted(dimLookup):
-            dprt("%4s %7.3f" % (key, dimLookup[key]))
+    #     for key in sorted(dimLookup):
+    #         dprt("%4s %7.3f" % (key, dimLookup[key]))
 
-        self.dimLookup = dimLookup
+    #     self.dimLookup = dimLookup
 
     def dxfLimitsPath(self, args):
         if len(args) >= 2:
@@ -1825,18 +1833,31 @@ class Config():
         self.tabPoints = []
 
     def openSetup(self, args):
-        if len(args) < 2:
+        self.startType = None
+        self.dirType = None
+        self.pathPoint = None
+        
+        argLen = len(args)
+        if (argLen == 1) or (argLen == 3):
+            path = args[argLen - 1]
+            self.pathName = path
+            pathLookup = self.readDxfDim.getPathLookup()
+            if path in pathLookup:
+                self.pathPoint = newPoint(pathLookup[path])
+                return True
+            else:
+                return False
+        
+        if argLen != 2:
             return False
 
         start = args[0].lower()
-        self.startType = None
         for i, val in enumerate(startString):
             if start == val:
                 self.startType = i
                 break
 
         direction = args[1].lower()
-        self.dirType = None
         for i, val in enumerate(dirString):
             if direction == val:
                 self.dirType = i
@@ -1847,23 +1868,35 @@ class Config():
     def openPoint(self, seg, dist=0.0, dbg=False):
         startType = self.startType
         dirType = self.dirType
-
-        if dbg:
-            dprt("\n" "openPoint startType %s dirType %s" % \
-                 (startString[startType], dirString[dirType]))
+        pathPoint = self.pathPoint
 
         p0 = seg[0].p0
         p1 = seg[-1].p1
 
         reverse = False
-        if startType == OpenStart.X_MIN.value:
-            reverse = p0.x > p1.x
-        elif startType == OpenStart.X_MAX.value:
-            reverse = p0.x < p1.x
-        elif startType == OpenStart.Y_MIN.value:
-            reverse = p0.y > p1.y
-        elif startType == OpenStart.Y_MAX.value:
-            reverse = p0.y < p1.y
+        if pathPoint is None:
+            if dbg:
+                dprt("\n" "openPoint startType %s dirType %s" % \
+                     (startString[startType], dirString[dirType]))
+
+            if startType == OpenStart.X_MIN.value:
+                reverse = p0.x > p1.x
+            elif startType == OpenStart.X_MAX.value:
+                reverse = p0.x < p1.x
+            elif startType == OpenStart.Y_MIN.value:
+                reverse = p0.y > p1.y
+            elif startType == OpenStart.Y_MAX.value:
+                reverse = p0.y < p1.y
+
+        else:
+            d0 = xyDist(pathPoint, p0)
+            d1 = xyDist(pathPoint, p1)
+
+            if True or dbg:
+                print("pathPoint (%7.3f %7.3f) d0 %7.3f p0 (%7.3f %7.3f) d1 %7.3f p1 (%7.3f %7.3f)" %
+                      (pathPoint.x, pathPoint.y, d0, p0.x, p0.y, d1, p1.x, p1.y))
+
+            reverse = d0 > d1
 
         newSeg = None
         if reverse:
@@ -1878,35 +1911,56 @@ class Config():
         p = None
         if dist != 0:
             l = seg[0]
-            if l.lType == ARC:
-                dist += l.r
-                aPt = self.arcAngleR(l.c, l.p0)
-                p0 = l.c
+            if pathPoint is None:
+                if l.lType == ARC:
+                    dist += l.r
+                    p0 = l.c
+                    aPt = self.arcAngleR(p0, l.p0)
+                else:
+                    aFwd = l.fwdAngle()
+                    i0 = self.startType * dirLen + self.dirType
+                    a = leadInAngle[i0]
+                    aPt = aFwd + a
+                    p0 = l.p0
             else:
-                aFwd = l.fwdAngle()
-                i0 = self.startType * dirLen + self.dirType
-                a = leadInAngle[i0]
-                aPt = aFwd + a
+                self.draw.drawCircle(pathPoint)
+                print(self.pathName)
                 p0 = l.p0
+                aPoint = self.arcAngleR(p0, pathPoint)
+                aPointD = self.aFix(degrees(aPoint))
+                if dbg:
+                    print("pointAngle %3.0f" % (aPointD))
+                if l.lType == ARC:
+                    l.prt()
+                    dist += l.r
+                    p0 = l.c
+                    aPt = self.arcAngleR(p0, l.p0)
+                    print("aPt %3.0f" % (degrees(aPt)))
+                    aFwd = aPt - RAD_90
+                else:
+                    l.prt()
+                    aFwd = l.fwdAngle()
+
+                self.draw.drawCircle(p0, d=0.020)
+                    
+                aFwdD = self.aFix(degrees(aFwd))
+                print("aFwd %3.0f" % (aFwdD))
+                aDiff = self.aFix(aFwdD - aPointD)
+                print("aDiff %3.0f" % (aDiff))
+
+                if (aDiff > 180) and (aDiff < 360):
+                    aPt = aFwd + RAD_90
+                else:
+                    aPt = aFwd - RAD_90
+
+                print("aPt %3.0f" % (degrees(aPt)))
 
             x = dist * cos(aPt) + p0.x
             y = dist * sin(aPt) + p0.y
 
             p = newPoint((x, y))
 
-            # p0 = seg[0].p0
-            # if dirType == OpenDir.X_LT.value:
-            #     p = newPoint((p0.x - dist, p0.y))
-            # elif dirType == OpenDir.X_GT.value:
-            #     p = newPoint((p0.x + dist, p0.y))
-            # elif dirType == OpenDir.Y_LT.value:
-            #     p = newPoint((p0.x, p0.y - dist))
-            # elif dirType == OpenDir.Y_GT.value:
-            #     p = newPoint((p0.x, p0.y + dist))
-            # elif dirType == OpenDir.CCW.value:
-            #     p = newPoint((p0.x, p0.y + dist))
-            # elif dirType == OpenDir.CW.value:
-            #     p = newPoint((p0.x, p0.y + dist))
+            self.draw.drawX(p, "%s" % (self.pathName))
 
             if dbg:
                 p0 = l.p0
@@ -1995,10 +2049,21 @@ class Config():
                 l1.prt()
                 l.prt()
         else:
-            d = self.endMillSize / 2.0 + 0.125
             aFwd = l.fwdAngle()
-            index = self.startType * dirLen + self.dirType
-            a = leadInAngle[index]
+            pathPoint = self.pathPoint
+            aDiff = 0
+            if pathPoint is None:
+                index = self.startType * dirLen + self.dirType
+                a = leadInAngle[index]
+            else:
+                index = None
+                aPoint = self.arcAngleR(l.p0, pathPoint)
+                aDiff = self.aFix(degrees(aFwd - aPoint))
+                if (aDiff > 180) and (aDiff < 360):
+                    a = RAD_90
+                else:
+                    a = -RAD_90
+
             d = CCW if a > 0.0 else CW
             aPt = aFwd + a
 
@@ -2015,9 +2080,15 @@ class Config():
             aEnd = self.aFix(aPt - 180)
             aStr = self.aFix(aEnd - a)
 
-            txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f aStr %3.0f aEnd %3.0f %s" %
-                   (index, self.startType, self.dirType,
-                    aFwd, a, aPt, aStr, aEnd, oStr(d)))
+            if index is not None:
+                txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f "
+                       "aStr %3.0f aEnd %3.0f %s" %
+                       (index, self.startType, self.dirType,
+                        aFwd, a, aPt, aStr, aEnd, oStr(d)))
+            else:
+                txt = ("aFwd %3.0f aDiff %3.0f a %3.0f aPt %3.0f " \
+                       "aStr %3.0f aEnd %3.0f %s" %
+                       (aFwd, aDiff, a, aPt, aStr, aEnd, oStr(d)))
             dprt(txt)
 
             self.draw.text(txt, point, 0.010)
@@ -2080,8 +2151,20 @@ class Config():
                 l1.prt()
         else:
             aFwd = l.fwdAngle()
-            index = self.startType * dirLen + self.dirType
-            a = leadInAngle[index]
+            pathPoint = self.pathPoint
+            aDiff = 0
+            if pathPoint is None:
+                index = self.startType * dirLen + self.dirType
+                a = leadInAngle[index]
+            else:
+                index = None
+                aPoint = self.arcAngleR(l.p0, pathPoint)
+                aDiff = self.aFix(degrees(aFwd - aPoint))
+                if (aDiff > 180) and (aDiff < 360):
+                    a = RAD_90
+                else:
+                    a = -RAD_90
+            
             d = CCW if a > 0.0 else CW
             aPt = aFwd + a
 
@@ -2098,9 +2181,15 @@ class Config():
             aStr = self.aFix(aPt - 180)
             aEnd = self.aFix(aStr + a)
 
-            txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f aStr %3.0f aEnd %3.0f %s" %
-                   (index, self.startType, self.dirType,
-                    aFwd, a, aPt, aStr, aEnd, oStr(d)))
+            if index is not None:
+                txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f "
+                       "aStr %3.0f aEnd %3.0f %s" %
+                       (index, self.startType, self.dirType,
+                        aFwd, a, aPt, aStr, aEnd, oStr(d)))
+            else:
+                txt = ("aFwd %3.0f aDiff %3.0f a %3.0f aPt %3.0f " \
+                       "aStr %3.0f aEnd %3.0f %s" %
+                       (aFwd, aDiff, a, aPt, aStr, aEnd, oStr(d)))
             dprt(txt)
 
             self.draw.text(txt, point, 0.010)
@@ -2173,7 +2262,7 @@ class Config():
                 for l in seg:
                     l.draw()
 
-            # return
+            return
 
             # points = self.points[0] if len(self.points) > 0 else None
             # point = self.openPoint(seg, dist)
@@ -2770,7 +2859,7 @@ class Config():
             dimLookup = self.dimLookup
             if dimLookup is not None:
                 if arg in dimLookup:
-                    val = dimLookup[arg]
+                    val = dimLookup[arg].val
             if val is None:
                 val = float(eval(arg)) / metric
             dprt("evalFloatArg %s %7.4f" % (arg, val))
