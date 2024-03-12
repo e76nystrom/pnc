@@ -62,6 +62,7 @@ class Draw():
         self.color = Color.WHITE.value
 
     def open(self, inFile, drawDxf=True, drawSvg=True):
+        dprt("Draw open %s" % (inFile))
         if drawSvg and self.svg is None:
             svgFile = inFile + ".svg"
             try:
@@ -73,7 +74,12 @@ class Draw():
                 ePrint("svg file open error %s" % (svgFile))
 
         if drawDxf and self.msp is None:
+            if self.dxfFile is not None:
+                if self.doc is not None:
+                    self.doc.saveas(self.dxfFile)
+
             self.dxfFile = inFile + "_ngc.dxf"
+            dprt("open dxf %s" % (self.dxfFile))
             self.doc = ezdxf.new(setup=True)
             self.msp = self.doc.modelspace()
             self.layerIndex = 1
@@ -85,6 +91,7 @@ class Draw():
         if self.doc is not None:
             dprt("save drawing file %s" % (self.dxfFile))
             self.doc.saveas(self.dxfFile)
+            self.dxfFile = None
             self.doc = None
             self.msp = None
 
@@ -392,7 +399,7 @@ class Draw():
                 align = TextEntityAlignment.MIDDLE_CENTER
                 txt = self.msp.add_text(txt, height=0.010,
                                         dxfattribs={"layer": layer})
-                txt.set_placement(p, align= align)
+                txt.set_placement(p, align=align)
             self.move(last)
 
     def drawLine(self, p, m, b, x):

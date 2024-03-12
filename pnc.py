@@ -728,24 +728,26 @@ class Config():
             command = l.split(" ")[0].lower()
             if command == "***component":
                 match = re.match(r"^\**\w+\s+(\*|\d+)\s+-?\s*(.*)$", l)
-                result = match.groups()
-                compComment = ""
                 if match is not None:
-                    if len(result) >= 2:
-                        compComment = " - " + match.group(2)
-                component += 1
-                line = "***component %d%s\n" % (component, compComment)
-                section = 1
+                    result = match.groups()
+                    compComment = ""
+                    if match is not None:
+                        if len(result) >= 2:
+                            compComment = " - " + match.group(2)
+                    component += 1
+                    line = "***component %d%s\n" % (component, compComment)
+                    section = 1
             elif command == "+++operation":
                 match = re.match(r"\+*\w+\s+(\*|[\d.]+)\s+-?\s*(.*)$", l)
-                result = match.groups()
-                opComment = ""
                 if match is not None:
-                    if len(result) >= 2:
-                        opComment = " - " + match.group(2)
-                line = "+++operation %d.%d%s\n" % \
-                           (component, section, opComment)
-                section += 1
+                    result = match.groups()
+                    opComment = ""
+                    if match is not None:
+                        if len(result) >= 2:
+                            opComment = " - " + match.group(2)
+                    line = ("+++operation %d.%d%s\n" %
+                            (component, section, opComment))
+                    section += 1
             fOut.write(str.encode(line))
         f.close()
         fOut.close()
@@ -1600,7 +1602,7 @@ class Config():
         self.draw = draw = Draw(self)
         geometry.draw = draw
 
-        draw.open("orientation", self.drawDxf, self.drawSvg)
+        draw.open(self.baseName + "-O", self.drawDxf, self.drawSvg)
         
         self.dxfInput.setOrientation(self.orientation, self.reference,
                                      self.refOffset, self.orientationLayer)
@@ -2999,6 +3001,7 @@ class Config():
         mill.blankLine()
 
     def component(self, args):
+        self.closeFiles(None)
         # exp = r"^\w+\s+(\*|\d+)\s+(.*)$"
         exp = r"^\**\w+\s+(\*|[\d\.]+)\s+-?\s*([\w \.-]*)\s*,?\s*(.*)$"
         match = re.match(exp, args[0])
@@ -3786,17 +3789,17 @@ class Dxf():
                 x1 = e.get_dxf_attrib("end")[0]
                 y1 = e.get_dxf_attrib("end")[1]
                 if layer == cfg.fixtureLayer:
-                    dprt("f (x0 %7.4f y0 % 7.4f) (x1 %7.4f y1 % 7.4f)" % \
+                    dprt("f (x0 %7.4f y0 %7.4f) (x1 %7.4f y1 %7.4f)" % \
                          (x0, y0, x1, y1))
                     self.fixture.append(((x0, y0), (x1, y1)))
                     self.fMinMax.line(x0, y0, x1, y1)
                 elif layer == cfg.materialLayer:
-                    dprt("m (x0 %7.4f y0 % 7.4f) (x1 %7.4f y1 % 7.4f)" % \
+                    dprt("m (x0 %7.4f y0 %7.4f) (x1 %7.4f y1 %7.4f)" % \
                          (x0, y0, x1, y1))
                     self.material.append(((x0, y0), (x1, y1)))
                     self.mMinMax.line(x0, y0, x1, y1)
                 else:
-                    dprt("o (x0 %7.4f y0 % 7.4f) (x1 %7.4f y1 % 7.4f) %s" % \
+                    dprt("o (x0 %7.4f y0 %7.4f) (x1 %7.4f y1 %7.4f) %s" % \
                          (x0, y0, x1, y1, layer))
                     self.minMax.line(x0, y0, x1, y1)
          
@@ -3848,9 +3851,10 @@ class Dxf():
                 for (x, y) in e.vertices():
                     self.minMax.point(x, y)
 
+        dprt("\n" "object min max size")
         minMax = self.minMax
-        dprt("xMin %f yMin %f" % (minMax.xMin, minMax.yMin))
-        dprt("xMax %f yMax %f" % (minMax.xMax, minMax.yMax))
+        dprt("xMin %7.4f yMin %7.4f" % (minMax.xMin, minMax.yMin))
+        dprt("xMax %7.4f yMax %7.rf" % (minMax.xMax, minMax.yMax))
         self.xSize = minMax.xMax - minMax.xMin
         self.ySize = minMax.yMax - minMax.yMin
         dprt("xSize %5.3f ySize %6.3f" % (self.xSize, self.ySize))
@@ -3860,6 +3864,7 @@ class Dxf():
         for key in sorted(dxfLayers):
             info = dxfLayers[key]
             dprt("layer %-12s count %2d" % (key, info.count))
+        dprt()
 
     def setOrientation(self, orientation=O_UPPER_LEFT, ref=REF_OVERALL, \
                        refOffset=0, layer=None):
