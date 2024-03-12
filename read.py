@@ -6,6 +6,9 @@ from collections import namedtuple
 from math import hypot
 from operator import itemgetter
 from enum import Enum
+from ezdxf.enums import TextEntityAlignment
+
+from dbgprt import dprt, dprtSet
 
 FUNC = 0
 
@@ -20,6 +23,8 @@ END_BLK      = "ENDBLK"
 DIMENSION    = "DIMENSION"
 M_TEXT       = "MTEXT"
 LINE         = "LINE"
+
+READ_DIM =   "ReadDim"
 
 # data types
 STRING   = 1
@@ -38,7 +43,7 @@ REF      = 330
 DIM_MASK = 0x7
 ORDINATE = 6
 
-DimResult = namedtuple('DimResult', ['val', 'text'])
+DimResult = namedtuple('DimResult', ['val', 'text', 'name'])
 
 class Func(Enum):
     NONE         = 0
@@ -49,8 +54,9 @@ class Func(Enum):
     BLOCK        = 5
     END_BLOCK    = 6
 
-class ReadDxfDim:
-    def __init__(self):
+class ReadDxfDim():
+    def __init__(self, draw=None):
+        self.draw = draw
         self.line = 0
 
         self.tableFunc = Func.NONE
@@ -81,16 +87,19 @@ class ReadDxfDim:
             return None
         try:
             intCode = int(code)
-            # print("*", code)
+            # dprt("*", code)
         except ValueError:
-            print("value error", code)
+            dprt("value error", code)
             return None
 
         val = self.dxfFile.readline().strip()
         self.line += 1
         return (curLine, intCode, val)
 
-    def readDimensions(self, fName):
+    def readDimensions(self, fName, xOffset=None, yOffset=None, dbg=False):
+        self.xOffset = xOffset
+        self.yOffset = yOffset
+
         self.dxfFile = open(fName, 'r')
 
         while True:
@@ -100,7 +109,8 @@ class ReadDxfDim:
 
             (line, code, val) = result
             if val == "EOF":
-                print("%5d %4d %s" % (line, code, val))
+                if dbg:
+                    dprt("%5d %4d %s" % (line, code, val))
                 break
 
             result = self.readCodeVal()
@@ -111,87 +121,123 @@ class ReadDxfDim:
                     (line, code, val) = result
                     if code == 2:
                         if val == "HEADER":
-                            self.readHeader()
+                            self.readHeader(dbg=dbg)
                         elif val == "CLASSES":
-                            self.readClasses()
+                            self.readClasses(dbg=dbg)
                         elif val == "TABLES":
-                            self.readTables()
+                            self.readTables(dbg=dbg)
                         elif val == "BLOCKS":
-                            self.readBlocks()
+                            self.readBlocks(dbg=dbg)
                         elif val == "ENTITIES":
-                            self.readEntities()
+                            self.readEntities(dbg=dbg)
                         elif val == "OBJECTS":
-                            self.readObjects()
+                            self.readObjects(dbg=dbg)
 
-        print("\n" "xMin %7.4f yMin %7.4f" % (self.xMin, self.yMin))
+        if self.xOffset is None:
+            self.xOffset = -self.xMin
+        if self.yOffset is None:
+            self.yOffset = -self.yMin
 
-        for blockList in self.blocks:
-            print()
-            for blockElem in blockList:
-                func = blockElem[FUNC]
-                print("%-10s" % (func), end=" ")
-                if func == Func.BLOCK:
-                    print("%2s %s" %
-                          (blockElem[REF], blockElem[NAME]))
-                elif func == Func.TXT:
-                    blockElem[X_LOC] = x0 = float(blockElem[X_LOC]) - self.xMin
-                    blockElem[Y_LOC] = y0 = float(blockElem[Y_LOC]) - self.yMin
-                    print("%2s (%7.3f %7.3f) %s" %
-                          (blockElem[REF], x0, y0, blockElem[STRING]))
-                elif func == Func.LINE:
-                    blockElem[X_LOC] = x0 = float(blockElem[X_LOC]) - self.xMin
-                    blockElem[X_END] = x1 = float(blockElem[X_END]) - self.xMin
-                    blockElem[Y_LOC] = y0 = float(blockElem[Y_LOC]) - self.yMin
-                    blockElem[Y_END] = y1 = float(blockElem[Y_END]) - self.yMin
-                    print("%2s (%7.3f %7.3f) (%7.3f %7.3f)" %
-                          (blockElem[REF], x0, y0 ,x1, y1))
+        draw = self.draw
 
-        print("\n" "dimRec")
+        dbg = True
+        if dbg:
+            dprt("\n"
+                 "xMin    %7.4f yMin    %7.4f" % (self.xMin,    self.yMin))
+            dprt("xOffset %7.4f yOffset %7.4f" % (self.xOffset, self.yOffset))
+
+        dbg = True
+        if dbg:
+            dprt("\n" "dimLookup %d" % (len(self.dimRec)))
         dimLookup = {}
         for dim in self.dimRec:
             # noinspection PyTypeChecker
-            dim[X_LOC] = x0 = float(dim[X_LOC]) - self.xMin
+            dim[X_LOC] = x0 = float(dim[X_LOC]) + self.xOffset
             # noinspection PyTypeChecker
-            dim[X_DEF] = x1 = float(dim[X_DEF]) - self.xMin
+            dim[X_DEF] = x1 = float(dim[X_DEF]) + self.xOffset
             # noinspection PyTypeChecker
-            dim[Y_LOC] = y0 = float(dim[Y_LOC]) - self.yMin
+            dim[Y_LOC] = y0 = float(dim[Y_LOC]) + self.yOffset
             # noinspection PyTypeChecker
-            dim[Y_DEF] = y1 = float(dim[Y_DEF]) - self.yMin
+            dim[Y_DEF] = y1 = float(dim[Y_DEF]) + self.yOffset
             dimName = dim[NAME]
             dimLookup[dimName] = dim
-            print("%3s (%7.3f %7.3f) (%7.3f %7.3f)" %
-                  (dimName, x0, y0, x1, y1))
+            if dbg:
+                dprt("%3s (%7.3f %7.3f) (%7.3f %7.3f)" %
+                     (dimName, x0, y0, x1, y1))
+            if draw is not None:
+                draw.circleDxf((x1, y1), 0.020, layer=READ_DIM)
+                draw.text(dimName, (x1 + .020, y1), 0.010, layer=READ_DIM)
 
+        dbg = True
+        if dbg:
+            dprt("\n" "blockList %d" % (len(self.blocks)))
+        self.dimTxt = []
+        for blockList in self.blocks:
+            if dbg:
+                dprt()
+            dimName = ""
+            for blockElem in blockList:
+                func = blockElem[FUNC]
+                if dbg:
+                    dprt("%-10s" % (func), end=" ")
+                if func == Func.BLOCK:
+                    dimName = blockElem[NAME]
+                    if dbg:
+                        dprt("%2s %2s" % (dimName, blockElem[REF]))
+                    if not dimName in dimLookup:
+                        break
+                elif func == Func.TXT:
+                    blockElem[X_LOC] = x0 = float(blockElem[X_LOC]) + self.xOffset
+                    blockElem[Y_LOC] = y0 = float(blockElem[Y_LOC]) + self.yOffset
+                    dimTxt = blockElem[STRING]
+                    self.dimTxt.append((x0, y0, dimTxt, dimName))
+                    txt = ("%2s %2s (%7.3f %7.3f) %s" %
+                           (dimName, blockElem[REF], x0, y0, dimTxt))
+                    if dbg:
+                        dprt(txt)
+                    if draw is not None:
+                        align = TextEntityAlignment.MIDDLE_CENTER
+                        draw.text(txt, (x0, y0), 0.010, layer=READ_DIM,
+                                  align=align)
+                elif func == Func.LINE:
+                    blockElem[X_LOC] = x0 = float(blockElem[X_LOC]) + self.xOffset
+                    blockElem[X_END] = x1 = float(blockElem[X_END]) + self.xOffset
+                    blockElem[Y_LOC] = y0 = float(blockElem[Y_LOC]) + self.yOffset
+                    blockElem[Y_END] = y1 = float(blockElem[Y_END]) + self.yOffset
+                    if dbg:
+                        dprt("%2s (%7.3f %7.3f) (%7.3f %7.3f)" %
+                             (blockElem[REF], x0, y0 ,x1, y1))
+                    if draw is not None:
+                        # draw.drawCross((x0, y0), layer=READ_DIM, label=False)
+                        draw.circleDxf((x0, y0), 0.010, layer=READ_DIM)
+                        draw.lineDxf((x0, y0), (x1, y1), layer=READ_DIM)
+
+        self.dimTxt.sort(key=itemgetter(0, 1))
+
+        if dbg:
+            dprt("\n" "dimTxt %d" % (len(self.dimTxt)))
+            for x, y, txt, blockName in self.dimTxt:
+                dprt("%7s %7.3f %7.3f %s" % (txt, x, y, blockName))
+
+        if dbg:
+            dprt("\n" "dimNameLoc %d" % (len(self.dimName)))
         self.dimNameLoc = []
         for rec in self.dimName:
-            x = float(rec[X_LOC]) - self.xMin
-            y = float(rec[Y_LOC]) - self.yMin
+            x = float(rec[X_LOC]) + self.xOffset
+            y = float(rec[Y_LOC]) + self.yOffset
             txt = rec[1]
             self.dimNameLoc.append((x, y, txt))
         self.dimNameLoc.sort(key=itemgetter(0, 1))
 
-        print("\n" "dimNameLoc")
         for x, y, txt in self.dimNameLoc:
-            print("%-5s %7.3f %7.3f" % (txt, x, y))
+            if dbg:
+                dprt("%-5s %7.3f %7.3f" % (txt, x, y))
+            if draw is not None:
+                draw.drawX((x,y), txt, layer=READ_DIM)
 
-        self.dimTxt = []
-        blockName = ""
-        for block in self.blocks:
-            for blockElement in block:
-                if blockElement[FUNC] == Func.BLOCK:
-                    blockName = blockElement[NAME]
-                elif blockElement[FUNC] == Func.TXT:
-                    x = blockElement[X_LOC]
-                    y = blockElement[Y_LOC]
-                    txt = blockElement[STRING]
-                    self.dimTxt.append((x, y, txt, blockName))
-        self.dimTxt.sort(key=itemgetter(0, 1))
-
-        print("\n" "dimTxt")
-        for x, y, txt, blockName in self.dimTxt:
-            print("%-5s %7.3f %7.3f %s" % (txt, x, y, blockName))
-
-        print("\n" "varLookup")
+        dbg = False
+        if dbg:
+            dprt("\n" "varLookup")
         varLookup = {}
         # p0 = p1 = delta = (0, 0)
         for x0, y0, var in self.dimNameLoc:
@@ -200,12 +246,12 @@ class ReadDxfDim:
             minIndex = 0
             dimName = ""
             dimText = ""
-            # print("\n" "(%7.3f %7.3f) %s" % (x0, y0, var))
+            # dprt("\n" "(%7.3f %7.3f) %s" % (x0, y0, var))
             for j, (x1, y1, dim, name) in enumerate(self.dimTxt):
                 dx = x1 - x0
                 dy = y1 - y0
                 dist = hypot(dx, dy)
-                # print("%d (%7.3f %7.3f) %s dist %7.3f " %
+                # dprt("%d (%7.3f %7.3f) %s dist %7.3f " %
                 #       (j, x1, y1, dim, dist))
                 if dist < minDist:
                     minDist = dist
@@ -225,37 +271,44 @@ class ReadDxfDim:
                     minDim = ref[X_DEF]
                 elif var.startswith('y'):
                     minDim = ref[Y_DEF]
-                varLookup[var] = DimResult(minDim, dimText)
-                print("%4s %2d %10.6f \"%6s\" %5.3f" %
-                      (var, minIndex, minDim, dimText, minDist))
+                varLookup[var] = DimResult(minDim, dimText, dimName)
+                if dbg:
+                    dprt("%4s %2d %10.6f \"%6s\" %5.3f" %
+                         (var, minIndex, minDim, dimText, minDist))
             else:
-                print("error")
+                dprt("error")
 
-        print("\n" "varLookup")
-        for key in sorted(varLookup):
-            dim, dimText = varLookup[key]
-            print("%4s %10.6f \"%6s\"" % (key, dim, dimText))
+        if dbg:
+            dprt("\n" "varLookup")
+            for key in sorted(varLookup):
+                dim, dimText, dimName = varLookup[key]
+                dprt("%4s %10.6f \"%6s\" %s" % (key, dim, dimText, dimName))
 
-        print("\n" "txtLookup")
+        dbg = True
+        dbg1 = False
+        if dbg:
+            dprt("\n" "tstLookup")
         tstLookup = {}
-        dbg = False
         # p0 = p1 = delta = (0, 0)
         for x0, y0, var in self.dimNameLoc:
             minDist = 9999
+            blockName = ""
             blockText = ""
             minIndex = -1
             minHandle = "XX"
             minText = ""
             minBlock = ""
             if dbg:
-                print("\n" "(%7.3f %7.3f) %s" % (x0, y0, var))
+                dprt("\n" "(%7.3f %7.3f) %s" % (x0, y0, var))
             for j, block in enumerate(self.blocks):
                 for blockElement in block:
                     handle = blockElement[HANDLE]
                     if blockElement[FUNC] == Func.BLOCK:
                         blockName = blockElement[NAME]
-                        if dbg:
-                            print("\n" "block %2s %s" % (handle, blockName))
+                        if dbg1:
+                            dprt("\n" "block %2s %s" % (handle, blockName))
+                        if not blockName in dimLookup:
+                            break
                     elif blockElement[FUNC] == Func.LINE:
                         xS = blockElement[X_LOC]
                         yS = blockElement[Y_LOC]
@@ -263,15 +316,15 @@ class ReadDxfDim:
                         xE = blockElement[X_END]
                         yE = blockElement[Y_END]
                         distE = hypot(xE - x0, yE - y0)
-                        if dbg:
-                            print("line %2s (%7.3f %7.3f) %7.3f "
-                                  "(%7.3f %7.3f) %7.3f" %
-                                  (handle, xS, yS, distS, xE, yE, distE))
+                        if dbg1:
+                            dprt("line %2s (%7.3f %7.3f) %7.3f "
+                                 "(%7.3f %7.3f) %7.3f" %
+                                 (handle, xS, yS, distS, xE, yE, distE))
                         dist = min(distS, distE)
                         if dist < minDist:
-                            if dbg:
-                                print("dist %7.3f minDist %7.3f" %
-                                      (dist, minDist))
+                            if dbg1:
+                                dprt("dist %7.3f minDist %7.3f" %
+                                     (dist, minDist))
                             minDist = dist
                             minHandle = handle
                             minText = blockText
@@ -282,9 +335,9 @@ class ReadDxfDim:
                         xTxt = blockElement[X_LOC]
                         yTxt = blockElement[Y_LOC]
                         blockText = blockElement[STRING]
-                        if dbg:
-                            print("txt  %2s (%7.3f %7.3f) \"%6s\"" %
-                                  (handle, xTxt, yTxt, blockText))
+                        if dbg1:
+                            dprt("txt  %2s (%7.3f %7.3f) \"%6s\"" %
+                                 (handle, xTxt, yTxt, blockText))
 
             ref = dimLookup[minBlock]
             minDim = 0.0
@@ -293,29 +346,34 @@ class ReadDxfDim:
             elif var.startswith('y'):
                 minDim = ref[Y_DEF]
 
-            print("%3s %3s %2d  %4s %10.6f \"%6s\" %7.3f" %
-                  (minBlock, minHandle, minIndex, var, minDim,
-                   minText, minDist))
-            tstLookup[var] = DimResult(minDim, minText)
+            if dbg:
+                dprt("%3s %3s %2d  %4s %10.6f \"%6s\" %7.3f" %
+                     (minBlock, minHandle, minIndex, var, minDim,
+                      minText, minDist))
+            tstLookup[var] = DimResult(minDim, minText, minBlock)
 
-        print("\n" "tstLookup")
-        for key in sorted(tstLookup):
-            dimVal, dimTxt = tstLookup[key]
-            print("%4s %10.6f \"%6s\"" % (key, dimVal, dimTxt))
+        if dbg:
+            dprt("\n" "tstLookup %d" % (len(tstLookup)))
+            for key in sorted(tstLookup):
+                dimVal, dimTxt, dimName = tstLookup[key]
+                dprt("%4s %10.6f \"%6s\" %s" % (key, dimVal, dimTxt, dimName))
 
-        print("\n" "pathLookup %d" % (len(self.txtPath)))
+        if dbg:
+            dprt("\n" "pathLookup %d" % (len(self.txtPath)))
         if len(self.txtPath) != 0:
             pathLookup = {}
             for txtEntity in self.txtPath:
-                x = float(txtEntity[X_LOC]) - self.xMin
-                y = float(txtEntity[Y_LOC]) - self.yMin
+                x = float(txtEntity[X_LOC]) + self.xOffset
+                y = float(txtEntity[Y_LOC]) + self.yOffset
                 txt = txtEntity[STRING]
                 pathLookup[txt] = (x, y)
-
-            for key in sorted(pathLookup):
-                (x, y) = pathLookup[key]
-                print("%-6s (%7.3f %7.3f)" % (key, x, y))
             self.pathLookup = pathLookup
+
+            if dbg:
+                for key in sorted(pathLookup):
+                    (x, y) = pathLookup[key]
+                    dprt("%-6s (%7.3f %7.3f)" % (key, x, y))
+                dprt()
         else:
             self.pathLookup = None
 
@@ -330,8 +388,9 @@ class ReadDxfDim:
 
         return handle
 
-    def readHeader(self):
-        print("\n" "header")
+    def readHeader(self, dbg=False):
+        if dbg:
+            dprt("\n" "header")
         while True:
             result = self.readCodeVal()
             if result is None:
@@ -339,12 +398,14 @@ class ReadDxfDim:
 
             (line, code, val) = result
             if code == 0:
-                print("%5d %4d %s" % (line, code, val))
+                if dbg:
+                    dprt("%5d %4d %s" % (line, code, val))
                 if val == END_SEC:
                     return True
 
-    def readClasses(self):
-        print("\n" "classes")
+    def readClasses(self, dbg=False):
+        if dbg:
+            dprt("\n" "classes")
         while True:
             result = self.readCodeVal()
             if result is None:
@@ -352,7 +413,8 @@ class ReadDxfDim:
 
             (line, code, val) = result
             if code == 0:
-                print("%5d %4d %s" % (line, code, val))
+                if dbg:
+                    dprt("%5d %4d %s" % (line, code, val))
                 if val == END_SEC:
                     return True
 
@@ -363,11 +425,12 @@ class ReadDxfDim:
                 if tmp[0] == 'D':
                     self.dimTable[tmp] = self.block
                     handle = self.addHandle(self.block)
-                    print("dimTable %s add %s\n" % (handle, tmp))
+                    dprt("dimTable %s add %s\n" % (handle, tmp))
         self.block = {}
 
-    def readTables(self):
-        print("\n" "tables")
+    def readTables(self, dbg=False):
+        if dbg:
+            dprt("\n" "tables")
         self.tableFunc = Func.NONE
         while True:
             result = self.readCodeVal()
@@ -376,7 +439,8 @@ class ReadDxfDim:
 
             (line, code, val) = result
             if code == 0:
-                print("%5d %4d %s" % (line, code, val))
+                if dbg:
+                    dprt("%5d %4d %s" % (line, code, val))
                 if val == "TABLE":
                     pass
                 elif val == BLOCK_RECORD:
@@ -392,22 +456,25 @@ class ReadDxfDim:
             else:
                 if self.tableFunc == BLOCK_RECORD:
                     self.block[code] = val
-                    print("%5d %4d %s" % (line, code, val))
+                    if dbg:
+                        dprt("%5d %4d %s" % (line, code, val))
 
-        print()
-        for key in sorted(self.dimTable):
-            block = self.dimTable[key]
-            print("%3s %3s %3s" % (key, block[NAME], block[HANDLE]))
+        if dbg:
+            dprt()
+            for key in sorted(self.dimTable):
+                block = self.dimTable[key]
+                dprt("%3s %3s %3s" % (key, block[NAME], block[HANDLE]))
 
-        print()
-        for key in sorted(self.handle):
-            block = self.handle[key]
-            print("%3s %3s %3s" % (key, block[NAME], block[HANDLE]))
+            dprt()
+            for key in sorted(self.handle):
+                block = self.handle[key]
+                dprt("%3s %3s %3s" % (key, block[NAME], block[HANDLE]))
 
         return True
 
-    def readBlocks(self):
-        print("\n" "blocks")
+    def readBlocks(self, dbg=False):
+        if dbg:
+            dprt("\n" "blocks")
         self.blockFunc = Func.NONE
         self.blockList = None
         self.blockElement = None
@@ -426,11 +493,14 @@ class ReadDxfDim:
                             func = blockElement[FUNC]
                             self.blockList.append(blockElement)
                             handle = self.addHandle(blockElement)
-                            print("blockList %2s add %s" %
-                                  (handle, str(func)))
+                            if dbg:
+                                dprt("blockList %2s add %s" %
+                                     (handle, str(func)))
                     self.blockElement = {}
-                    print()
-                print("%5d %4d %s" % (line, code, val))
+                    if dbg:
+                        dprt()
+                if dbg:
+                    dprt("%5d %4d %s" % (line, code, val))
                 if val == BLOCK:
                     self.blockFunc = Func.BLOCK
                     self.blockList = []
@@ -452,10 +522,12 @@ class ReadDxfDim:
             else:
                 if self.blockFunc == Func.BLOCK:
                     self.blockElement[code] = val
-                    print("%5d %4d %s" % (line, code, val))
+                    if dbg:
+                        dprt("%5d %4d %s" % (line, code, val))
                 elif self.blockFunc == Func.LINE:
                     self.blockElement[code] = val
-                    print("%5d %4d %s" % (line, code, val))
+                    if dbg:
+                        dprt("%5d %4d %s" % (line, code, val))
                 elif self.blockFunc == Func.TXT:
                     if code == 1:
                         # {\fMicrosoft Sans Serif|b0|i0|c0|p0;.000}
@@ -470,12 +542,14 @@ class ReadDxfDim:
 
                     if self.blockElement is not None:
                         self.blockElement[code] = val
-                        print("%5d %4d %s" % (line, code, val))
+                        if dbg:
+                            dprt("%5d %4d %s" % (line, code, val))
 
         return True
 
-    def readEntities(self):
-        print("\n" "entities")
+    def readEntities(self, dbg=False):
+        if dbg:
+            dprt("\n" "entities")
         self.func = Func.NONE
         self.dimRec = []
         self.dimName = []
@@ -497,10 +571,12 @@ class ReadDxfDim:
                     if (dimType & DIM_MASK) == ORDINATE:
                         self.dimRec.append(self.dimEntity)
                         handle = self.addHandle(self.dimEntity)
-                        print("add %2s dim %s\n" %
-                              (handle, self.dimEntity[NAME]))
+                        if dbg:
+                            dprt("add %2s dim %s\n" %
+                                 (handle, self.dimEntity[NAME]))
                     else:
-                        print("skip %s\n" % (self.dimEntity[NAME]))
+                        if dbg:
+                            dprt("skip %s\n" % (self.dimEntity[NAME]))
                 elif self.func == Func.TXT:
                     txtStr = self.txtEntity[STRING]
                     # {\fArial|b0|i0|c0|p0;\C7;yMin}
@@ -514,25 +590,38 @@ class ReadDxfDim:
                                 txtStr = txtStr[1:-1]
                                 self.txtEntity[STRING] = txtStr
                                 self.txtPath.append(self.txtEntity)
-                                print("add txtPath %s\n" % (txtStr))
+                                if dbg:
+                                    dprt("add txtPath %s\n" % (txtStr))
                             elif ch.isalpha():
                                 self.txtEntity[STRING] = txtStr
                                 self.dimName.append(self.txtEntity)
                                 handle = self.addHandle(self.txtEntity)
-                                print("add %2s txt %s\n" % (handle, txtStr))
+                                if dbg:
+                                    dprt("add %2s txt %s\n" % (handle, txtStr))
                             else:
-                                print("skip %s" % (txtStr))
+                                if dbg:
+                                    dprt("skip %s" % (txtStr))
                 elif self.func == Func.LINE:
                     l = self.lineEntity
-                    x0 = float(l[X_LOC])
-                    y0 = float(l[Y_LOC])
-                    x1 = float(l[X_END])
-                    y1 = float(l[Y_END])
-                    self.xMin = min(self.xMin, x0, x1)
-                    self.yMin = min(self.yMin, y0, y1)
-                    print()
+                    layer = l[LAYER]
+                    if (layer == "Material" or
+                        layer == "Fixture" or
+                        layer == "Construction"):
+                        if dbg:
+                            dprt("line skip %s\n" % (layer))
+                    else:
+                        x0 = float(l[X_LOC])
+                        y0 = float(l[Y_LOC])
+                        x1 = float(l[X_END])
+                        y1 = float(l[Y_END])
+                        self.xMin = min(self.xMin, x0, x1)
+                        self.yMin = min(self.yMin, y0, y1)
+                        if dbg:
+                            dprt("line %7.3f %7.3f) (%7.3f %7.3f) %s\n" %
+                                 (x0, y0, x1, y1, layer))
 
-                print("%5d %4d %s" % (line, code, val))
+                if dbg:
+                    dprt("%5d %4d %s" % (line, code, val))
                 if val == DIMENSION:
                     self.func = Func.DIM
                     self.dimEntity = {}
@@ -550,17 +639,20 @@ class ReadDxfDim:
                 if self.func == Func.DIM:
                     if code < 1000:
                         self.dimEntity[code] = val
-                        print("%5d %4d %s" % (line, code, val))
+                        if dbg:
+                            dprt("%5d %4d %s" % (line, code, val))
                 elif self.func == Func.TXT:
                     self.txtEntity[code] = val
-                    print("%5d %4d %s" % (line, code, val))
+                    if dbg:
+                        dprt("%5d %4d %s" % (line, code, val))
                 elif self.func == Func.LINE:
                     self.lineEntity[code] = val
 
         return True
 
-    def readObjects(self):
-        print("\n" "object")
+    def readObjects(self, dbg=False):
+        if dbg:
+            dprt("\n" "object")
         while True:
             result = self.readCodeVal()
             if result is None:
@@ -568,7 +660,7 @@ class ReadDxfDim:
 
             (line, code, val) = result
             if code == 0:
-                # print("%5d %4d %s" % (line, code, val))
+                # dprt("%5d %4d %s" % (line, code, val))
                 if val == END_SEC:
                     return True
 
@@ -579,6 +671,7 @@ if __name__ == '__main__':
     else:
         fileName = "test/DimensionTest.dxf"
 
+    dprtSet(True)
     dxf = ReadDxfDim()
 
-    dxf.readDimensions(fileName)
+    dxf.readDimensions(fileName, None, None)

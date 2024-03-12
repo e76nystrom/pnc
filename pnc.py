@@ -48,9 +48,9 @@ from orientation import (O_CENTER, O_LOWER_LEFT, O_LOWER_RIGHT, O_MAX, O_POINT,
 from orientation import (REF_OVERALL, REF_MATERIAL, REF_FIXTURE)
 from read import ReadDxfDim
 
-DRILL = 0
-BORE = 1
-TAP = 2
+DRILL    = 0
+BORE     = 1
+TAP      = 2
 TAPMATIC = 3
 
 MIN_HOLE_DIFF = 0.005
@@ -256,24 +256,24 @@ class Config():
 
         self.refValues = \
             (\
-             (REF_OVERALL, "overall"),
+             (REF_OVERALL,  "overall"),
              (REF_MATERIAL, "material"),
-             (REF_FIXTURE, "fixture"),
+             (REF_FIXTURE,  "fixture"),
             )
 
         self.orientationValues = (\
-            (O_UPPER_LEFT, "upperleft"), \
-            (O_LOWER_LEFT, "lowerleft"), \
-            (O_UPPER_RIGHT, "upperright"), \
-            (O_LOWER_RIGHT, "lowerright"), \
-            (O_CENTER, "center"), \
-            (O_POINT, "point"), \
+            (O_UPPER_LEFT,   "upperleft"), \
+            (O_LOWER_LEFT,   "lowerleft"), \
+            (O_UPPER_RIGHT,  "upperright"), \
+            (O_LOWER_RIGHT,  "lowerright"), \
+            (O_CENTER,       "center"), \
+            (O_POINT,        "point"), \
         )
 
         self.holeOrderValues = (\
             (HOLE_NEAREST, "nearest"), \
             (HOLE_COLUMNS, "columns"), \
-            (HOLE_ROWS, "rows"), \
+            (HOLE_ROWS,    "rows"), \
         )
 
         self.dbg = False        # debugging output
@@ -324,6 +324,7 @@ class Config():
         self.dirType   = None
         self.pathPoint = None
         self.pointName = ""
+        self.leadAngle = None
 
         self.tapRpm = 0         # measured rpm
         self.tapTpi = 20        # threads per inch
@@ -682,18 +683,18 @@ class Config():
 
     def help(self):
         print("Usage: pnc [options] pncFile [dxfInput]")
-        print(" ?            help\n"
-              " -d           debug\n"
-              " -h           help\n"
-              " -c           linuxcnc format\n"
-              " -r	     resequence input file\n"
-              " -s           output svf file\n"
-              " -x           output dxf file\n"
-              " --dbg file   debug output file\n"
-              " --dxf file   dxf input file\n"
+        print(" ?             help\n"
+              " -d            debug\n"
+              " -h            help\n"
+              " -c            linuxcnc format\n"
+              " -r            resequence input file\n"
+              " -s            output svf file\n"
+              " -x            output dxf file\n"
+              " --dbg file    debug output file\n"
+              " --dxf file    dxf input file\n"
               " --layer layer layer for dxf commands\n"
-              " --level file level input file\n"
-              " --probe      generate probe data"
+              " --level file  level input file\n"
+              " --probe       generate probe data"
         )
         sys.exit()
 
@@ -721,6 +722,7 @@ class Config():
         backupFile = file.replace(".pnc", ".bak")
         fOut = open(outFile, 'wb')
         component = 0
+        section = 0
         for line in f:
             l = line.strip()
             command = l.split(" ")[0].lower()
@@ -977,6 +979,7 @@ class Config():
                       r"([xyzXYZ]*)\s*([a-zA-Z0-9\(\)\.\-]*)\s*" \
                       r"([xyzXYZ]*)\s*([a-zA-Z0-9\(\)\.\-]*)")
         match = re.match(self.reLoc, args[0])
+        val = 0
         if match is not None:
             groups = len(match.groups())
             i = 1
@@ -1510,10 +1513,10 @@ class Config():
         layer = None
         if self.orientation == O_POINT:
             self.orientationLayer = layer = args[2]
-        if self.dxfInput is not None:
-            self.dxfInput.setOrientation(self.orientation, self.ref, \
-                                         self.refOffset, layer)
 
+        if self.dxfInput is not None:
+            self.dxfInput.setOrientation(self.orientation, self.reference,
+                                         self.refOffset, layer)
     def setXLimit(self, args):
         l = len(args)
         if l <= 1:
@@ -1593,11 +1596,39 @@ class Config():
         if self.fixtureLayer is None:
             self.fixtureLayer = "Fixture"
         self.dxfInput.open(fileName, self.reference, self.refOffset)
-        self.dxfInput.setOrientation(self.orientation, self.reference, \
+
+        self.draw = draw = Draw(self)
+        geometry.draw = draw
+
+        draw.open("orientation", self.drawDxf, self.drawSvg)
+        
+        self.dxfInput.setOrientation(self.orientation, self.reference,
                                      self.refOffset, self.orientationLayer)
 
-        self.readDxfDim = ReadDxfDim()
-        self.dimLookup = self.readDxfDim.readDimensions(fileName)
+        d = self.dxfInput
+        draw = self.draw
+        if draw is not None:
+            xOffset = d.xOffset
+            yOffset = d.yOffset
+            if len(d.material) != 0:
+                m = d.mMinMax
+                draw.rectangle(m.xMin + xOffset, m.yMin + yOffset,
+                               m.xMax + xOffset, m.yMax + yOffset,
+                               layer="xMaterial")
+
+            if len(d.fixture) != 0:
+                f = d.fMinMax
+                draw.rectangle(f.xMin + xOffset, f.yMin + yOffset,
+                               f.xMax + xOffset, f.yMax + yOffset,
+                               layer="xFixture")
+
+        self.readDxfDim = ReadDxfDim(draw)
+
+        self.dimLookup = \
+            self.readDxfDim.readDimensions(fileName, d.xOffset, d.yOffset)
+
+        draw.close()
+        self.draw = None
 
     def dxfLine(self, args):
         self.ncInit()
@@ -1618,123 +1649,6 @@ class Config():
         elif layer.lower() == "none":
             layer = None
         return(layer)
-
-    # def dxfReadDim(self, fileName):
-    #     line = 0
-    #     dimCount = 0
-    #     txtCount = 0
-    #     file = open(fileName, 'r')
-
-    #     xDim = 0.0
-    #     yDim = 0.0
-    #     xTxt = 0.0
-    #     yTxt = 0.0
-    #     txtStr = ""
-    #     layer = ""
-
-    #     NONE = 0
-    #     DIM  = 1
-    #     TXT  = 2
-
-    #     func = NONE
-
-    #     dimText = []
-    #     varText = []
-    #     while True:
-    #         line += 1
-    #         code = file.readline().strip()
-    #         if len(code) == 0:
-    #             break
-    #         try:
-    #             intCode = int(code)
-    #             # dprt("*", code)
-    #         except ValueError:
-    #             dprt("value error", code)
-    #             exit()
-
-    #         val = file.readline().strip()
-    #         if intCode == 0:
-    #             if func == TXT:
-    #                 if layer == "DIMENSIONS":
-    #                     # {\fMicrosoft Sans Serif|b0|i0|c0|p0;.000}
-    #                     match = re.match(r"{.*?;([.\d]+)", txtStr)
-    #                     if match is not None:
-    #                         result = match.groups()
-    #                         if len(result) == 1:
-    #                             txtStr = result[0]
-    #                             dprt("%7.3f %7.3f %s %s" %
-    #                                  (xTxt, yTxt, layer, txtStr))
-    #                             dimText.append((xTxt, yTxt, txtStr))
-    #                 elif layer == "CONTINUOUS":
-    #                     # {\fArial|b0|i0|c0|p0;\C7;yMin}
-    #                     match = re.match(r"{.*?;.*?;(\w*)", txtStr)
-    #                     if match is not None:
-    #                         result = match.groups()
-    #                         if len(result) == 1:
-    #                             txtStr = result[0]
-    #                             dprt("%7.3f %7.3f %s %s" %
-    #                                  (xTxt, yTxt, layer, txtStr))
-    #                             varText.append((xTxt, yTxt, txtStr))
-    #             # elif func == DIM:
-    #             #     dprt("%7.3f %7.3f" % (xDim, yDim))
-
-    #             if val == "MTEXT":
-    #                 txtCount += 1
-    #                 func = TXT
-    #             # elif val == "DIMENSION":
-    #             #     dimCount += 1
-    #             #     func = DIM
-    #             # else:
-    #             #     dprt("%5d %s" % (line, val))
-    #             #     func = NONE
-
-    #         # if func == DIM:
-    #         #     if intCode == 10:
-    #         #         xDim = float(val)
-    #         #     elif intCode == 20:
-    #         #         yDim = float(val)
-    #         #     elif intCode == 8:
-    #         #         layer = val
-    #         #     # dprt("%6d %4d, %s" % (line, intCode, val))
-
-    #         elif func == TXT:
-    #             if intCode == 10:
-    #                 xTxt = float(val)
-    #             elif intCode == 20:
-    #                 yTxt = float(val)
-    #             elif intCode == 8:
-    #                 layer = val
-    #             elif intCode == 1:
-    #                 txtStr = val
-    #             # dprt("%4d, %s" % (intCode, val))
-
-    #         line += 1
-    #     file.close()
-
-    #     varText.sort(key=itemgetter(0, 1))
-    #     dimText.sort(key=itemgetter(0, 1))
-
-    #     dimLookup = {}
-    #     for x0, y0, var in varText:
-    #         minDist = 9999
-    #         minDim = ""
-    #         minIndex = 0
-    #         for j, (x1, y1, dim) in enumerate(dimText):
-    #             dist = hypot(x1 - x0, y1 - y0)
-    #             if dist < minDist:
-    #                 minDist = dist
-    #                 minDim = dim
-    #                 minIndex = j
-    #         del dimText[minIndex]
-    #         dimLookup[var] = float(minDim)
-    #         dprt("%4s %6s" % (var, minDim))
-
-    #     dprt()
-
-    #     for key in sorted(dimLookup):
-    #         dprt("%4s %7.3f" % (key, dimLookup[key]))
-
-    #     self.dimLookup = dimLookup
 
     def dxfLimitsPath(self, args):
         if len(args) >= 2:
@@ -1892,9 +1806,11 @@ class Config():
             d0 = xyDist(pathPoint, p0)
             d1 = xyDist(pathPoint, p1)
 
-            if True or dbg:
-                print("pathPoint (%7.3f %7.3f) d0 %7.3f p0 (%7.3f %7.3f) d1 %7.3f p1 (%7.3f %7.3f)" %
-                      (pathPoint.x, pathPoint.y, d0, p0.x, p0.y, d1, p1.x, p1.y))
+            if dbg:
+                print("pathPoint (%7.3f %7.3f) d0 %7.3f p0 (%7.3f %7.3f) "
+                      "d1 %7.3f p1 (%7.3f %7.3f)" %
+                      (pathPoint.x, pathPoint.y, d0, p0.x, p0.y, d1,
+                       p1.x, p1.y))
 
             reverse = d0 > d1
 
@@ -1924,43 +1840,47 @@ class Config():
                     p0 = l.p0
             else:
                 self.draw.drawCircle(pathPoint)
-                print(self.pathName)
                 p0 = l.p0
                 aPoint = self.arcAngleR(p0, pathPoint)
                 aPointD = self.aFix(degrees(aPoint))
-                if dbg:
-                    print("pointAngle %3.0f" % (aPointD))
+
                 if l.lType == ARC:
-                    l.prt()
-                    dist += l.r
                     p0 = l.c
+                    d0 = xyDist(pathPoint, p0)
+                    if d0 < l.r:
+                        dist -= l.r
+                    else:
+                        dist += l.r
                     aPt = self.arcAngleR(p0, l.p0)
-                    print("aPt %3.0f" % (degrees(aPt)))
                     aFwd = aPt - RAD_90
                 else:
-                    l.prt()
                     aFwd = l.fwdAngle()
 
                 self.draw.drawCircle(p0, d=0.020)
                     
                 aFwdD = self.aFix(degrees(aFwd))
-                print("aFwd %3.0f" % (aFwdD))
                 aDiff = self.aFix(aFwdD - aPointD)
-                print("aDiff %3.0f" % (aDiff))
-
                 if (aDiff > 180) and (aDiff < 360):
-                    aPt = aFwd + RAD_90
+                    leadAngle = RAD_90
                 else:
-                    aPt = aFwd - RAD_90
-
-                print("aPt %3.0f" % (degrees(aPt)))
+                    leadAngle = -RAD_90
+                aPt = aFwd + leadAngle
+                self.leadAngle = leadAngle
+                
+                if dbg:
+                    l.prt()
+                    print("%s pointAngle %3.0f aFwd %3.0f "
+                          "aDiff %3.0f leadAngle %3.0f aPt %3.0f" %
+                          (self.pathName, aPointD, aFwdD,
+                           aDiff, degrees(leadAngle), degrees(aPt)))
 
             x = dist * cos(aPt) + p0.x
             y = dist * sin(aPt) + p0.y
 
             p = newPoint((x, y))
 
-            self.draw.drawX(p, "%s" % (self.pathName))
+            if self.pathPoint is not None:
+                self.draw.drawX(p, "%s" % (self.pathName))
 
             if dbg:
                 p0 = l.p0
@@ -1968,7 +1888,7 @@ class Config():
                      (p0.x, p0.y, p.x, p.y))
 
                 dStr = xyDist(p, seg[0].p0)
-                dEnd = xyDist(p, seg[1].p1)
+                dEnd = xyDist(p, seg[-1].p1)
                 dprt("openPoint p (%7.3f %7.3f) dStr %7.3f dEnd %7.3f" %
                      (p.x, p.y, dStr, dEnd))
 
@@ -2021,10 +1941,12 @@ class Config():
 
             cx1 = (radius0 + radius1) * cos(a0) + cx # lead center x
             cy1 = (radius0 + radius1) * sin(a0) + cy # lead center y
+            txtP = (0, 0)
             if dbg:
                 draw.drawX((cx1 ,cy1))
                 txtP = self.pOffset(l.c, ofs)
             if not l.swapped:
+                self.leadAngle = -RAD_90
                 aStr = self.aFix(degrees(a0) - 90)
                 aEnd = self.aFix(aStr - 90)
                 d = CW
@@ -2033,6 +1955,7 @@ class Config():
                               (aEnd, aStr), txtP, .025)
                 l1 = Arc((cx1, cy1), radius1, aEnd, aStr, direction=d)
             else:
+                self.leadAngle = RAD_90
                 aStr = self.aFix(degrees(a0) + 90)
                 aEnd = self.aFix(aStr + 90)
                 d = CCW
@@ -2063,6 +1986,7 @@ class Config():
                     a = RAD_90
                 else:
                     a = -RAD_90
+                self.leadAngle = a
 
             d = CCW if a > 0.0 else CW
             aPt = aFwd + a
@@ -2086,7 +2010,7 @@ class Config():
                        (index, self.startType, self.dirType,
                         aFwd, a, aPt, aStr, aEnd, oStr(d)))
             else:
-                txt = ("aFwd %3.0f aDiff %3.0f a %3.0f aPt %3.0f " \
+                txt = ("aFwd %3.0f aDiff %3.0f a %3.0f aPt %3.0f "
                        "aStr %3.0f aEnd %3.0f %s" %
                        (aFwd, aDiff, a, aPt, aStr, aEnd, oStr(d)))
             dprt(txt)
@@ -2125,6 +2049,7 @@ class Config():
             cx1 = (radius0 + radius1) * cos(a0) + cx # lead center x
             cy1 = (radius0 + radius1) * sin(a0) + cy # lead center y
 
+            txtP = (0, 0)
             if dbg:
                 txtP = self.pOffset(l.c, ofs)
             if not l.swapped:	# if clockwise
@@ -2158,12 +2083,13 @@ class Config():
                 a = leadInAngle[index]
             else:
                 index = None
-                aPoint = self.arcAngleR(l.p0, pathPoint)
-                aDiff = self.aFix(degrees(aFwd - aPoint))
-                if (aDiff > 180) and (aDiff < 360):
-                    a = RAD_90
-                else:
-                    a = -RAD_90
+                # aPoint = self.arcAngleR(l.p0, pathPoint)
+                # aDiff = self.aFix(degrees(aFwd - aPoint))
+                # if (aDiff > 180) and (aDiff < 360):
+                #     a = RAD_90
+                # else:
+                #     a = -RAD_90
+                a = self.leadAngle
             
             d = CCW if a > 0.0 else CW
             aPt = aFwd + a
@@ -2187,9 +2113,9 @@ class Config():
                        (index, self.startType, self.dirType,
                         aFwd, a, aPt, aStr, aEnd, oStr(d)))
             else:
-                txt = ("aFwd %3.0f aDiff %3.0f a %3.0f aPt %3.0f " \
+                txt = ("aFwd %3.0f a %3.0f aPt %3.0f "
                        "aStr %3.0f aEnd %3.0f %s" %
-                       (aFwd, aDiff, a, aPt, aStr, aEnd, oStr(d)))
+                       (aFwd, a, aPt, aStr, aEnd, oStr(d)))
             dprt(txt)
 
             self.draw.text(txt, point, 0.010)
@@ -2225,7 +2151,8 @@ class Config():
 
         mp = self.getMillPath()
         for (i, seg) in enumerate(self.segments):
-
+            self.leadAngle = None
+            
             dprt("dxfOpen seg %d len %d" % (i, len(seg)))
             for l in seg:
                 l.prt()
@@ -2262,7 +2189,7 @@ class Config():
                 for l in seg:
                     l.draw()
 
-            return
+           #  return
 
             # points = self.points[0] if len(self.points) > 0 else None
             # point = self.openPoint(seg, dist)
@@ -3840,6 +3767,13 @@ class Dxf():
                 info.append(e)
             self.layerInfo = info
 
+            if layer == "CONTINUOUS":
+                continue
+            if layer == "DIMENSIONS":
+                continue
+            if layer == "Construction":
+                continue
+
             if layer == cfg.materialLayer:
                 pass
             elif checkLayers:
@@ -3861,7 +3795,10 @@ class Dxf():
                          (x0, y0, x1, y1))
                     self.material.append(((x0, y0), (x1, y1)))
                     self.mMinMax.line(x0, y0, x1, y1)
-                self.minMax.line(x0, y0, x1, y1)
+                else:
+                    dprt("o (x0 %7.4f y0 % 7.4f) (x1 %7.4f y1 % 7.4f) %s" % \
+                         (x0, y0, x1, y1, layer))
+                    self.minMax.line(x0, y0, x1, y1)
          
             elif dxfType == 'CIRCLE':
                 if layer == cfg.fixtureLayer:
@@ -3918,21 +3855,22 @@ class Dxf():
         self.ySize = minMax.yMax - minMax.yMin
         dprt("xSize %5.3f ySize %6.3f" % (self.xSize, self.ySize))
 
-        print("\nlayer info")
+        dprt("\nlayer info")
         dxfLayers = self.dxfLayers
         for key in sorted(dxfLayers):
             info = dxfLayers[key]
-            print("layer %-12s count %2d" % (key, info.count))
+            dprt("layer %-12s count %2d" % (key, info.count))
 
     def setOrientation(self, orientation=O_UPPER_LEFT, ref=REF_OVERALL, \
                        refOffset=0, layer=None):
+        xMax = xMin = yMax = yMin = 0
 
         if len(self.material) != 0:
-            print("material\n")
+            dprt("material\n")
             for (start, end) in self.material:
                 dprt("(%7.4f, y %7.4f) (%7.4f, y %7.4f))" % \
-                    (start[0], start[1], end[0], end[1]))
-            print()
+                     (start[0], start[1], end[0], end[1]))
+            dprt()
 
         dprt("reference %d" % (ref))
         if ref == REF_FIXTURE:
@@ -3941,7 +3879,7 @@ class Dxf():
                 self.error = True
                 return
 
-            print("fixture min and max")
+            dprt("fixture min and max")
             (xMin, yMin) = (self.fMinMax.xMin, self.fMinMax.yMin)
             (xMax, yMax) = (self.fMinMax.xMax, self.fMinMax.yMax)
         elif ref == REF_MATERIAL:
@@ -3950,19 +3888,19 @@ class Dxf():
                 self.error = True
                 return
 
-            print("material min and max")
+            dprt("material min and max")
             (xMin, yMin) = (self.mMinMax.xMin, self.mMinMax.yMin)
             (xMax, yMax) = (self.mMinMax.xMax, self.mMinMax.yMax)
         elif  ref == REF_OVERALL:
-            print("overall min and max")
+            dprt("overall min and max")
             if refOffset is not None:
                 self.yMin += refOffset
                 self.yMax += refOffset
             (xMin, yMin) = (self.minMax.xMin, self.minMax.yMin)
             (xMax, yMax) = (self.minMax.xMax, self.minMax.yMax)
 
-        dprt("\nmin (x %7.4f, y %7.4f) max (x %7.4f, y %7.4f)\n" % \
-              (xMin, yMin, xMax, yMax))
+        dprt("\n" "min (x %7.4f, y %7.4f) max (x %7.4f, y %7.4f)\n" %
+             (xMin, yMin, xMax, yMax))
 
         self.xMin = xMin
         self.yMin = yMin
@@ -4004,8 +3942,8 @@ class Dxf():
         self.yMax += self.yOffset
 
         dprt("orientation %d %s xOffset %7.4f yOffset %7.4f" % \
-               (orientation, self.cfg.orientationValues[orientation][1], \
-                self.xOffset, self.yOffset))
+             (orientation, self.cfg.orientationValues[orientation][1], \
+              self.xOffset, self.yOffset))
 
     def fix(self, point):
         (x, y) = point
@@ -4077,7 +4015,7 @@ class Dxf():
                         a0 = e.get_dxf_attrib("start_angle")
                         a1 = e.get_dxf_attrib("end_angle")
                         if dbg:
-                            print("*arc  x %7.3f y %7.3f a0 %6.2f a1 %6.2f "\
+                            dprt("*arc  x %7.3f y %7.3f a0 %6.2f a1 %6.2f "\
                                   "r %6.4f" % \
                                   (xCen, yCen, a0, a1, radius))
                         found = False
@@ -4100,12 +4038,12 @@ class Dxf():
                     if cfg.yLimitActive:
                         if yCen < cfg.yMinLimit or yCen > cfg.yMaxLimit:
                             if dbg:
-                                print("*skip x %7.3f y %7.3f r %6.4f" % \
+                                dprt("*skip x %7.3f y %7.3f r %6.4f" % \
                                       (xCen, yCen, radius))
                             continue
 
                     if dbg:
-                        print("*use  x %7.3f y %7.3f r %6.4f" % \
+                        dprt("*use  x %7.3f y %7.3f r %6.4f" % \
                               (xCen, yCen, radius))
                     drillSize = radius * 2.0
                     if dbg:
@@ -4340,7 +4278,7 @@ class Dxf():
                 continue
             if tmp == "continuous":
                 # if dxfType == "MTEXT":
-                #     print("mtext")
+                #     dprt("mtext")
                 continue
 
             if dxfType == 'LINE':
@@ -4402,7 +4340,7 @@ class Dxf():
                 continue
             if tmp == "continuous":
                 # if dxfType == "MTEXT":
-                #     print("mtext")
+                #     dprt("mtext")
                 continue
 
             if dbg:
@@ -4539,7 +4477,7 @@ class Dxf():
                     prev = p
                 continue
             elif dxfType == 'DIMENSION':
-                print("dimension")
+                dprt("dimension")
             else:
                 continue
             if dbg:

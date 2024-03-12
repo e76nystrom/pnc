@@ -2222,12 +2222,12 @@ def labelPoints(seg):
             t = 'a'
         draw.text('%s%d' % (t, l.index), (x + .010, y + .010), .010)
 
-def labelP(p, txt):
+def labelP(p, txt, layer=None):
     if draw is None:
         return
     (x, y) = p
     # cfg.draw.text('%s' % (txt), (x + .010, y + .010), .025)
-    draw.text('%s' % (txt), (x, y), .010)
+    draw.text('%s' % (txt), (x, y), .010, layer=layer)
 
 def printPoint(name, point):
     dprt("%s x %6.4f y %6.4f" % (name, point[0], point[1]))

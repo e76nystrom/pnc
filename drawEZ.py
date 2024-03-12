@@ -342,19 +342,25 @@ class Draw():
     #         if self.d is not None:
     #             self.d.add(entity)
 
-    def drawCross(self, p, layer=None):
+    def drawCross(self, p, txt=None, layer=None, h=0.010, ofs=0.020, label=True):
         if self.enable and self.msp is not None:
             layer = self.getLayer(layer, self.lDebug)
 
             (x, y) = p
-            dprt("cross %2d %7.4f, %7.4f" % (self.lCount, x, y))
-            labelP(p, "%d" % (self.lCount))
+            xOfs = ofs
+            yOfs = ofs
+            if label:
+                dprt("cross %2d %7.4f, %7.4f" % (self.lCount, x, y))
+                labelP(p, "%d" % (self.lCount), layer=layer)
             last = self.last
-            self.move((x - 0.02, y))
-            self.line((x + 0.02, y), layer)
-            self.move((x, y - 0.02))
-            self.line((x, y + 0.02), layer)
+            self.move((x - xOfs, y))
+            self.line((x + xOfs, y), layer)
+            self.move((x, y - yOfs))
+            self.line((x, y + xOfs), layer)
             self.lCount += 1
+            self.move(p)
+            if txt is not None:
+                self.text('%s' % (txt), (x + xOfs, y - yOfs), h, layer)
             self.move(last)
 
     def drawX(self, p, txt=None, swap=False, layer=None, h=0.010):
@@ -398,7 +404,7 @@ class Draw():
         self.drawLine(p, m, b, 2 * r)
         self.hole(offset((0, 0), p), 2 * r)
 
-    def drawStart(self, l): #, cfg):
+    def drawStart(self, l, layer=None): #, cfg):
         r = .05
         (sx, sy) = l.p0
 
@@ -423,18 +429,19 @@ class Draw():
         y1 = r * sin(a1) + sy
 
         line = self.msp.add_line
-        layer = self.lDebug
+        layer = self.getLayer(layer, self.lDebug)
         line((x0, y0), l.p0, dxfattribs={"layer": layer})
         line((x1, y1), l.p0, dxfattribs={"layer": layer})
         
-    def rectangle(self, xMin, yMin, xMax, yMax):
+    def rectangle(self, xMin, yMin, xMax, yMax, layer=None):
         p0 = (xMin, yMin)
         p1 = (xMin, yMax)
         p2 = (xMax, yMax)
         p3 = (xMax, yMin)
 
         line = self.msp.add_line
-        layer = self.lDebug
+        layer = self.getLayer(layer, self.lDebug)
+
         line(p0, p1, dxfattribs={"layer": layer})
         line(p1, p2, dxfattribs={"layer": layer})
         line(p2, p3, dxfattribs={"layer": layer})
