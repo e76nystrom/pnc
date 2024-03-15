@@ -162,12 +162,12 @@ leadInAngle[dirLen * OpenStart.Y_MIN.value + OpenDir.CW.value]   = -RAD_90 # 2 5
 leadInAngle[dirLen * OpenStart.Y_MAX.value + OpenDir.CCW.value]  =  RAD_90 # 3 4
 leadInAngle[dirLen * OpenStart.Y_MAX.value + OpenDir.CW.value]   = -RAD_90 # 3 5
 
-for i in range(startLen):
-    for j in range(dirLen):
-        index = dirLen * i + j
-        val = leadInAngle[index]
-        print("%2d %d %d %s %3s %3.0f" %
-              (index, i, j, startString[i], dirString[j], degrees(val)))
+# for i in range(startLen):
+#     for j in range(dirLen):
+#         index = dirLen * i + j
+#         val = leadInAngle[index]
+#         print("%2d %d %d %s %3s %3.0f" %
+#               (index, i, j, startString[i], dirString[j], degrees(val)))
 
 HOLE_NEAREST = 0
 HOLE_COLUMNS = 1
@@ -253,6 +253,7 @@ class Config():
         self.dimLookup = None   # dxf drawing variables
         self.segments = None    # path segments
         self.dxfEntities = None # saved dxf entities
+        self.breakLine = -1     # break line number
 
         self.refValues = \
             (\
@@ -325,6 +326,7 @@ class Config():
         self.pathPoint = None
         self.pointName = ""
         self.leadAngle = None
+        self.debugO    = 0
 
         self.tapRpm = 0         # measured rpm
         self.tapTpi = 20        # threads per inch
@@ -343,7 +345,8 @@ class Config():
         self.rampAngle = 0.0    # ramp angle
         self.shortRamp = False  # reverse to make ramps short
 
-        self.leadRadius = 0.0   # lead in/out radius
+        self.leadInRadius = 0.0 # lead in/out radius
+        self.leadOutRadius = 0.0 # lead in/out radius
 
         self.variables = False  # use variables in ngc file
         self.linuxCNC = False   # generate linux cnc type vars
@@ -474,6 +477,8 @@ class Config():
             ('finish',          self.setFinish),
             ('finishallowance', self.setFinish),
             ('leadradius',      self.setLeadRadius),
+            ('leadinradius',    self.setLeadInRadius),
+            ('leadoutradius',   self.setLeadOutRadius),
 
             ('tabs',     self.setTabs),
             ('tabwidth', self.setTabWidth),
@@ -645,7 +650,11 @@ class Config():
             elif val.startswith('-'):
                 if len(val) >= 2:
                     tmp = val[1]
-                    if tmp == "d":
+                    if tmp == "b":
+                        n += 1
+                        if n < len(sys.argv):
+                            self.breakLine = int(sys.argv[n])
+                    elif tmp == "d":
                         self.dbg = True
                     elif tmp == "c":
                         self.linuxCNC = True
@@ -684,6 +693,7 @@ class Config():
     def help(self):
         print("Usage: pnc [options] pncFile [dxfInput]")
         print(" ?             help\n"
+              " -b            break on line\n"
               " -d            debug\n"
               " -h            help\n"
               " -c            linuxcnc format\n"
@@ -804,23 +814,30 @@ class Config():
                 if len(arg) >= 1:
                     cmd = arg[0].lower()
                     arg[0] = line
+                    if self.lineNum == self.breakLine:
+                        dprt("break %d" % (self.breakLine))
+                        dflush()
                     # try:
                     if True:
                         if cmd in self.cmdAction:
                             action = self.cmdAction[cmd]
                             action(arg)
-                            continue
-                        if self.cmdDisable == 0:
-                            if cmd in self.gCodeAction:
+
+                        elif cmd in self.gCodeAction:
+                            if self.cmdDisable == 0:
                                 action = self.gCodeAction[cmd]
                                 action(arg)
                                 dflush()
                                 if self.error:
+                                    ePrint("error at line %d" % (self.lineNum))
                                     break
                             else:
-                                ePrint("%2d %s" % (self.lineNum, l))
-                                ePrint("invalid cmd %s" % cmd)
-                                sys.exit()
+                                dprt("disabled")
+                        else:
+                            ePrint("%2d %s" % (self.lineNum, l))
+                            ePrint("invalid cmd %s" % cmd)
+                            sys.exit()
+
                     # except ValueError:
                     #     ePrint("Invalid argument line %d %s" %
                     #           (self.lineNum, line))
@@ -835,7 +852,10 @@ class Config():
                     #     break
             inp.close()         # close input file
             if gppFile.endswith(".gpp_pnc"):
-                os.remove(gppFile)
+                try:
+                    os.remove(gppFile)
+                except FileNotFoundError:
+                    dprt("gpp file not found")
         try:
             self.draw.close()   # close drawing files
         except:
@@ -1226,7 +1246,14 @@ class Config():
         self.finishAllowance = self.evalFloatArg(args[1])
 
     def setLeadRadius(self,args):
-        self.leadRadius = self.evalFloatArg(args[1])
+        self.leadInRadius = self.evalFloatArg(args[1])
+        self.leadOutRadius = self.leadInRadius
+
+    def setLeadInRadius(self,args):
+        self.leadInRadius = self.evalFloatArg(args[1])
+
+    def setLeadOutRadius(self,args):
+        self.leadOutRadius = self.evalFloatArg(args[1])
 
     def setTabs(self, args):
         self.tabs = self.evalIntArg(args[1])
@@ -1554,6 +1581,15 @@ class Config():
           self.yLimit = None
 
     def readDxf(self, args):
+        dprt("\n" "readDxf", end="")
+        # if (self.cmdDisable & COMPONENT_DISABLE) != 0:
+        #     dprt("disabled")
+        #     return
+
+        if self.compNumber is not None:
+            dprt(" %s %s" % (self.compNumber, self.compComment), end="")
+        dprt()
+            
         if self.orientation is None:
             self.error = True
             ePrint("orientation not set")
@@ -1602,7 +1638,9 @@ class Config():
         self.draw = draw = Draw(self)
         geometry.draw = draw
 
-        draw.open(self.baseName + "-O", self.drawDxf, self.drawSvg)
+        draw.open(self.baseName + "-O-" + str(self.debugO),
+                  self.drawDxf, self.drawSvg)
+        self.debugO += 1
         
         self.dxfInput.setOrientation(self.orientation, self.reference,
                                      self.refOffset, self.orientationLayer)
@@ -1928,103 +1966,114 @@ class Config():
             draw.line(l.p0)
             draw.drawX(seg[-1].p1)
 
-        radius1 = self.leadRadius # lead in radius
-        if l.lType == ARC and radius1 != 0:
-            (cx, cy) = l.c		# arc center
-            radius0 = l.r		# current radius
-            radius1 = self.leadRadius # lead in radius
+        leadInRadius = self.leadInRadius # lead in radius
+        if leadInRadius != 0:
+            if l.lType == ARC:
+                (cx, cy) = l.c		# arc center
+                radius0 = l.r		# current radius
 
-            a0 = self.arcAngleR(l.c, l.p0)
-            a0x = l.a0		# angle to lead in center
-            if dbg:
-                draw.text(" I %3.0f %3.0f %s" %
-                          (degrees(a0), a0x, str(l.swapped)[0]),
-                          self.pOffset(l.p0, ofs), 0.025)
-
-            cx1 = (radius0 + radius1) * cos(a0) + cx # lead center x
-            cy1 = (radius0 + radius1) * sin(a0) + cy # lead center y
-            txtP = (0, 0)
-            if dbg:
-                draw.drawX((cx1 ,cy1))
-                txtP = self.pOffset(l.c, ofs)
-            if not l.swapped:
-                self.leadAngle = -RAD_90
-                aStr = self.aFix(degrees(a0) - 90)
-                aEnd = self.aFix(aStr - 90)
-                d = CW
+                a0 = self.arcAngleR(l.c, l.p0)
+                a0x = l.a0		# angle to lead in center
                 if dbg:
-                    draw.text(" 0 %3.0f %3.0f ccw" %
-                              (aEnd, aStr), txtP, .025)
-                l1 = Arc((cx1, cy1), radius1, aEnd, aStr, direction=d)
-            else:
-                self.leadAngle = RAD_90
-                aStr = self.aFix(degrees(a0) + 90)
-                aEnd = self.aFix(aStr + 90)
-                d = CCW
+                    draw.text(" I %3.0f %3.0f %s" %
+                              (degrees(a0), a0x, str(l.swapped)[0]),
+                              self.pOffset(l.p0, ofs), 0.025)
+
+                cx1 = (radius0 + leadInRadius) * cos(a0) + cx # lead center x
+                cy1 = (radius0 + leadInRadius) * sin(a0) + cy # lead center y
+                txtP = (0, 0)
                 if dbg:
-                    draw.text(" 1 %3.0f %3.0f ccw" %
-                              (aStr, aEnd), txtP, .025)
-                l1 = Arc((cx1, cy1), radius1, aStr, aEnd, direction=d)
-
-            seg.insert(0, l1)
-            draw.drawStart(l1)
-
-            if dbg:
-                dprt("\nlead in")
-                l1.prt()
-                l.prt()
-        else:
-            aFwd = l.fwdAngle()
-            pathPoint = self.pathPoint
-            aDiff = 0
-            if pathPoint is None:
-                index = self.startType * dirLen + self.dirType
-                a = leadInAngle[index]
-            else:
-                index = None
-                aPoint = self.arcAngleR(l.p0, pathPoint)
-                aDiff = self.aFix(degrees(aFwd - aPoint))
-                if (aDiff > 180) and (aDiff < 360):
-                    a = RAD_90
+                    draw.drawX((cx1 ,cy1))
+                    txtP = self.pOffset(l.c, ofs)
+                if not l.swapped:
+                    self.leadAngle = -RAD_90
+                    aStr = self.aFix(degrees(a0) - 90)
+                    aEnd = self.aFix(aStr - 90)
+                    d = CW
+                    if dbg:
+                        draw.text(" 0 %3.0f %3.0f ccw" %
+                                  (aEnd, aStr), txtP, .025)
+                    l1 = Arc((cx1, cy1), leadInRadius, aEnd, aStr, direction=d)
                 else:
-                    a = -RAD_90
-                self.leadAngle = a
+                    self.leadAngle = RAD_90
+                    aStr = self.aFix(degrees(a0) + 90)
+                    aEnd = self.aFix(aStr + 90)
+                    d = CCW
+                    if dbg:
+                        draw.text(" 1 %3.0f %3.0f ccw" %
+                                  (aStr, aEnd), txtP, .025)
+                    l1 = Arc((cx1, cy1), leadInRadius, aStr, aEnd, direction=d)
 
-            d = CCW if a > 0.0 else CW
-            aPt = aFwd + a
+                seg.insert(0, l1)
+                draw.drawStart(l1)
 
-            r = self.leadRadius
+                if dbg:
+                    dprt("\nlead in")
+                    l1.prt()
+                    l.prt()
+            else:
+                aFwd = l.fwdAngle()
+                pathPoint = self.pathPoint
+                aDiff = 0
+                if pathPoint is None:
+                    index = self.startType * dirLen + self.dirType
+                    a = leadInAngle[index]
+                else:
+                    index = None
+                    aPoint = self.arcAngleR(l.p0, pathPoint)
+                    aDiff = self.aFix(degrees(aFwd - aPoint))
+                    if (aDiff > 180) and (aDiff < 360):
+                        a = RAD_90
+                    else:
+                        a = -RAD_90
+                    self.leadAngle = a
+
+                d = CCW if a > 0.0 else CW
+                aPt = aFwd + a
+
+                p0 = l.p0
+                x = leadInRadius * cos(aPt) + p0.x
+                y = leadInRadius * sin(aPt) + p0.y
+                point = newPoint((x, y))
+                self.draw.drawX(point)
+
+                aFwd = self.aFix(degrees(aFwd))
+                a = degrees(a)
+                aPt = degrees(aPt)
+                aEnd = self.aFix(aPt - 180)
+                aStr = self.aFix(aEnd - a)
+
+                if index is not None:
+                    txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f "
+                           "aStr %3.0f aEnd %3.0f %s" %
+                           (index, self.startType, self.dirType,
+                            aFwd, a, aPt, aStr, aEnd, oStr(d)))
+                else:
+                    txt = ("aFwd %3.0f aDiff %3.0f a %3.0f aPt %3.0f "
+                           "aStr %3.0f aEnd %3.0f %s" %
+                           (aFwd, aDiff, a, aPt, aStr, aEnd, oStr(d)))
+                dprt(txt)
+
+                self.draw.text(txt, point, 0.010)
+                if d == CCW:
+                    l1 = Arc(point, leadInRadius, aStr , aEnd, direction=d)
+                else:
+                    l1 = Arc(point, leadInRadius, aEnd , aStr, direction=d)
+        else:
+            d = self.endMillSize
+            l = seg[0]
             p0 = l.p0
-            x = r * cos(aPt) + p0.x
-            y = r * sin(aPt) + p0.y
-            point = newPoint((x, y))
-            self.draw.drawX(point)
-
-            aFwd = self.aFix(degrees(aFwd))
-            a = degrees(a)
-            aPt = degrees(aPt)
-            aEnd = self.aFix(aPt - 180)
-            aStr = self.aFix(aEnd - a)
-
-            if index is not None:
-                txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f "
-                       "aStr %3.0f aEnd %3.0f %s" %
-                       (index, self.startType, self.dirType,
-                        aFwd, a, aPt, aStr, aEnd, oStr(d)))
+            if l.lType == ARC:
+                a = self.arcAngleR(l.c, l.p0)
+                a += -RAD_90 if not l.swapped else RAD_90
             else:
-                txt = ("aFwd %3.0f aDiff %3.0f a %3.0f aPt %3.0f "
-                       "aStr %3.0f aEnd %3.0f %s" %
-                       (aFwd, aDiff, a, aPt, aStr, aEnd, oStr(d)))
-            dprt(txt)
+                p1 = l.p1
+                a = atan2(p0.y - p1.y, p0.x - p1.x)
+            x = d * cos(a) + p0.x
+            y = d * sin(a) + p0.y
+            l1 = Line((x, y), p0)
 
-            self.draw.text(txt, point, 0.010)
-            if d == CCW:
-                l1 = Arc(point, r, aStr , aEnd, direction=d)
-            else:
-                l1 = Arc(point, r, aEnd , aStr, direction=d)
-
-            # l = seg[0].extend(d, True)
-            seg.insert(0, l1)
+        seg.insert(0, l1)
 
     def addLeadOut(self, seg, dbg):
         l = seg[-1]
@@ -2036,97 +2085,110 @@ class Config():
             draw.line(l.p1)
             draw.drawX(l.p1)
 
-        radius1 = self.leadRadius	# lead out radius
-        if l.lType == ARC and radius1 != 0:
-            (cx, cy) = l.c		# arc center
-            radius0 = l.r		# current radius
+        leadOutRadius = self.leadOutRadius # lead out radius
+        if leadOutRadius != 0:
+            if l.lType == ARC:
+                (cx, cy) = l.c		# arc center
+                radius0 = l.r		# current radius
 
-            a0 = self.arcAngleR(l.c, l.p1)
-            if dbg:
-                a0x = l.a1		# angle to lead in center
-                draw.text(" O %3.0f %3.0f %s" %
-                          (degrees(a0), a0x, str(l.swapped)[0]),
-                          self.pOffset(l.p1, (0, 0.05)), 0.025)
-
-            cx1 = (radius0 + radius1) * cos(a0) + cx # lead center x
-            cy1 = (radius0 + radius1) * sin(a0) + cy # lead center y
-
-            txtP = (0, 0)
-            if dbg:
-                txtP = self.pOffset(l.c, ofs)
-            if not l.swapped:	# if clockwise
-                aStr = self.aFix(l.a1 + 90) # lead start angle
-                aEnd = self.aFix(aStr + 90) # lead end angle
+                a0 = self.arcAngleR(l.c, l.p1)
                 if dbg:
-                    draw.text(" 2 %3.0f %3.0f cw" %
-                              (aEnd, aStr), txtP, .025)
-                d = CW
-                l1 = Arc((cx1, cy1), radius1, aStr, aEnd, direction=d)
+                    a0x = l.a1		# angle to lead in center
+                    draw.text(" O %3.0f %3.0f %s" %
+                              (degrees(a0), a0x, str(l.swapped)[0]),
+                              self.pOffset(l.p1, (0, 0.05)), 0.025)
+
+                cx1 = (radius0 + leadOutRadius) * cos(a0) + cx # lead center x
+                cy1 = (radius0 + leadOutRadius) * sin(a0) + cy # lead center y
+
+                txtP = (0, 0)
+                if dbg:
+                    txtP = self.pOffset(l.c, ofs)
+                if not l.swapped:	# if clockwise
+                    aStr = self.aFix(l.a1 + 90) # lead start angle
+                    aEnd = self.aFix(aStr + 90) # lead end angle
+                    if dbg:
+                        draw.text(" 2 %3.0f %3.0f cw" %
+                                  (aEnd, aStr), txtP, .025)
+                    d = CW
+                    l1 = Arc((cx1, cy1), leadOutRadius, aStr, aEnd, direction=d)
+                else:
+                    aStr = self.aFix(l.a0 - 90) # lead start angle
+                    aEnd = self.aFix(aStr - 90) # lead end angle
+                    if dbg:
+                        draw.text(" 3 %3.0f %3.0f ccw" %
+                                  (aEnd, aStr), txtP, .025)
+                    d = CCW
+                    l1 = Arc((cx1, cy1), leadOutRadius, aEnd, aStr, direction=d)
+                seg.append(l1)
+
+                if dbg:
+                    dprt("\nlead out")
+                    l.prt()
+                    l1.prt()
             else:
-                aStr = self.aFix(l.a0 - 90) # lead start angle
-                aEnd = self.aFix(aStr - 90) # lead end angle
-                if dbg:
-                    draw.text(" 3 %3.0f %3.0f ccw" %
-                              (aEnd, aStr), txtP, .025)
-                d = CCW
-                l1 = Arc((cx1, cy1), radius1, aEnd, aStr, direction=d)
-            seg.append(l1)
+                aFwd = l.fwdAngle()
+                pathPoint = self.pathPoint
+                aDiff = 0
+                if pathPoint is None:
+                    index = self.startType * dirLen + self.dirType
+                    a = leadInAngle[index]
+                else:
+                    index = None
+                    # aPoint = self.arcAngleR(l.p0, pathPoint)
+                    # aDiff = self.aFix(degrees(aFwd - aPoint))
+                    # if (aDiff > 180) and (aDiff < 360):
+                    #     a = RAD_90
+                    # else:
+                    #     a = -RAD_90
+                    a = self.leadAngle
 
-            if dbg:
-                dprt("\nlead out")
-                l.prt()
-                l1.prt()
+                d = CCW if a > 0.0 else CW
+                aPt = aFwd + a
+
+                p0 = l.p1
+                x = leadOutRadius * cos(aPt) + p0.x
+                y = leadOutRadius * sin(aPt) + p0.y
+                point = newPoint((x, y))
+                self.draw.drawX(point)
+
+                aFwd = self.aFix(degrees(aFwd))
+                a = degrees(a)
+                aPt = degrees(aPt)
+                aStr = self.aFix(aPt - 180)
+                aEnd = self.aFix(aStr + a)
+
+                if index is not None:
+                    txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f "
+                           "aStr %3.0f aEnd %3.0f %s" %
+                           (index, self.startType, self.dirType,
+                            aFwd, a, aPt, aStr, aEnd, oStr(d)))
+                else:
+                    txt = ("aFwd %3.0f a %3.0f aPt %3.0f "
+                           "aStr %3.0f aEnd %3.0f %s" %
+                           (aFwd, a, aPt, aStr, aEnd, oStr(d)))
+                dprt(txt)
+
+                self.draw.text(txt, point, 0.010)
+                if d == CCW:
+                    l1 = Arc(point, leadOutRadius, aStr , aEnd, direction=d)
+                else:
+                    l1 = Arc(point, leadOutRadius, aEnd , aStr, direction=d)
         else:
-            aFwd = l.fwdAngle()
-            pathPoint = self.pathPoint
-            aDiff = 0
-            if pathPoint is None:
-                index = self.startType * dirLen + self.dirType
-                a = leadInAngle[index]
+            d = self.endMillSize
+            l = seg[-1]
+            p1 = l.p1
+            if l.lType == ARC:
+                a = self.arcAngleR(l.c, l.p1)
+                a += RAD_90 if not l.swapped else -RAD_90
             else:
-                index = None
-                # aPoint = self.arcAngleR(l.p0, pathPoint)
-                # aDiff = self.aFix(degrees(aFwd - aPoint))
-                # if (aDiff > 180) and (aDiff < 360):
-                #     a = RAD_90
-                # else:
-                #     a = -RAD_90
-                a = self.leadAngle
-            
-            d = CCW if a > 0.0 else CW
-            aPt = aFwd + a
+                p0 = l.p0
+                a = atan2(p1.y - p0.y, p1.x - p0.x)
+            x = d * cos(a) + p1.x
+            y = d * sin(a) + p1.y
+            l1 = Line(p1, (x, y))
 
-            r = self.leadRadius
-            p0 = l.p1
-            x = r * cos(aPt) + p0.x
-            y = r * sin(aPt) + p0.y
-            point = newPoint((x, y))
-            self.draw.drawX(point)
-
-            aFwd = self.aFix(degrees(aFwd))
-            a = degrees(a)
-            aPt = degrees(aPt)
-            aStr = self.aFix(aPt - 180)
-            aEnd = self.aFix(aStr + a)
-
-            if index is not None:
-                txt = ("%2d %d %d aFwd %3.0f a %3.0f aPt %3.0f "
-                       "aStr %3.0f aEnd %3.0f %s" %
-                       (index, self.startType, self.dirType,
-                        aFwd, a, aPt, aStr, aEnd, oStr(d)))
-            else:
-                txt = ("aFwd %3.0f a %3.0f aPt %3.0f "
-                       "aStr %3.0f aEnd %3.0f %s" %
-                       (aFwd, a, aPt, aStr, aEnd, oStr(d)))
-            dprt(txt)
-
-            self.draw.text(txt, point, 0.010)
-            if d == CCW:
-                l1 = Arc(point, r, aStr , aEnd, direction=d)
-            else:
-                l1 = Arc(point, r, aEnd , aStr, direction=d)
-
-            seg.append(l1)
+        seg.append(l1)
 
     def dxfOpen(self, args, dbg=False):
         layer = self.getLayer(args)
@@ -2191,7 +2253,7 @@ class Config():
                 for l in seg:
                     l.draw()
 
-           #  return
+            # return
 
             # points = self.points[0] if len(self.points) > 0 else None
             # point = self.openPoint(seg, dist)
@@ -3001,7 +3063,15 @@ class Config():
         mill.blankLine()
 
     def component(self, args):
-        self.closeFiles(None)
+        if self.draw is not None:
+            self.draw.close()
+            self.draw = None
+        if self.mill is not None:
+            self.mill.close()
+            self.mill = None
+            self.oVal = 100
+            self.mp = None
+            self.init = False
         # exp = r"^\w+\s+(\*|\d+)\s+(.*)$"
         exp = r"^\**\w+\s+(\*|[\d\.]+)\s+-?\s*([\w \.-]*)\s*,?\s*(.*)$"
         match = re.match(exp, args[0])
@@ -3854,7 +3924,7 @@ class Dxf():
         dprt("\n" "object min max size")
         minMax = self.minMax
         dprt("xMin %7.4f yMin %7.4f" % (minMax.xMin, minMax.yMin))
-        dprt("xMax %7.4f yMax %7.rf" % (minMax.xMax, minMax.yMax))
+        dprt("xMax %7.4f yMax %7.4f" % (minMax.xMax, minMax.yMax))
         self.xSize = minMax.xMax - minMax.xMin
         self.ySize = minMax.yMax - minMax.yMin
         dprt("xSize %5.3f ySize %6.3f" % (self.xSize, self.ySize))
@@ -4282,35 +4352,34 @@ class Dxf():
             if tmp == "construction":
                 continue
             if tmp == "continuous":
-                # if dxfType == "MTEXT":
-                #     dprt("mtext")
                 continue
 
-            if dxfType == 'LINE':
-                p0 = self.fix((e.get_dxf_attrib("start")[0], \
-                               e.get_dxf_attrib("start")[1]))
-                p1 = self.fix((e.get_dxf_attrib("end")[0], \
-                               e.get_dxf_attrib("end")[1]))
+            if tmp == "visible":
+                if dxfType == 'LINE':
+                    p0 = self.fix((e.get_dxf_attrib("start")[0], \
+                                   e.get_dxf_attrib("start")[1]))
+                    p1 = self.fix((e.get_dxf_attrib("end")[0], \
+                                   e.get_dxf_attrib("end")[1]))
 
-                draw.lineDxf(p0, p1, layer)
+                    draw.lineDxf(p0, p1, layer)
 
-            elif dxfType == 'ARC':
-                xCen = e.get_dxf_attrib("center")[0]
-                yCen = e.get_dxf_attrib("center")[1]
-                center = self.fix((xCen, yCen))
-                radius = e.get_dxf_attrib("radius")
-                startAngle = e.get_dxf_attrib("start_angle")
-                endAngle = e.get_dxf_attrib("end_angle")
+                elif dxfType == 'ARC':
+                    xCen = e.get_dxf_attrib("center")[0]
+                    yCen = e.get_dxf_attrib("center")[1]
+                    center = self.fix((xCen, yCen))
+                    radius = e.get_dxf_attrib("radius")
+                    startAngle = e.get_dxf_attrib("start_angle")
+                    endAngle = e.get_dxf_attrib("end_angle")
 
-                draw.arcDxf(center, radius, startAngle, endAngle, layer)
+                    draw.arcDxf(center, radius, startAngle, endAngle, layer)
 
-            elif dxfType == 'CIRCLE':
-                xCen = e.get_dxf_attrib("center")[0]
-                yCen = e.get_dxf_attrib("center")[1]
-                p = self.fix((xCen, yCen))
-                radius = e.get_dxf_attrib("radius")
+                elif dxfType == 'CIRCLE':
+                    xCen = e.get_dxf_attrib("center")[0]
+                    yCen = e.get_dxf_attrib("center")[1]
+                    p = self.fix((xCen, yCen))
+                    radius = e.get_dxf_attrib("radius")
 
-                draw.circleDxf(p, radius, layer)
+                    draw.circleDxf(p, radius, layer)
 
     def getPathByLimits(self, circle=False, dbg=True, rand=False):
         if dbg:
@@ -4330,7 +4399,8 @@ class Dxf():
         if dbg:
             dprt("min (%8.4f, %8.4f) max (%8.4f, %8.4f)\n" %
                  (xMinLimit, yMinLimit, xMaxLimit, yMaxLimit))
-            # self.cfg.draw.rectangle(xMinLimit, yMinLimit, xMaxLimit, yMaxLimit)
+            # self.cfg.draw.rectangle(xMinLimit, yMinLimit, xMaxLimit, yMaxLimit,
+            #                         layer="Select")
         linNum = 0
         entities = []
         cfg = self.cfg
